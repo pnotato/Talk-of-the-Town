@@ -2,7 +2,7 @@
 -include .env
 export
 
-.PHONY: dev server web build test check fmt
+.PHONY: dev server web build test check fmt types
 
 # Go server + Vite dev server together (Ctrl-C stops both).
 dev:
@@ -26,9 +26,19 @@ check:
 	@test -z "$$(gofmt -l .)" || { gofmt -l .; echo "run: make fmt"; exit 1; }
 	go vet ./...
 	go test ./...
+	@mkdir -p bin && go run ./cmd/gentypes $(TYPES_TMP) && diff -u $(TYPES_TS) $(TYPES_TMP) >/dev/null \
+		|| { diff -u $(TYPES_TS) $(TYPES_TMP); rm -f $(TYPES_TMP); echo "$(TYPES_TS) is stale; run: make types"; exit 1; }
+	@rm -f $(TYPES_TMP)
 	npm --prefix web run typecheck
 	npm --prefix web run lint
 	npm --prefix web run format:check
+
+TYPES_TS  := web/src/generated/types.ts
+TYPES_TMP := bin/.types.tmp.ts
+
+# Regenerate the TS types from internal/sim. Commit the result.
+types:
+	go run ./cmd/gentypes $(TYPES_TS)
 
 fmt:
 	gofmt -w .
