@@ -112,9 +112,8 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
 // MODEL.md#worked-example, steps 1–6. Steps 7–8 (shipping) belong to #15.
 func TestWorkedExample(t *testing.T) {
-	ada := Blob{ID: 0, Shape: ShapeTriangle, Age: 40, Traits: []Trait{TraitCharismatic}, FamilyID: NoFamily, HomeID: 0, NeighbourhoodID: 0}
+	ada := Blob{ID: 0, Shape: ShapeSquare, Age: 40, Traits: []Trait{TraitCharismatic}, FamilyID: NoFamily, HomeID: 0, NeighbourhoodID: 0}
 	bo := Blob{ID: 1, Shape: ShapeSquare, Age: 30, Traits: []Trait{TraitGullible}, FamilyID: NoFamily, HomeID: 1, NeighbourhoodID: 1}
-	ada.Shape = ShapeSquare
 	st := NewState(Town{Blobs: []Blob{ada, bo}}, StubBrain{})
 	st.blobs[0] = blobState{perception: 60, interest: 40, heard: 90, hasHeard: true, sources: map[int]bool{-1: true}}
 	st.blobs[1] = blobState{perception: 50, interest: 20, heard: 88, hasHeard: true, sources: map[int]bool{7: true}}
@@ -247,5 +246,40 @@ func TestDecay(t *testing.T) {
 	r := NewState(town, StubBrain{}).Step(NewRNG(1))
 	if r.Interest[0] != 48.8 || r.Perception[0] != 50 { // MODEL.md#decay: 50 + 0.03×(10−50)
 		t.Fatalf("got interest %v perception %v", r.Interest[0], r.Perception[0])
+	}
+}
+
+func TestAnnounceReachesLeaders(t *testing.T) {
+	for seed := uint64(1); seed <= 20; seed++ {
+		rng := NewRNG(seed)
+		st := NewState(NewTown(rng), StubBrain{})
+		st.announce(50, rng)
+		for i, b := range st.Town.Blobs {
+			if hasTag(b, TraitLeader) && (!st.blobs[i].hasHeard || !st.blobs[i].sources[CompanyID]) {
+				t.Fatalf("seed %d: leader %d not reached", seed, i)
+			}
+		}
+	}
+}
+
+func TestEventSlicesNeverNull(t *testing.T) {
+	// A post in a 1-blob town has 0 readers.
+	town := Town{Blobs: []Blob{{ID: 0, Age: 40, Shape: ShapeCircle, Traits: []Trait{TraitRecluse}, FamilyID: NoFamily}}}
+	st := NewState(town, StubBrain{})
+	st.blobs[0] = blobState{perception: 100, interest: 100, heard: 50, hasHeard: true, sources: map[int]bool{}}
+	rng := NewRNG(1)
+	for range 20 {
+		for _, e := range st.Step(rng).Events {
+			j, _ := json.Marshal(e)
+			if bytes.Contains(j, []byte("null")) {
+				t.Fatalf("null in %s", j)
+			}
+		}
+	}
+}
+
+func TestMaxSeed(t *testing.T) {
+	if MaxSeed != 1<<53-1 || float64(MaxSeed) != 9007199254740991 {
+		t.Fatalf("MaxSeed = %d", uint64(MaxSeed))
 	}
 }
