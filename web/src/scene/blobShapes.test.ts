@@ -37,6 +37,12 @@ describe("blobScale", () => {
     assert.ok(stockiness(elder) >= 1.1, `elder width/height ${stockiness(elder).toFixed(2)}`);
   });
 
+  test("keeps children clearly smallest and elders only about 1.1 times an adult", () => {
+    assert.ok(child[1] <= 0.7, `child height ${child[1]}`);
+    const elderSize = Math.sqrt(elder[0] * elder[1]); // geometric mean of width and height
+    assert.ok(elderSize >= 1.05 && elderSize <= 1.15, `elder size ${elderSize.toFixed(3)}`);
+  });
+
   test("keeps every footprint round or square: width equals depth", () => {
     for (const scale of [child, adult, elder]) assert.equal(scale[0], scale[2]);
   });

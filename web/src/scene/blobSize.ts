@@ -11,14 +11,13 @@ export function ageGroup(age: number): AgeGroup {
   return "elder";
 }
 
-// Size is age: a blob grows with each band, as in docs/blobs.png. Children are 60% of an adult,
-// clearly the smallest. Elders are 14% taller but 32% wider, so they are stockier as well as
-// bigger: that change in proportion survives perspective, which in the town can make a near adult
-// look as big as a far elder.
+// Size is age. Children are 60% of an adult, clearly the smallest. Elders are only a little bigger
+// (about 1.1 overall), which perspective can cancel when an elder stands a row behind an adult. So
+// the elder cue is mostly proportion: 20% wider but only 5% taller, a stockier blob at any distance.
 const SCALE: Record<AgeGroup, Readonly<Vector3Tuple>> = {
   child: [0.6, 0.6, 0.6],
   adult: [1, 1, 1],
-  elder: [1.32, 1.14, 1.32],
+  elder: [1.2, 1.05, 1.2],
 };
 
 /** Width, height and depth multipliers applied to a blob's adult-sized geometry. */
