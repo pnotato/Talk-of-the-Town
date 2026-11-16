@@ -1,6 +1,6 @@
-import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
-import { type Camera, DirectionalLight, type EventDispatcher, Vector3 } from "three";
+import { useFrame } from "@react-three/fiber";
+import { useMemo, useRef } from "react";
+import { type Camera, DirectionalLight, Matrix4, Vector3 } from "three";
 import { TOWN_HEIGHT, TREE_RADIUS, type TownLayout } from "./layoutTown.ts";
 
 const SKY_LIGHT = "#e3eef7";
@@ -169,27 +169,27 @@ export function TownLights({ layout }: { layout: TownLayout }) {
     return { centre, radius: Math.hypot(reach, TOWN_HEIGHT) };
   }, [layout]);
 
-  // Refit only when the view changes: the controls move, the window resizes or the town
-  // changes.
-  const controls = useThree((s) => s.controls) as EventDispatcher<{ change: object }> | null;
-  const size = useThree((s) => s.size);
-  const stale = useRef(true);
-  useEffect(() => {
-    stale.current = true;
-    if (!controls) return;
-    const refit = () => {
-      stale.current = true;
-    };
-    controls.addEventListener("change", refit);
-    return () => controls.removeEventListener("change", refit);
-  }, [controls, town, size]);
+  // Refit only when the view has changed since the last fit. Comparing matrices rather than
+  // listening for the controls' "change" also catches resizes and the last of the damping,
+  // which the controls stop reporting below 1e-3 per frame.
+  const fitted = useMemo(() => ({ view: new Matrix4(), projection: new Matrix4() }), []);
+  const fittedTown = useRef<Sphere>(null);
 
   // Default priority runs after the controls' own update (and the camera's target clamp),
   // and before this frame renders.
   useFrame(({ camera }) => {
-    if (!stale.current || !sun.current) return;
-    stale.current = false;
+    if (!sun.current) return;
     camera.updateMatrixWorld();
+    if (
+      fittedTown.current === town &&
+      fitted.view.equals(camera.matrixWorld) &&
+      fitted.projection.equals(camera.projectionMatrix)
+    ) {
+      return;
+    }
+    fittedTown.current = town;
+    fitted.view.copy(camera.matrixWorld);
+    fitted.projection.copy(camera.projectionMatrix);
     fitShadow(sun.current, camera, town);
   });
 
