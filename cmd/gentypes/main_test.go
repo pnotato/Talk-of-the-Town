@@ -56,7 +56,7 @@ export interface inner {
 }
 
 func TestLongUnionWraps(t *testing.T) {
-	vals := []string{"aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc", "dddddddddd", "eeeeeeeeee", "ffffffffff"}
+	vals := []string{"aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc", "dddddddddd", "eeeeeeeeee", "ffffffffff", "gggggggggg", "hhhhhhhhhh"}
 	got, err := generate(nil, []enum{{reflect.TypeFor[color](), vals}})
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,9 @@ export type color =
   | "cccccccccc"
   | "dddddddddd"
   | "eeeeeeeeee"
-  | "ffffffffff";
+  | "ffffffffff"
+  | "gggggggggg"
+  | "hhhhhhhhhh";
 `
 	if got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
