@@ -11,3 +11,7 @@ const rngStream = 0x746f74 // "tot"
 func NewRNG(seed uint64) *rand.Rand {
 	return rand.New(rand.NewPCG(seed, rngStream))
 }
+
+// MaxSeed is the largest seed JS can hold exactly (2^53 - 1). Handlers must
+// reject larger seeds, since RunLog.Seed is a JSON number.
+const MaxSeed = 1<<53 - 1

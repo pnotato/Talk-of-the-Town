@@ -20,6 +20,12 @@ export interface Town {
   homes: Home[];
 }
 
+export interface RunLog {
+  seed: number;
+  town: Town;
+  rounds: Round[];
+}
+
 export interface Blob {
   id: number;
   name: string;
@@ -45,4 +51,22 @@ export interface Home {
   neighbourhoodId: number;
   familyId: number;
   residents: number[];
+}
+
+export interface Round {
+  i: number;
+  events: RunEvent[];
+  perception: number[];
+  interest: number[];
+  avgPerception: number;
+  avgInterest: number;
+}
+
+export interface RunEvent {
+  f: number;
+  to: number[];
+  p: boolean;
+  c: number;
+  dp: number[];
+  di: number[];
 }
