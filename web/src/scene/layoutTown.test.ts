@@ -127,13 +127,13 @@ function onPath(p: Point, path: TownPath): boolean {
 
 function inBounds(layout: TownLayout, p: Point): boolean {
   const b = layout.bounds;
-  return (
-    p.x >= b.minX - EPS && p.x <= b.maxX + EPS && p.z >= b.minZ - EPS && p.z <= b.maxZ + EPS
-  );
+  return p.x >= b.minX - EPS && p.x <= b.maxX + EPS && p.z >= b.minZ - EPS && p.z <= b.maxZ + EPS;
 }
 
 function discInBounds(layout: TownLayout, c: Point, r: number): boolean {
-  return inBounds(layout, { x: c.x - r, z: c.z - r }) && inBounds(layout, { x: c.x + r, z: c.z + r });
+  return (
+    inBounds(layout, { x: c.x - r, z: c.z - r }) && inBounds(layout, { x: c.x + r, z: c.z + r })
+  );
 }
 
 describe("layoutTown", () => {
@@ -276,7 +276,9 @@ describe("layoutTown", () => {
         for (const p of paths) {
           if (p.kind === "ring") assert.ok(discInBounds(layout, p, p.radius + p.width / 2));
           else
-            assert.ok(inBounds(layout, { x: p.x1, z: p.z1 }) && inBounds(layout, { x: p.x2, z: p.z2 }));
+            assert.ok(
+              inBounds(layout, { x: p.x1, z: p.z1 }) && inBounds(layout, { x: p.x2, z: p.z2 }),
+            );
         }
       });
     });
