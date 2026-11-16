@@ -291,6 +291,9 @@ func (s *State) partner(a int, rng *rand.Rand) int {
 			pick(A.Shape == B.Shape, WeightSameShape, 1)
 		total += w[i]
 	}
+	if total == 0 {
+		return -1 // no eligible partner; no rng draw
+	}
 	x := rng.Float64() * total
 	last := -1
 	for i, wi := range w {
@@ -375,7 +378,12 @@ func (s *State) Step(rng *rand.Rand) Round {
 		if post {
 			ch, to = ChannelPost, s.readers(i, rng)
 		} else {
-			to = []int{s.partner(i, rng)}
+			p := s.partner(i, rng)
+			if p < 0 {
+				// Nobody to talk to (only self and recluses): idle. Draws already made stay made.
+				continue
+			}
+			to = []int{p}
 		}
 		listener := NoListener
 		if !post {
