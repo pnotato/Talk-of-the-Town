@@ -100,6 +100,8 @@ func TestRunBadRequests(t *testing.T) {
 		"wrong moment":   `{"seed":1,"choices":["m1-honest"]}`,
 		"too many":       `{"seed":1,"choices":["m0-honest","m1-honest","m2-honest","m3-honest","m4-honest","m4-honest"]}`,
 		"trailing data":  `{"seed":1,"choices":[]} {}`,
+		"trailing brace": `{"seed":1,"choices":[]}}`,
+		"trailing brack": `{"seed":1,"choices":[]}]`,
 		"too big":        `{"seed":1,"choices":["` + strings.Repeat("a", 5000) + `"]}`,
 	} {
 		t.Run(name, func(t *testing.T) {

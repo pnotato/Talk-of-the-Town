@@ -4,6 +4,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -74,7 +75,7 @@ func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Bra
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
 	var req runRequest
-	if err := dec.Decode(&req); err != nil || dec.More() {
+	if err := dec.Decode(&req); err != nil || dec.Decode(&struct{}{}) != io.EOF {
 		writeError(w, http.StatusBadRequest, "body must be {\"seed\": n, \"choices\": [option ids]}")
 		return
 	}
