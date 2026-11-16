@@ -322,9 +322,9 @@ func (s *State) readers(sp int, rng *rand.Rand) []int {
 	return pool[:n]
 }
 
-// Event is one talk (one listener) or post (several readers). JSON keys are
+// RunEvent is one talk (one listener) or post (several readers). JSON keys are
 // short because the whole log goes to the browser.
-type Event struct {
+type RunEvent struct {
 	From  int       `json:"f"`
 	To    []int     `json:"to"`
 	Post  bool      `json:"p"`
@@ -336,12 +336,12 @@ type Event struct {
 // Round is one played round. Perception/Interest are indexed by blob id,
 // after decay. Score values are rounded to 0.1 for the log only.
 type Round struct {
-	Index         int       `json:"i"`
-	Events        []Event   `json:"events"`
-	Perception    []float64 `json:"perception"`
-	Interest      []float64 `json:"interest"`
-	AvgPerception float64   `json:"avgPerception"`
-	AvgInterest   float64   `json:"avgInterest"`
+	Index         int        `json:"i"`
+	Events        []RunEvent `json:"events"`
+	Perception    []float64  `json:"perception"`
+	Interest      []float64  `json:"interest"`
+	AvgPerception float64    `json:"avgPerception"`
+	AvgInterest   float64    `json:"avgInterest"`
 }
 
 // RunLog is the replay contract with the client.
@@ -361,7 +361,7 @@ func round1(x float64) float64 { return math.Round(x*10) / 10 }
 // Step plays one round: actions by id, then decay, then records scores.
 // Announce and ship (#15) run on the State before Step, per MODEL.md#round-order.
 func (s *State) Step(rng *rand.Rand) Round {
-	r := Round{Index: s.Round, Events: []Event{}}
+	r := Round{Index: s.Round, Events: []RunEvent{}}
 	for i, B := range s.Town.Blobs {
 		b := s.blobs[i]
 		if !b.hasHeard || rng.Float64() >= s.pActive(i) {
@@ -383,7 +383,7 @@ func (s *State) Step(rng *rand.Rand) Round {
 		}
 		c := s.brain.Retell(Retelling{Teller: i, Listener: listener, TellerPerception: b.perception, Heard: b.heard, Channel: ch}).Strength
 		tone := retellTone(b.perception, c)
-		e := Event{From: i, To: to, Post: post, Claim: round1(c)}
+		e := RunEvent{From: i, To: to, Post: post, Claim: round1(c)}
 		for _, l := range to {
 			p0, i0 := s.blobs[l].perception, s.blobs[l].interest
 			s.hear(l, i, c, tone, ch)
