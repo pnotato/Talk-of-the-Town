@@ -1,0 +1,60 @@
+{
+  "label": "SIMULATED",
+  "company": {
+    "name": "Tallowick AI",
+    "tagline": "A fictional AI company. Not a real business."
+  },
+  "moments": [
+    {
+      "id": "m0-assistant",
+      "round": 0,
+      "feature": "Wick, a chat assistant for everyday questions",
+      "options": [
+        { "id": "m0-honest", "headline": "Tallowick launches Wick, a chat assistant in beta", "text": "Wick answers everyday questions and drafts short emails. It still makes mistakes, so check anything important.", "claimed": 40, "delivered": 40 },
+        { "id": "m0-upbeat", "headline": "Meet Wick: your smart new helper", "text": "Wick handles your questions and emails so you can get on with your day.", "claimed": 55, "delivered": 40 },
+        { "id": "m0-bold", "headline": "Wick is the last assistant you will ever need", "text": "A revolutionary AI that knows everything and never gets it wrong. The future starts today.", "claimed": 85, "delivered": 40 }
+      ]
+    },
+    {
+      "id": "m1-health",
+      "round": 10,
+      "feature": "Symptom notes that help people prepare for a doctor visit",
+      "options": [
+        { "id": "m1-modest", "headline": "Wick can now help you write down symptoms", "text": "Wick turns your notes into a short summary to bring to your doctor. It does not give diagnoses.", "claimed": 30, "delivered": 45 },
+        { "id": "m1-honest", "headline": "Wick Health Notes: get ready for your appointment", "text": "Describe how you feel and Wick organizes it for your doctor. It is a notepad, not medical advice.", "claimed": 45, "delivered": 45 },
+        { "id": "m1-bold", "headline": "Wick Health replaces your doctor", "text": "Why wait weeks for an appointment? Wick diagnoses you in seconds, with doctor-level accuracy.", "claimed": 90, "delivered": 45 }
+      ]
+    },
+    {
+      "id": "m2-school",
+      "round": 20,
+      "feature": "Homework helper that explains maths step by step",
+      "options": [
+        { "id": "m2-honest", "headline": "Wick explains maths homework step by step", "text": "Wick walks students through practice problems. It works best for grades 5 to 9.", "claimed": 50, "delivered": 50 },
+        { "id": "m2-upbeat", "headline": "Wick Tutor makes maths click", "text": "Stuck on homework? Wick Tutor explains it until it makes sense.", "claimed": 65, "delivered": 50 },
+        { "id": "m2-bold", "headline": "Every child a genius: Wick guarantees A grades", "text": "Studies show kids using Wick ace every test. Teachers are already obsolete.", "claimed": 95, "delivered": 50 }
+      ]
+    },
+    {
+      "id": "m3-privacy",
+      "round": 30,
+      "feature": "On-device mode that keeps chats on your phone",
+      "options": [
+        { "id": "m3-modest", "headline": "New option keeps some Wick chats on your phone", "text": "Short chats can now stay on your device. Longer tasks still use our servers.", "claimed": 45, "delivered": 60 },
+        { "id": "m3-honest", "headline": "Wick Local: chats that stay on your device", "text": "Turn on Wick Local and everyday chats never leave your phone. Big tasks still need the cloud.", "claimed": 60, "delivered": 60 },
+        { "id": "m3-upbeat", "headline": "Wick is now private by design", "text": "Your data is yours. Wick keeps your conversations safe.", "claimed": 75, "delivered": 60 },
+        { "id": "m3-bold", "headline": "100% private, 100% unhackable", "text": "Military-grade AI security means nobody, not even us, can ever see your data. Guaranteed.", "claimed": 95, "delivered": 60 }
+      ]
+    },
+    {
+      "id": "m4-agent",
+      "round": 40,
+      "feature": "Wick can book appointments and fill in simple forms",
+      "options": [
+        { "id": "m4-honest", "headline": "Wick can now book appointments for you", "text": "Wick fills in simple booking forms and asks you to confirm before it sends anything.", "claimed": 70, "delivered": 70 },
+        { "id": "m4-upbeat", "headline": "Wick does your errands while you relax", "text": "Bookings, forms and reminders, handled by Wick.", "claimed": 80, "delivered": 70 },
+        { "id": "m4-bold", "headline": "Wick runs your whole life. You just live it", "text": "The first AI that truly thinks for itself. Hand over your inbox, your bank and your calendar.", "claimed": 100, "delivered": 70 }
+      ]
+    }
+  ]
+}
