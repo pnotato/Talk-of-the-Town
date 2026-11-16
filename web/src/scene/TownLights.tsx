@@ -61,7 +61,7 @@ export function TownLights({ layout }: { layout: TownLayout }) {
         // the walls; checked close up at the lowest camera angle.
         shadow-bias={-0.0004}
         shadow-normalBias={0.03}
-        shadow-radius={2.5}
+        shadow-radius={1.5}
       />
     </>
   );
