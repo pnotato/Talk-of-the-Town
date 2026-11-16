@@ -311,7 +311,7 @@ Modifiers, applied after the table, then `clamp(t, 0.75, 3.0)`:
 - Child listener (0–17) hearing their own parent: × 2.0 [4], [5].
 - Elder listener (65+): × 1.2 [6]. This is trust, not credulity ([BLOBS.md](./BLOBS.md#age)).
 - Company as speaker (`-1`): trust 1.0 for everyone *(design)*.
-- "Everyone else" values are chosen so each shape's town-average trust is near 1.0 *(design)*. Shape sets **who** is trusted, not **how much**. `cmd/calibrate` must report mean trust per shape; flag any shape outside 0.9–1.1.
+- "Everyone else" values are chosen so each shape's town-average trust is near 1.0 *(design)*. Shape sets **who** is trusted, not **how much**. Follow-up (no issue yet): a calibration check should report mean trust per shape and flag any shape outside 0.9–1.1.
 
 ## Influence
 
@@ -455,7 +455,7 @@ A Python prototype of the rules above (not the Go engine) was run on 5 seeds (1�
 - Bold raises interest faster (35 vs 26 at round 5) and is liked at first, then loses perception at each ship.
 - Under-promising wins perception; bold wins interest. Matches [BLOBS.md](./BLOBS.md#interactions).
 - No saturation: in the harshest case (bold, 5 broken promises) at most 1 of 100 blobs ends at perception ≤ 1, and no blob has interest ≤ 1 or ≥ 99.
-- These are design checks, not calibration. `cmd/calibrate` must reproduce them on the Go engine with fixed seeds before any number here is called calibrated.
+- These are design checks, not calibration. They were checked on a Python prototype only; the Go engine should reproduce them with fixed seeds (follow-up, no issue yet) before any number here is called calibrated.
 
 ## Worked example
 
