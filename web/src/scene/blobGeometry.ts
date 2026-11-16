@@ -20,9 +20,11 @@ export const SHAPES: readonly Shape[] = ["square", "circle", "triangle", "star",
 
 const RADIAL_SEGMENTS = 48;
 
-// Adult heights in world units, tuned by eye so every silhouette carries a similar visual mass:
-// the solid cube stands shorter, the sparser cone and star stand taller.
-const ADULT_HEIGHT: Record<Shape, number> = {
+/**
+ * Adult height of each shape in world units, tuned by eye so every silhouette carries a similar
+ * visual mass: the solid cube stands shorter, the sparser cone and star stand taller.
+ */
+export const ADULT_HEIGHT: Record<Shape, number> = {
   square: 0.86,
   circle: 0.96,
   triangle: 1.14,
