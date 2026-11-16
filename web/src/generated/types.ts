@@ -21,9 +21,13 @@ export interface Town {
 }
 
 export interface RunLog {
+  label: string;
+  company: string;
   seed: number;
   town: Town;
   rounds: Round[];
+  moments: MomentLog[];
+  next: Pending | null;
 }
 
 export interface Blob {
@@ -62,6 +66,25 @@ export interface Round {
   avgInterest: number;
 }
 
+export interface MomentLog {
+  id: string;
+  round: number;
+  optionId: string;
+  headline: string;
+  claimed: number;
+  delivered: number;
+  shipped: boolean;
+  broken: boolean;
+  credibility: number;
+}
+
+export interface Pending {
+  id: string;
+  round: number;
+  feature: string;
+  options: Option[];
+}
+
 export interface RunEvent {
   f: number;
   to: number[];
@@ -69,4 +92,12 @@ export interface RunEvent {
   c: number;
   dp: number[];
   di: number[];
+}
+
+export interface Option {
+  id: string;
+  headline: string;
+  text: string;
+  claimed: number;
+  delivered: number;
 }
