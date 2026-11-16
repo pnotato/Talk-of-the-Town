@@ -69,17 +69,17 @@ The **RunLog JSON** is the contract between Go and TS. Go structs in `internal/s
   Do all work inside that worktree, push the branch, and open a PR with `gh pr create`.
 - **One task per branch and PR.** Keep PRs small and reviewable. Don't touch files outside your task.
 - Stage only the files you changed. Leave other uncommitted work alone.
-- Before pushing, run the checks (`make check` once it exists: gofmt, go vet, go test, tsc, lint, prettier). Write tests first for sim logic.
+- Before pushing, run the checks (`make check`). Write tests first for sim logic.
 - Remove your worktree after the PR is merged or closed (`git worktree remove ../tot-<short-slug>`).
 
 ## Commands
 
-Not scaffolded yet. Target:
-
 ```
 make dev     # Go server on :8080 + Vite on :5173 (proxies /api)
-make check   # Must pass before a PR is ready
+make check   # gofmt, go vet, go test, tsc, oxlint, prettier. Must pass before a PR is ready
 make fmt
 make test
-make build
+make build   # web/dist + bin/server; ./bin/server then serves everything on :8080
 ```
+
+`make` loads `.env` (copy from `.env.example`). Go 1.26, Node 26.
