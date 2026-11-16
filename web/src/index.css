@@ -1,0 +1,13 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, sans-serif;
+}
+
+.status {
+  position: absolute;
+  margin: 12px;
+  z-index: 1;
+}
