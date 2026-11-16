@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"talkofthetown/internal/server"
+	"talkofthetown/internal/sim"
 )
 
 func main() {
@@ -14,7 +15,11 @@ func main() {
 	if _, err := os.Stat("web/dist"); err == nil {
 		static = http.FileServer(http.Dir("web/dist"))
 	}
+	cfg, err := server.ConfigFromEnv()
+	if err != nil {
+		log.Fatal(err)
+	}
 	addr := ":8080"
 	log.Printf("listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, server.New(static)))
+	log.Fatal(http.ListenAndServe(addr, server.New(cfg, sim.StubBrain{}, static)))
 }
