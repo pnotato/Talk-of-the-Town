@@ -10,12 +10,15 @@ import {
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
 
-/** A blob's culture (docs/BLOBS.md). Colour will carry scores, so the silhouette alone must tell these apart. */
+/**
+ * A blob's culture (docs/BLOBS.md). Colour will carry scores, so the silhouette alone must tell
+ * these apart.
+ */
 export type Shape = "square" | "circle" | "triangle" | "star" | "tear" | "capsule";
 
 export const SHAPES: readonly Shape[] = ["square", "circle", "triangle", "star", "tear", "capsule"];
 
-const RADIAL_SEGMENTS = 64;
+const RADIAL_SEGMENTS = 48;
 
 // Adult heights in world units, tuned by eye so every silhouette carries a similar visual mass:
 // the solid cube stands shorter, the sparser cone and star stand taller.
@@ -67,8 +70,8 @@ function softCone(): BufferGeometry {
   const centre = new Vector2(0, 0);
   const rim = new Vector2(0.5, 0);
   const apex = new Vector2(0, 1.1);
-  // The tip is the corner between the slope and its mirror image. The arc is symmetric about the
-  // axis, so its first half runs from the slope to the very top.
+  // The tip is the corner between the slope and its mirror image. That arc is symmetric about the
+  // axis, so its first half (points 0 to 8 of 16 steps) runs from the slope to the very top.
   const tip = roundCorner(rim, apex, new Vector2(-rim.x, rim.y), 0.07, 16).slice(0, 9);
   return new LatheGeometry(
     [centre, ...roundCorner(centre, rim, apex, 0.1), ...tip],
@@ -78,7 +81,7 @@ function softCone(): BufferGeometry {
 
 /** Lathe of the teardrop curve r = sin t · sin(t/2)^1.5, tip up: round bottom, then a tapered point. */
 function teardrop(): BufferGeometry {
-  const steps = 64;
+  const steps = 48;
   const profile = Array.from({ length: steps + 1 }, (_, i) => {
     const t = Math.PI * (1 - i / steps);
     return new Vector2(0.62 * Math.sin(t) * Math.sin(t / 2) ** 1.5, (1 + Math.cos(t)) / 2);
@@ -121,10 +124,10 @@ function puffyStar(): BufferGeometry {
  * the y axis, faces +z and is at adult size.
  */
 export const BLOB_GEOMETRY: Record<Shape, BufferGeometry> = {
-  square: standOnGround(new RoundedBoxGeometry(1, 1, 1, 6, 0.16), ADULT_HEIGHT.square),
-  circle: standOnGround(new SphereGeometry(0.5, 64, 40), ADULT_HEIGHT.circle),
+  square: standOnGround(new RoundedBoxGeometry(1, 1, 1, 5, 0.16), ADULT_HEIGHT.square),
+  circle: standOnGround(new SphereGeometry(0.5, 48, 32), ADULT_HEIGHT.circle),
   triangle: standOnGround(softCone(), ADULT_HEIGHT.triangle),
   star: standOnGround(puffyStar(), ADULT_HEIGHT.star),
   tear: standOnGround(teardrop(), ADULT_HEIGHT.tear),
-  capsule: standOnGround(new CapsuleGeometry(0.36, 0.36, 16, 48), ADULT_HEIGHT.capsule),
+  capsule: standOnGround(new CapsuleGeometry(0.36, 0.36, 12, 48), ADULT_HEIGHT.capsule),
 };
