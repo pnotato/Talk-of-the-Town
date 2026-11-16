@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	"talkofthetown/internal/sim/content"
 )
 
 var (
@@ -64,6 +66,11 @@ func TestRunPartial(t *testing.T) {
 	b, _ := json.Marshal(mustRun(t, 3, allHonest).Rounds[:20])
 	if !bytes.Equal(a, b) {
 		t.Fatal("partial run is not a prefix of the full run")
+	}
+	a, _ = json.Marshal(mustRun(t, 3, allHonest[:2]).Moments)
+	b, _ = json.Marshal(mustRun(t, 3, allHonest).Moments[:2])
+	if !bytes.Equal(a, b) {
+		t.Fatal("partial moments are not a prefix of the full run")
 	}
 }
 
@@ -144,5 +151,44 @@ func TestCredibilityFloor(t *testing.T) {
 	}
 	if st.Credibility != CredFloor {
 		t.Fatalf("cred = %v", st.Credibility)
+	}
+}
+
+func TestShipRounds(t *testing.T) {
+	for k, m := range mustRun(t, 2, allBold).Moments {
+		if m.ShippedRound != k*10+8 {
+			t.Fatalf("moment %d shipped at %d", k, m.ShippedRound)
+		}
+	}
+	if m := mustRun(t, 2, allBold[:1]).Moments[0]; !m.Shipped || m.ShippedRound != 8 {
+		t.Fatalf("%+v", m)
+	}
+}
+
+// The bold ship lands at round 8: perception drops between Rounds[7] and Rounds[8].
+func TestBoldShipDropsAtRound8(t *testing.T) {
+	var drop7, drop8 float64
+	for seed := uint64(1); seed <= 5; seed++ {
+		r := mustRun(t, seed, allBold[:1]).Rounds
+		drop7 += r[6].AvgPerception - r[7].AvgPerception
+		drop8 += r[7].AvgPerception - r[8].AvgPerception
+	}
+	if drop8 < 5*5 || drop8 <= drop7 {
+		t.Fatalf("mean drop r7->r8 = %v, r6->r7 = %v", drop8/5, drop7/5)
+	}
+}
+
+func TestRunRejectsBadContent(t *testing.T) {
+	good, err := content.LoadAnnouncements()
+	if err != nil {
+		t.Fatal(err)
+	}
+	noLabel, short := good, good
+	noLabel.Label = "REAL"
+	short.Moments = good.Moments[:2]
+	for name, a := range map[string]content.Announcements{"label": noLabel, "few moments": short} {
+		if _, err := run(a, 1, allHonest[:2], StubBrain{}); err == nil {
+			t.Errorf("%s: no error", name)
+		}
 	}
 }

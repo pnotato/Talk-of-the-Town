@@ -74,6 +74,7 @@ export interface MomentLog {
   claimed: number;
   delivered: number;
   shipped: boolean;
+  shippedRound: number;
   broken: boolean;
   credibility: number;
 }

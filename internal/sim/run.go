@@ -51,15 +51,16 @@ func (s *State) ship(claimed, delivered float64) {
 // MomentLog is one announcement the player chose. It is announced at Round
 // and ships at Round+ShipAfter (if that round was played).
 type MomentLog struct {
-	ID          string  `json:"id"`
-	Round       int     `json:"round"`
-	OptionID    string  `json:"optionId"`
-	Headline    string  `json:"headline"`
-	Claimed     int     `json:"claimed"`
-	Delivered   int     `json:"delivered"`
-	Shipped     bool    `json:"shipped"`
-	Broken      bool    `json:"broken"`      // set when shipped and a broken promise
-	Credibility float64 `json:"credibility"` // town credibility after this ship (or current, if not shipped)
+	ID           string  `json:"id"`
+	Round        int     `json:"round"`
+	OptionID     string  `json:"optionId"`
+	Headline     string  `json:"headline"`
+	Claimed      int     `json:"claimed"`
+	Delivered    int     `json:"delivered"`
+	Shipped      bool    `json:"shipped"`
+	ShippedRound int     `json:"shippedRound"` // round index the ship applied before; -1 if not shipped
+	Broken       bool    `json:"broken"`       // set when shipped and a broken promise
+	Credibility  float64 `json:"credibility"`  // town credibility after this ship (or current, if not shipped)
 }
 
 // Pending is the next moment the player must choose for.
@@ -76,6 +77,16 @@ func Run(seed uint64, choices []string, brain Brain) (RunLog, error) {
 	a, err := content.LoadAnnouncements()
 	if err != nil {
 		return RunLog{}, err
+	}
+	return run(a, seed, choices, brain)
+}
+
+func run(a content.Announcements, seed uint64, choices []string, brain Brain) (RunLog, error) {
+	if n := RunRounds / MomentEvery; len(a.Moments) != n {
+		return RunLog{}, fmt.Errorf("content has %d moments, want %d", len(a.Moments), n)
+	}
+	if a.Label != ContentLabel {
+		return RunLog{}, fmt.Errorf("content label is %q, want %q", a.Label, ContentLabel)
 	}
 	if len(choices) > len(a.Moments) {
 		return RunLog{}, fmt.Errorf("%d choices for %d moments", len(choices), len(a.Moments))
@@ -114,12 +125,12 @@ func Run(seed uint64, choices []string, brain Brain) (RunLog, error) {
 			o := opts[k]
 			st.announce(float64(o.Claimed), rng)
 			log.Moments = append(log.Moments, MomentLog{ID: a.Moments[k].ID, Round: r, OptionID: o.ID,
-				Headline: o.Headline, Claimed: o.Claimed, Delivered: o.Delivered, Credibility: st.Credibility})
+				Headline: o.Headline, Claimed: o.Claimed, Delivered: o.Delivered, ShippedRound: -1, Credibility: st.Credibility})
 		case ShipAfter:
 			o, before := opts[k], st.Broken
 			st.ship(float64(o.Claimed), float64(o.Delivered))
 			m := &log.Moments[k]
-			m.Shipped, m.Broken, m.Credibility = true, st.Broken > before, st.Credibility
+			m.Shipped, m.ShippedRound, m.Broken, m.Credibility = true, r, st.Broken > before, st.Credibility
 		}
 		log.Rounds = append(log.Rounds, st.Step(rng))
 	}
