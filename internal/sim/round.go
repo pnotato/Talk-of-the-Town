@@ -374,7 +374,7 @@ func (s *State) Step(rng *rand.Rand) Round {
 		if !post && B.Age >= NoPostAge {
 			post = rng.Float64() < pPost(B.Age)
 		}
-		ch, to := ChannelTalk, []int(nil)
+		ch, to := ChannelTalk, []int{}
 		if post {
 			ch, to = ChannelPost, s.readers(i, rng)
 		} else {
@@ -391,7 +391,7 @@ func (s *State) Step(rng *rand.Rand) Round {
 		}
 		c := s.brain.Retell(Retelling{Teller: i, Listener: listener, TellerPerception: b.perception, Heard: b.heard, Channel: ch}).Strength
 		tone := retellTone(b.perception, c)
-		e := RunEvent{From: i, To: to, Post: post, Claim: round1(c)}
+		e := RunEvent{From: i, To: to, Post: post, Claim: round1(c), DP: []float64{}, DI: []float64{}}
 		for _, l := range to {
 			p0, i0 := s.blobs[l].perception, s.blobs[l].interest
 			s.hear(l, i, c, tone, ch)
