@@ -224,3 +224,28 @@ func TestStubDrift(t *testing.T) {
 		}
 	}
 }
+
+func TestNoEligiblePartnerIdles(t *testing.T) {
+	town := Town{Blobs: []Blob{
+		{ID: 0, Age: 8, Shape: ShapeCircle, FamilyID: NoFamily, HomeID: 0},
+		{ID: 1, Age: 40, Shape: ShapeCircle, Traits: []Trait{TraitRecluse}, FamilyID: NoFamily, HomeID: 1},
+	}}
+	st := NewState(town, StubBrain{})
+	st.blobs[0] = blobState{perception: 100, interest: 100, heard: 50, hasHeard: true, sources: map[int]bool{-1: true}}
+	rng := NewRNG(1)
+	for range 50 {
+		for _, e := range st.Step(rng).Events {
+			if e.From == 0 {
+				t.Fatalf("blob with no partner acted: %+v", e)
+			}
+		}
+	}
+}
+
+func TestDecay(t *testing.T) {
+	town := Town{Blobs: []Blob{{ID: 0, Shape: ShapeCircle, Age: 30, FamilyID: NoFamily, Interest: 50, Perception: 50}}}
+	r := NewState(town, StubBrain{}).Step(NewRNG(1))
+	if r.Interest[0] != 48.8 || r.Perception[0] != 50 { // MODEL.md#decay: 50 + 0.03×(10−50)
+		t.Fatalf("got interest %v perception %v", r.Interest[0], r.Perception[0])
+	}
+}
