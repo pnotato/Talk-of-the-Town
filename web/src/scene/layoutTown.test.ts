@@ -6,6 +6,7 @@ import {
   HOME_DEPTH,
   HOME_WIDTH,
   layoutTown,
+  TREE_RADIUS,
   type TownHome,
   type TownLayout,
   type TownPath,
@@ -117,12 +118,13 @@ function clearance(poly: Point[], path: TownPath): number {
   return Math.max(near - (path.radius + path.width / 2), path.radius - path.width / 2 - far);
 }
 
-function onPath(p: Point, path: TownPath): boolean {
-  if (path.kind === "line") {
-    const d = pointSegmentDistance(p, { x: path.x1, z: path.z1 }, { x: path.x2, z: path.z2 });
-    return d <= path.width / 2;
-  }
-  return Math.abs(Math.hypot(p.x - path.x, p.z - path.z) - path.radius) <= path.width / 2;
+// Distance from a point to the edge of a path (negative when on it).
+function pathGap(p: Point, path: TownPath): number {
+  const d =
+    path.kind === "line"
+      ? pointSegmentDistance(p, { x: path.x1, z: path.z1 }, { x: path.x2, z: path.z2 })
+      : Math.abs(Math.hypot(p.x - path.x, p.z - path.z) - path.radius);
+  return d - path.width / 2;
 }
 
 function inBounds(layout: TownLayout, p: Point): boolean {
@@ -163,6 +165,12 @@ describe("layoutTown", () => {
     const perBlob = 3; // ground per standing blob, with room to talk
     const free = Math.PI * (square.radius ** 2 - square.fountainRadius ** 2);
     assert.ok(free >= 100 * perBlob, `free area ${free.toFixed(0)}`);
+  });
+
+  test("trees stand between the neighbourhoods, not only on the greens", () => {
+    const { trees, neighbourhoods } = layoutTown(53, 5);
+    const open = trees.filter((t) => neighbourhoods.every((n) => t.x !== n.x || t.z !== n.z));
+    assert.ok(open.length >= 20, `only ${open.length} trees in the open`);
   });
 
   test("rejects counts that are not whole numbers or have no neighbourhood", () => {
@@ -229,7 +237,7 @@ describe("layoutTown", () => {
           const reach = HOME_DEPTH / 2 + 1.2;
           const doorstep = { x: h.x + f.x * reach, z: h.z + f.z * reach };
           assert.ok(
-            layout.paths.some((p) => onPath(doorstep, p)),
+            layout.paths.some((p) => pathGap(doorstep, p) <= 0),
             `home ${h.index} faces no street`,
           );
         });
@@ -268,6 +276,35 @@ describe("layoutTown", () => {
         });
       });
 
+      test("every neighbourhood green has a tree", () => {
+        for (const n of layout.neighbourhoods) {
+          assert.ok(
+            layout.trees.some((t) => t.x === n.x && t.z === n.z),
+            `no tree at ${n.index}`,
+          );
+        }
+      });
+
+      test("trees keep clear of homes, paths, the square and each other", () => {
+        const { square, trees, paths } = layout;
+        trees.forEach((t, i) => {
+          const r = TREE_RADIUS * t.size;
+          const toSquare = Math.hypot(t.x - square.x, t.z - square.z);
+          assert.ok(toSquare >= square.radius + r, `tree ${i} is in the square`);
+          shapes.forEach((s, j) => {
+            assert.ok(distanceRange(s, t)[0] >= r, `tree ${i} overlaps home ${j}`);
+          });
+          paths.forEach((p, j) => {
+            assert.ok(pathGap(t, p) >= r, `tree ${i} overlaps path ${j}`);
+          });
+          trees.slice(i + 1).forEach((u, j) => {
+            const d = Math.hypot(t.x - u.x, t.z - u.z);
+            assert.ok(d >= r + TREE_RADIUS * u.size, `trees ${i} and ${i + j + 1} overlap`);
+          });
+        });
+      });
+
+      // Trees may also stand in the fields outside; bounds frame the town itself.
       test("everything lies inside the bounds", () => {
         const { square, neighbourhoods, paths } = layout;
         assert.ok(discInBounds(layout, square, square.radius));
