@@ -349,14 +349,18 @@ type Round struct {
 
 // RunLog is the replay contract with the client.
 type RunLog struct {
-	Seed   uint64  `json:"seed"`
-	Town   Town    `json:"town"` // initial town
-	Rounds []Round `json:"rounds"`
+	Label   string      `json:"label"`   // always "SIMULATED"; the UI must show it
+	Company string      `json:"company"` // fictional company name
+	Seed    uint64      `json:"seed"`
+	Town    Town        `json:"town"` // initial town
+	Rounds  []Round     `json:"rounds"`
+	Moments []MomentLog `json:"moments"` // chosen announcements, in order
+	Next    *Pending    `json:"next"`    // next moment to choose, or null when the run is over
 }
 
 // NewRunLog starts an empty log for town.
 func NewRunLog(seed uint64, t Town) RunLog {
-	return RunLog{Seed: seed, Town: t, Rounds: []Round{}}
+	return RunLog{Label: ContentLabel, Seed: seed, Town: t, Rounds: []Round{}, Moments: []MomentLog{}}
 }
 
 func round1(x float64) float64 { return math.Round(x*10) / 10 }

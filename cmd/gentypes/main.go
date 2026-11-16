@@ -8,6 +8,7 @@
 //	[]T, [N]T            -> T[]
 //	struct               -> export interface, emitted once, in first-seen order
 //	enum string type     -> string-literal union of its registered values
+//	*T (struct field)    -> T | null (only directly on a field, not inside slices)
 //
 // Anything else is an error, so a new field kind can't slip through silently.
 package main
@@ -105,11 +106,15 @@ func generate(roots []reflect.Type, enums []enum) (string, error) {
 			} else if tag != "" {
 				name = tag
 			}
-			ts, err := tsType(f.Type, known, &queue)
+			ft, null := f.Type, ""
+			if ft.Kind() == reflect.Pointer {
+				ft, null = ft.Elem(), " | null"
+			}
+			ts, err := tsType(ft, known, &queue)
 			if err != nil {
 				return "", fmt.Errorf("%s.%s: %w", t.Name(), f.Name, err)
 			}
-			fmt.Fprintf(&b, "  %s: %s;\n", name, ts)
+			fmt.Fprintf(&b, "  %s: %s%s;\n", name, ts, null)
 		}
 		b.WriteString("}\n")
 	}

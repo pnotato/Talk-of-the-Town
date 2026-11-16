@@ -85,3 +85,26 @@ func TestUnsupportedKind(t *testing.T) {
 		t.Fatal("want error for map field")
 	}
 }
+
+type withPtr struct {
+	Next *inner `json:"next"`
+}
+
+func TestPointerIsNullable(t *testing.T) {
+	got, err := generate([]reflect.Type{reflect.TypeFor[withPtr]()}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := header + `
+export interface withPtr {
+  next: inner | null;
+}
+
+export interface inner {
+  n: number;
+}
+`
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
