@@ -10,11 +10,14 @@ import {
 } from "react";
 import {
   Box3,
+  type BufferGeometry,
   type DirectionalLight,
   type Fog,
   MathUtils,
   Matrix4,
+  type Mesh,
   OrthographicCamera,
+  type ShaderMaterial,
   Vector3,
   type Vector3Tuple,
 } from "three";
@@ -206,6 +209,7 @@ function Stage({ view }: { view: View }) {
   const reduceMotion = useSyncExternalStore(reducedMotion.subscribe, reducedMotion.matches);
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const fog = useRef<Fog>(null);
+  const grid = useRef<Mesh<BufferGeometry, ShaderMaterial>>(null);
 
   // Reframe on mount and whenever the viewport's shape changes; this also undoes any pan.
   useLayoutEffect(() => {
@@ -215,10 +219,10 @@ function Stage({ view }: { view: View }) {
   }, [camera, view, distance]);
 
   // Fog starts just behind the content wherever the camera is, so it never tints one row more than
-  // another, and fades the far ground into the sky.
+  // another, and fades the far ground into the sky. The grid isn't fogged, so it fades out with it.
   useFrame(() => {
     const target = controls.current?.target;
-    if (!target || !fog.current) return;
+    if (!target || !fog.current || !grid.current) return;
     const cameraDistance = viewDirection.subVectors(camera.position, target).length();
     viewDirection.divideScalar(cameraDistance);
     let behindTarget = 0;
@@ -226,7 +230,8 @@ function Stage({ view }: { view: View }) {
       behindTarget = Math.max(behindTarget, viewDirection.dot(target) - viewDirection.dot(corner));
     }
     fog.current.near = cameraDistance + behindTarget;
-    fog.current.far = fog.current.near + cameraDistance;
+    fog.current.far = fog.current.near + Math.max(cameraDistance, distance);
+    grid.current.material.uniforms.fadeDistance.value = fog.current.far;
   });
 
   return (
@@ -248,6 +253,7 @@ function Stage({ view }: { view: View }) {
         <meshStandardMaterial color={GROUND} />
       </mesh>
       <Grid
+        ref={grid}
         position-y={0.002}
         infiniteGrid
         cellSize={1}
@@ -256,9 +262,6 @@ function Stage({ view }: { view: View }) {
         sectionSize={5}
         sectionThickness={1}
         sectionColor="#8a9e82"
-        // Fade by distance from the grid centre, not the camera, so zooming doesn't move the edge.
-        fadeFrom={0}
-        fadeDistance={40}
         fadeStrength={1.5}
       />
     </>
