@@ -7,6 +7,8 @@
 
 export const HOME_WIDTH = 2.8; // along the street
 export const HOME_DEPTH = 2.4; // front (door) to back
+// Headroom over the tallest roof, chimney or tree the scene builds, for framing and shadows.
+export const TOWN_HEIGHT = 4.5;
 
 const HOME_GAP = 1.0; // clear ground between the front corners of neighbouring homes
 const SETBACK = 0.6; // front of a home to the edge of its street
@@ -25,6 +27,15 @@ const LOOSEST_STEP = 1.25; // a small ring may spread its homes this much past t
 const SQUARE_AREA_PER_HOME = 6;
 const SQUARE_MIN_RADIUS = 7;
 const FOUNTAIN_RADIUS = 1.9;
+
+// Trees: one on each neighbourhood's green, and a seeded scatter over the open fields.
+export const TREE_RADIUS = 1.1; // canopy radius of a size-1 tree
+const GREEN_TREE_SIZE = 1.3;
+const TREE_DENSITY = 0.006; // scattered trees per square unit of field
+const TREE_BELT = 14; // width of the field around the town that gets trees
+const TREE_GAP = 0.6; // clear ground between neighbouring canopies
+const SQUARE_VERGE = 2; // open ground kept around the square
+const SPOKE_VERGE = 1; // open ground kept along each spoke
 
 // Organic jitter. Homes only move away from their street, so setbacks never shrink.
 const JITTER_TURN = 0.05; // radians
@@ -62,6 +73,15 @@ export type TownPath =
   | { kind: "line"; x1: number; z1: number; x2: number; z2: number; width: number }
   | { kind: "ring"; x: number; z: number; radius: number; width: number };
 
+export interface TownTree {
+  x: number;
+  z: number;
+  /** Scales a canopy of TREE_RADIUS. */
+  size: number;
+}
+
+type Line = Extract<TownPath, { kind: "line" }>;
+
 export interface TownBounds {
   minX: number;
   maxX: number;
@@ -75,6 +95,9 @@ export interface TownLayout {
   neighbourhoods: TownNeighbourhood[];
   square: TownSquare;
   paths: TownPath[];
+  /** Trees may stand in the fields outside the bounds. */
+  trees: TownTree[];
+  /** The town itself: the square and every neighbourhood. */
   bounds: TownBounds;
 }
 
@@ -113,6 +136,7 @@ export function layoutTown(homeCount: number, neighbourhoodCount: number): TownL
   const homes: TownHome[] = [];
   const neighbourhoods: TownNeighbourhood[] = [];
   const paths: TownPath[] = [];
+  const spokes: Line[] = [];
   // Slot j of neighbourhood k holds home j * n + k; filled below in neighbourhood order.
   const slots: { x: number; z: number; rotationY: number }[][] = [];
 
@@ -125,14 +149,16 @@ export function layoutTown(homeCount: number, neighbourhoodCount: number): TownL
     neighbourhoods.push({ index: k, x: cx, z: cz, radius: radii[k], homeCount: sizes[k] });
 
     const firstStreet = streetRadius(rings[0].radius);
-    paths.push({
+    const spoke: Line = {
       kind: "line",
       x1: out.x * (squareRadius - 1),
       z1: out.z * (squareRadius - 1),
       x2: cx - out.x * firstStreet,
       z2: cz - out.z * firstStreet,
       width: SPOKE_WIDTH,
-    });
+    };
+    spokes.push(spoke);
+    paths.push(spoke);
 
     const placed: (typeof slots)[number] = [];
     for (const ring of rings) {
@@ -177,7 +203,46 @@ export function layoutTown(homeCount: number, neighbourhoodCount: number): TownL
     maxZ: Math.max(...discs.map((d) => d.z + d.radius)),
   };
 
-  return { homes, neighbourhoods, square, paths, bounds };
+  // Planted after the homes, so adding trees never moves a home.
+  const trees = plantTrees(random, square, neighbourhoods, spokes, distance + widest + TREE_BELT);
+
+  return { homes, neighbourhoods, square, paths, trees, bounds };
+}
+
+// A tree on each green, then random spots in the fields, kept only where they clear the
+// square, every neighbourhood, every spoke and the trees already planted.
+function plantTrees(
+  random: () => number,
+  square: TownSquare,
+  neighbourhoods: TownNeighbourhood[],
+  spokes: Line[],
+  outer: number,
+): TownTree[] {
+  const trees: TownTree[] = neighbourhoods.map((n) => ({ x: n.x, z: n.z, size: GREEN_TREE_SIZE }));
+  const inner = square.radius + SQUARE_VERGE;
+  const wanted = trees.length + Math.round(TREE_DENSITY * Math.PI * (outer ** 2 - inner ** 2));
+  for (let tries = 0; tries < wanted * 30 && trees.length < wanted; tries++) {
+    const angle = random() * 2 * Math.PI;
+    const r = Math.sqrt(inner ** 2 + random() * (outer ** 2 - inner ** 2)); // even by area
+    const tree = { x: Math.cos(angle) * r, z: Math.sin(angle) * r, size: 0.7 + random() * 0.5 };
+    const reach = TREE_RADIUS * tree.size;
+    const clear =
+      r >= inner + reach &&
+      neighbourhoods.every((n) => Math.hypot(tree.x - n.x, tree.z - n.z) >= n.radius + reach) &&
+      spokes.every((s) => distanceToLine(tree, s) >= s.width / 2 + SPOKE_VERGE + reach) &&
+      trees.every(
+        (t) => Math.hypot(tree.x - t.x, tree.z - t.z) >= reach + TREE_RADIUS * t.size + TREE_GAP,
+      );
+    if (clear) trees.push(tree);
+  }
+  return trees;
+}
+
+function distanceToLine(p: { x: number; z: number }, l: Line): number {
+  const dx = l.x2 - l.x1;
+  const dz = l.z2 - l.z1;
+  const t = Math.max(0, Math.min(1, ((p.x - l.x1) * dx + (p.z - l.z1) * dz) / (dx * dx + dz * dz)));
+  return Math.hypot(p.x - (l.x1 + t * dx), p.z - (l.z1 + t * dz));
 }
 
 // Rings of homes for one neighbourhood, innermost first.
