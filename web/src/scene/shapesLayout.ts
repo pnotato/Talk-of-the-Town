@@ -99,17 +99,17 @@ const WIDE: Layout = (() => {
 const TALL: Layout = (() => {
   const x = (group: AgeGroup) => centred(AGE_GROUPS.indexOf(group), AGE_GROUPS.length, 1.9);
   const z = (i: number) => centred(i, SHAPES.length, 2.2);
-  const moodsZ = z(SHAPES.length - 1) + 3.4;
+  const moodsZ = z(SHAPES.length - 1) + 4.2;
   const moodSpot = (i: number): Vector3Tuple => {
     const [rowLength, row] = [4, Math.floor(i / 4)];
     const inRow = row === 0 ? rowLength : MOODS.length - rowLength;
-    return [centred(i % rowLength, inRow, 1.6), 0, moodsZ + row * 2.2];
+    return [centred(i % rowLength, inRow, 1.9), 0, moodsZ + row * 2.4];
   };
-  const actionsZ = moodsZ + 6;
+  const actionsZ = moodsZ + 6.4;
   const actionSpot = (i: number): Vector3Tuple => [
     i % 2 ? 1.6 : -1.6,
     0,
-    actionsZ + Math.floor(i / 2) * 3.2,
+    actionsZ + Math.floor(i / 2) * 3.8,
   ];
   return {
     elevation: MathUtils.degToRad(45),
@@ -122,12 +122,13 @@ const TALL: Layout = (() => {
         at: new Vector3(x(g), 0, z(SHAPES.length - 1) + 1.1),
         ...ageLabel(g),
       })),
-      { at: new Vector3(0, 0, moodsZ - 1.2), ...MOODS_LABEL },
+      { at: new Vector3(0, 0, moodsZ - 1.4), ...MOODS_LABEL },
+      // Names only: a phone has no room for the meanings; faces and colours still carry them.
       ...MOODS.map((m, i) => ({
-        at: new Vector3(...moodSpot(i)).setZ(moodSpot(i)[2] + 0.85),
-        ...moodLabel(m),
+        at: new Vector3(...moodSpot(i)).setZ(moodSpot(i)[2] + 0.75),
+        title: m,
       })),
-      { at: new Vector3(0, 0, actionsZ - 1.6), ...ACTIONS_LABEL },
+      { at: new Vector3(0, 0, actionsZ - 1.9), ...ACTIONS_LABEL },
       ...SCENARIOS.map((s, i) => ({
         at: new Vector3(...actionSpot(i)).setZ(actionSpot(i)[2] + 1),
         ...actionLabel(s),
