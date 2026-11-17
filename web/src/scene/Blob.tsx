@@ -1,6 +1,6 @@
 import { Billboard } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { useRef, useState } from "react";
+import { type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   BoxGeometry,
   Color,
@@ -26,6 +26,8 @@ import {
   phaseFor,
   type Pose,
 } from "./blobMotion.ts";
+import { gestureFor, setHover } from "./blobPicking.ts";
+import { ringGeometries } from "./blobSelection.ts";
 import { blobScale } from "./blobSize.ts";
 
 // Mood colours as three.js colours, for easing a body towards its mood without allocating.
@@ -76,6 +78,50 @@ function Phone({ shape }: { shape: Shape }) {
   );
 }
 
+// The ring on the ground around the selected blob: bright, with a dark outline so it reads on the
+// green ground and next to any mood colour. Flat colours, so it looks the same in any light.
+const RING_MATERIAL = new MeshBasicMaterial({
+  color: "#ffffff",
+  toneMapped: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+});
+const OUTLINE_MATERIAL = new MeshBasicMaterial({
+  color: INK,
+  toneMapped: false,
+  transparent: true,
+  opacity: 0.6,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: -1,
+});
+
+// Rings are only to look at: a click on one must fall through to whatever is under it.
+const noRaycast = () => {};
+
+/** Sits on the ground at the blob's feet. Part of the blob's root, so it follows a walk. */
+function SelectionRing({ shape, age }: { shape: Shape; age: number }) {
+  const { ring, outline } = ringGeometries(shape, age);
+  return (
+    <>
+      <mesh
+        geometry={outline}
+        material={OUTLINE_MATERIAL}
+        position-y={0.008}
+        renderOrder={1}
+        raycast={noRaycast}
+      />
+      <mesh
+        geometry={ring}
+        material={RING_MATERIAL}
+        position-y={0.012}
+        renderOrder={2}
+        raycast={noRaycast}
+      />
+    </>
+  );
+}
+
 // Walks and turns ease towards their targets at this rate per second, in two stages (target →
 // goal → body), so a walk starts gently instead of at full speed.
 const WALK_RATE = 3;
@@ -96,6 +142,14 @@ type BlobProps = {
   position: Vector3Tuple;
   /** Which way the blob faces, in radians about y; 0 faces +z. */
   yaw?: number;
+  /** Draw the selection ring on the ground around the blob. */
+  selected?: boolean;
+  /**
+   * Makes the blob clickable: called with its `id` on a click (not on the end of an orbit drag),
+   * and the pointer shows as a hand over it. Pass a stable function. Without it the blob ignores
+   * the pointer.
+   */
+  onSelect?: (id: number) => void;
 };
 
 /**
@@ -113,8 +167,13 @@ export default function Blob({
   idle = false,
   position,
   yaw = 0,
+  selected = false,
+  onSelect,
 }: BlobProps) {
   const reduceMotion = useReducedMotion();
+  const canvas = useThree((s) => s.gl.domElement);
+  const hoverOwner = useId();
+  const selectable = onSelect !== undefined;
   // Where and how the blob first appears; after that, props are only targets.
   const [start] = useState(() => ({ position, yaw, color: MOOD_COLOR[mood] }));
   const root = useRef<Group>(null);
@@ -125,6 +184,25 @@ export default function Blob({
   const animation = useRef(createAnimation(mood));
   const motion = useRef(createMotion());
   const scale = blobScale(age);
+
+  const handleClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      // Always swallow the click: the ground behind a blob dismisses the selection on a click, and
+      // it must not see the click that just selected this blob. Only the front blob gets it.
+      event.stopPropagation();
+      if (gestureFor(canvas).isClick(event.delta)) onSelect?.(id);
+    },
+    [canvas, id, onSelect],
+  );
+  const handleOver = useCallback(() => setHover(canvas, hoverOwner, true), [canvas, hoverOwner]);
+  const handleOut = useCallback(() => setHover(canvas, hoverOwner, false), [canvas, hoverOwner]);
+  // A blob that goes away under the pointer must not leave the hand cursor behind.
+  useEffect(() => {
+    if (!selectable) return;
+    // Start watching gestures before the first press: a click can only be judged by what led to it.
+    gestureFor(canvas);
+    return () => setHover(canvas, hoverOwner, false);
+  }, [selectable, canvas, hoverOwner]);
 
   useFrame(({ clock }, delta) => {
     if (!root.current || !body.current || !mouth.current || !material.current) return;
@@ -162,7 +240,15 @@ export default function Blob({
   });
 
   return (
-    <group ref={root} position={start.position} rotation-y={start.yaw}>
+    <group
+      ref={root}
+      position={start.position}
+      rotation-y={start.yaw}
+      onClick={selectable ? handleClick : undefined}
+      onPointerOver={selectable ? handleOver : undefined}
+      onPointerOut={selectable ? handleOut : undefined}
+    >
+      {selected && <SelectionRing shape={shape} age={age} />}
       <group scale={scale}>
         {/* The pivot is at the feet, so the body squashes, stretches and tips about its base. */}
         <group ref={body}>

@@ -1,0 +1,527 @@
+/* Blob inspector: a grey, translucent HUD in the bottom-left of the Shapes page. */
+
+/*
+ * The dock fills the page from just below the app shell (SIMULATED badge, status, nav: about 100px
+ * tall at the top left) down to the bottom margin, and its panels share that height. The bar is
+ * first in the DOM so Tab reaches Browse before what it opens, and column-reverse draws it at the
+ * bottom, with the card or list above it. The card or list shrinks and scrolls when short of room;
+ * the bar never does.
+ */
+.inspector-dock {
+  --shell-clearance: 128px;
+  position: absolute;
+  top: var(--shell-clearance);
+  left: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 2;
+  box-sizing: border-box;
+  width: min(460px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 8px;
+  color: #f2f4f7;
+  font:
+    14px/1.4 system-ui,
+    sans-serif;
+  /* Only the panels take the pointer, so the scene stays draggable around them. */
+  pointer-events: none;
+}
+
+.inspector-dock > * {
+  pointer-events: auto;
+}
+
+.inspector-surface {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 18px;
+  /* Dark enough that text keeps its contrast over the light sky and grass behind. */
+  background: linear-gradient(155deg, rgb(66 70 77 / 0.93), rgb(30 33 38 / 0.95));
+  box-shadow:
+    0 14px 34px rgb(15 20 25 / 0.32),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(14px) saturate(1.1);
+}
+
+.inspector-dock button {
+  font: inherit;
+  color: inherit;
+}
+
+.inspector-dock :focus-visible {
+  outline: 2px solid #9cc9ff;
+  outline-offset: 2px;
+}
+
+.inspector-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.inspector-eyebrow {
+  margin: 0;
+  color: #b9c1cc;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inspector-muted {
+  color: #b9c1cc;
+}
+
+.inspector-badge {
+  padding: 1px 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+/* Bottom bar: always there, so there is always a keyboard way in. */
+
+.inspector-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  max-width: 100%;
+  padding: 6px;
+  border-radius: 999px;
+}
+
+.inspector-button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inspector-button:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.inspector-button[aria-expanded="true"] {
+  background: rgb(255 255 255 / 0.24);
+}
+
+.inspector-step {
+  min-width: 34px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bar-hint {
+  padding: 0 10px 0 6px;
+  color: #d3d9e1;
+}
+
+/* Selected blob. */
+
+.inspector-card {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  animation: inspector-in 180ms ease-out;
+}
+
+/* The part that scrolls when the dock is short; the close button sits outside it. */
+.card-scroll {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@keyframes inspector-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.portrait {
+  box-sizing: border-box;
+  width: 104px;
+  height: 104px;
+  overflow: hidden;
+  border: 3px solid;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #f1f6fb, #bccfe0);
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.85),
+    0 6px 16px rgb(0 0 0 / 0.3);
+  transition: border-color 300ms;
+}
+
+.card-mood {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #d3d9e1;
+}
+
+.card-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-head {
+  /* Clear of the close button. */
+  padding-right: 28px;
+}
+
+.card-head h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.card-sub {
+  margin: 2px 0 0;
+  color: #d3d9e1;
+  font-size: 13px;
+}
+
+.inspector-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.inspector-close:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+
+/* Meters. */
+
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.meters-note {
+  margin: 0;
+  color: #b9c1cc;
+  font-size: 11px;
+}
+
+.meter-label {
+  color: #d3d9e1;
+  font-weight: 600;
+}
+
+.meter-value strong {
+  margin-right: 6px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-track {
+  height: 8px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.16);
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 300ms ease-out;
+}
+
+.meter-perception .meter-fill {
+  background: linear-gradient(90deg, #6fa8ff, #a8d2ff);
+}
+
+.meter-interest .meter-fill {
+  background: linear-gradient(90deg, #f0b84a, #ffdf8f);
+}
+
+/* Facts. */
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.fact {
+  min-width: 0;
+}
+
+.fact:nth-child(-n + 2) {
+  grid-column: 1 / -1;
+}
+
+.fact dd {
+  margin: 2px 0 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chips li {
+  padding: 1px 10px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  font-size: 12px;
+}
+
+.family-line {
+  display: block;
+}
+
+.inspector-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  text-decoration-color: rgb(255 255 255 / 0.45);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.inspector-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+  color: #b9c1cc;
+  font-size: 11px;
+}
+
+/* Picker. */
+
+.inspector-picker {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.picker-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px 16px;
+}
+
+.picker-head h2 {
+  font-size: 12px;
+}
+
+.picker-done {
+  min-height: 32px;
+}
+
+.picker-scroll {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.picker-scroll section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.picker-scroll ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 2px 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-item:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.picker-item[aria-pressed="true"] {
+  border-color: rgb(255 255 255 / 0.4);
+  background: rgb(255 255 255 / 0.18);
+}
+
+.picker-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  border-radius: 50%;
+}
+
+.picker-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.picker-detail {
+  color: #b9c1cc;
+  font-size: 12px;
+}
+
+/* Phone. */
+
+@media (max-width: 560px) {
+  .inspector-dock {
+    left: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: calc(100% - 24px);
+  }
+
+  .card-scroll {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .portrait {
+    width: 72px;
+    height: 72px;
+    border-width: 2px;
+  }
+
+  .card-mood {
+    font-size: 11px;
+  }
+
+  .card-head h2 {
+    font-size: 18px;
+  }
+
+  .picker-scroll ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Narrow phones: the facts stack, and the bar's hint drops to its own line. */
+@media (max-width: 360px) {
+  .facts {
+    grid-template-columns: 1fr;
+  }
+
+  .fact:nth-child(-n + 2) {
+    grid-column: auto;
+  }
+}
+
+/* Short screens (a phone on its side): tighter, so more of the card shows at once. */
+@media (max-height: 480px) {
+  .card-scroll {
+    padding: 10px 12px;
+    gap: 12px;
+  }
+
+  .card-main {
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector-card {
+    animation: none;
+  }
+
+  .meter-fill,
+  .portrait {
+    transition: none;
+  }
+}

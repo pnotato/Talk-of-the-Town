@@ -1,9 +1,11 @@
 import { Grid, OrbitControls, type OrbitControlsChangeEvent } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import {
   type ComponentRef,
   type CSSProperties,
   type RefObject,
+  useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useSyncExternalStore,
@@ -19,9 +21,12 @@ import {
   type ShaderMaterial,
   Vector3,
 } from "three";
+import { useBlobSelection } from "../inspector/BlobSelection.tsx";
 import Blob from "./Blob.tsx";
+import { MOOD_FIRST_ID, scenarioFirstId, staticActivities } from "./blobActivity.ts";
 import { mediaQuery, useReducedMotion } from "./blobMedia.ts";
 import { MOODS } from "./blobMood.ts";
+import { gestureFor } from "./blobPicking.ts";
 import BlobScenario from "./BlobScenario.tsx";
 import { SCENARIOS } from "./blobScenarios.ts";
 import { RenderResolution } from "./RenderResolution.tsx";
@@ -56,14 +61,32 @@ const portrait = mediaQuery("(orientation: portrait)");
 
 const viewDirection = new Vector3();
 
-/** Frames the view for the current viewport, with orbit controls, fog and ground to match. */
-function Stage({ view }: { view: View }) {
+// Nothing about the grid is clickable; only the ground under it is.
+const noRaycast = () => {};
+
+/**
+ * Frames the view for the current viewport, with orbit controls, fog and ground to match. A click
+ * on the bare ground calls `onDismiss`; a blob in front swallows its own click, so that never
+ * fires for the click that selected it. The end of an orbit or pan drag is not a click.
+ */
+function Stage({ view, onDismiss }: { view: View; onDismiss: () => void }) {
   const camera = useThree((s) => s.camera);
+  const canvas = useThree((s) => s.gl.domElement);
   const aspect = useThree((s) => s.size.width / s.size.height);
   const distance = fitDistance(view, aspect);
   const reduceMotion = useReducedMotion();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const fog = useRef<Fog>(null);
+  // Start watching gestures before the first press: a click can only be judged by what led to it.
+  useEffect(() => {
+    gestureFor(canvas);
+  }, [canvas]);
+  const dismissOnClick = useCallback(
+    (event: ThreeEvent<MouseEvent>) => {
+      if (gestureFor(canvas).isClick(event.delta)) onDismiss();
+    },
+    [canvas, onDismiss],
+  );
   const grid = useRef<Mesh<BufferGeometry, ShaderMaterial>>(null);
 
   // Reframe on mount and whenever the viewport's shape changes; this also undoes any pan.
@@ -103,12 +126,13 @@ function Stage({ view }: { view: View }) {
         onChange={(event) => keepTargetOver(view.content, event)}
       />
       <fog ref={fog} attach="fog" args={[SKY]} />
-      <mesh rotation-x={-Math.PI / 2} receiveShadow>
+      <mesh rotation-x={-Math.PI / 2} receiveShadow onClick={dismissOnClick}>
         <planeGeometry args={[2000, 2000]} />
         <meshStandardMaterial color={GROUND} />
       </mesh>
       <Grid
         ref={grid}
+        raycast={noRaycast}
         position-y={0.002}
         infiniteGrid
         cellSize={1}
@@ -221,6 +245,13 @@ export default function ShapesScene() {
   const tall = useSyncExternalStore(portrait.subscribe, portrait.matches);
   const view = tall ? VIEWS.tall : VIEWS.wide;
   const labels = useRef<(HTMLDivElement | null)[]>([]);
+  const { selectedId, selectBlob, updateActivities } = useBlobSelection();
+  const dismiss = useCallback(() => selectBlob(null), [selectBlob]);
+
+  // The grid and the mood samples never change what they do; the scenarios report their own.
+  useEffect(() => {
+    updateActivities(staticActivities());
+  }, [updateActivities]);
 
   return (
     <section
@@ -241,7 +272,7 @@ export default function ShapesScene() {
         {/* Balanced with KeyLight so a lit top face shows a blob's base colour (no tone mapping). */}
         <hemisphereLight args={["#eef4fa", "#7d8f6e", 1.6]} />
         <KeyLight view={view} />
-        <Stage view={view} />
+        <Stage view={view} onDismiss={dismiss} />
         <PinLabels labels={view.labels} elements={labels} />
 
         {shapesFixture.map((blob, i) => (
@@ -251,17 +282,21 @@ export default function ShapesScene() {
             shape={blob.shape}
             age={blob.age}
             position={view.grid[i]}
+            selected={selectedId === blob.id}
+            onSelect={selectBlob}
           />
         ))}
         {MOODS.map((mood, i) => (
           <Blob
             key={mood}
-            id={100 + i}
+            id={MOOD_FIRST_ID + i}
             shape={MOOD_ROW_SHAPE}
             age={35}
             mood={mood}
             idle
             position={view.moods[i]}
+            selected={selectedId === MOOD_FIRST_ID + i}
+            onSelect={selectBlob}
           />
         ))}
         {SCENARIOS.map((scenario, i) => (
@@ -269,7 +304,10 @@ export default function ShapesScene() {
             key={scenario.title}
             scenario={scenario}
             position={view.actions[i]}
-            firstId={200 + 10 * i}
+            firstId={scenarioFirstId(i)}
+            selectedId={selectedId}
+            onSelect={selectBlob}
+            onActivityChange={updateActivities}
           />
         ))}
       </Canvas>
