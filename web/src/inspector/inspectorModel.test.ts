@@ -6,6 +6,7 @@ import { moodFor } from "../scene/blobMood.ts";
 import {
   activityText,
   capitalise,
+  describeAction,
   displayScore,
   interestLabel,
   perceptionLabel,
@@ -61,6 +62,29 @@ describe("activities", () => {
     assert.ok(!sameActivity({ ...a, state: "listening" }, a));
     assert.ok(!sameActivity({ ...a, mood: "flat" }, a));
     assert.ok(sameActivity({ state: "idle", mood: "smile" }, { state: "idle", mood: "smile" }));
+  });
+});
+
+describe("describeAction", () => {
+  test("joins talking and listening to their partner, and says nothing more than the scene did", () => {
+    assert.deepEqual(describeAction({ state: "talking", mood: "smile", partnerId: 7 }), {
+      text: "Talking to",
+      partnerId: 7,
+    });
+    assert.deepEqual(describeAction({ state: "listening", mood: "flat", partnerId: 2 }), {
+      text: "Listening to",
+      partnerId: 2,
+    });
+    assert.deepEqual(describeAction({ state: "talking", mood: "smile" }), { text: "Talking" });
+  });
+
+  test("never attaches a partner to posting, walking or idle, or invents an action", () => {
+    for (const state of ["posting", "walking", "idle"] as const) {
+      const { partnerId } = describeAction({ state, mood: "flat", partnerId: 3 });
+      assert.equal(partnerId, undefined, state);
+    }
+    assert.deepEqual(describeAction(undefined), { text: "Idle" });
+    assert.equal(describeAction({ state: "posting", mood: "o" }).text, "Posting to social media");
   });
 });
 

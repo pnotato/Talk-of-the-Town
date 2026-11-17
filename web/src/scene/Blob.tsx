@@ -1,6 +1,6 @@
 import { Billboard } from "@react-three/drei";
 import { type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   BoxGeometry,
   Color,
@@ -26,8 +26,9 @@ import {
   phaseFor,
   type Pose,
 } from "./blobMotion.ts";
+import { blobObjectName } from "./blobFocus.ts";
 import { gestureFor, setHover } from "./blobPicking.ts";
-import { ringGeometries } from "./blobSelection.ts";
+import { footprintRadius, ringGeometries } from "./blobSelection.ts";
 import { blobScale } from "./blobSize.ts";
 
 // Mood colours as three.js colours, for easing a body towards its mood without allocating.
@@ -184,6 +185,16 @@ export default function Blob({
   const animation = useRef(createAnimation(mood));
   const motion = useRef(createMotion());
   const scale = blobScale(age);
+  // Lets the camera find this blob's root in the scene and aim at its middle: the root moves as the
+  // blob walks, so this is where the blob really is.
+  const userData = useMemo(
+    () => ({
+      blobId: id,
+      focusHeight: 0.5 * ADULT_HEIGHT[shape] * scale[1],
+      focusRadius: footprintRadius(shape, age),
+    }),
+    [id, shape, scale, age],
+  );
 
   const handleClick = useCallback(
     (event: ThreeEvent<MouseEvent>) => {
@@ -242,6 +253,8 @@ export default function Blob({
   return (
     <group
       ref={root}
+      name={blobObjectName(id)}
+      userData={userData}
       position={start.position}
       rotation-y={start.yaw}
       onClick={selectable ? handleClick : undefined}

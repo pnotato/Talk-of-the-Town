@@ -1,227 +1,32 @@
-import {
-  type MouseEvent,
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
-import { MOOD_COLOR, MOOD_MEANING } from "../scene/blobMood.ts";
-import { ageGroup } from "../scene/blobSize.ts";
-import BlobPortrait from "../scene/BlobPortrait.tsx";
+import { type MouseEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import BlobCard from "./BlobCard.tsx";
 import BlobPicker from "./BlobPicker.tsx";
-import {
-  type BlobProfile,
-  getProfile,
-  PROFILE_NOTE,
-  PROFILE_ORDER,
-  PROFILE_SOURCE,
-  TRAIT_MEANING,
-} from "./blobProfiles.ts";
+import { getProfile, PROFILE_ORDER } from "./blobProfiles.ts";
 import { useBlobSelection } from "./BlobSelection.tsx";
-import {
-  activityText,
-  capitalise,
-  interestLabel,
-  perceptionLabel,
-  stepSelection,
-} from "./inspectorModel.ts";
-import Meter from "./Meter.tsx";
+import { type FocusInset, focusInset, sameInset } from "./focusInset.ts";
+import { stepSelection } from "./inspectorModel.ts";
 import "./inspector.css";
 
 /**
- * A blob named in the inspector (a relative or a partner), as a button that selects it.
- *
- * Selecting or the scene moving on can remove the very button the keyboard is on (a partner who
- * stops talking to the blob, or a relative's link once their own card is showing). When that
- * happens under keyboard focus, focus goes to `fallback` rather than falling to the page. A mouse
- * click never triggers this, so pointer selection doesn't move focus.
- */
-function BlobLink({ id, fallback }: { id: number; fallback: RefObject<HTMLElement | null> }) {
-  const { selectBlob } = useBlobSelection();
-  const profile = getProfile(id);
-  const keepKeyboardFocus = useCallback(
-    (button: HTMLButtonElement | null) => {
-      if (!button) return;
-      return () => {
-        if (document.activeElement === button && button.matches(":focus-visible")) {
-          fallback.current?.focus();
-        }
-      };
-    },
-    [fallback],
-  );
-  if (!profile) return <span>Blob {id}</span>;
-  return (
-    <button
-      ref={keepKeyboardFocus}
-      type="button"
-      className="inspector-link"
-      onClick={() => selectBlob(id)}
-    >
-      {profile.name}
-    </button>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="fact">
-      <dt className="inspector-eyebrow">{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
-
-function Family({
-  profile,
-  fallback,
-}: {
-  profile: BlobProfile;
-  fallback: RefObject<HTMLElement | null>;
-}) {
-  const { parentIds, childIds } = profile;
-  if (parentIds.length === 0 && childIds.length === 0) {
-    return <span className="inspector-muted">None listed</span>;
-  }
-  return (
-    <>
-      {parentIds.length > 0 && (
-        <span className="family-line">
-          Child of{" "}
-          {parentIds.map((id) => (
-            <BlobLink key={id} id={id} fallback={fallback} />
-          ))}
-        </span>
-      )}
-      {childIds.length > 0 && (
-        <span className="family-line">
-          Parent of{" "}
-          {childIds.map((id) => (
-            <BlobLink key={id} id={id} fallback={fallback} />
-          ))}
-        </span>
-      )}
-    </>
-  );
-}
-
-function Card({ profile, onClose }: { profile: BlobProfile; onClose: () => void }) {
-  const { activities } = useBlobSelection();
-  const heading = useRef<HTMLHeadingElement>(null);
-  const activity = activities[profile.id];
-  // The face comes from the scene's activity once it reports; until then, the profile's resting
-  // face. The scores below never depend on it.
-  const mood = activity?.mood ?? profile.mood;
-  const partnerId = activity?.partnerId;
-
-  return (
-    <section
-      className="inspector-surface inspector-card"
-      aria-label={`Selected blob: ${profile.name}`}
-    >
-      {/* Outside the scrolling part, so closing is always in reach. */}
-      <button
-        type="button"
-        className="inspector-close"
-        aria-label="Close inspector"
-        onClick={onClose}
-      >
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden focusable="false">
-          <path
-            d="M3 3l10 10M13 3L3 13"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
-
-      <div className="card-scroll">
-        <div className="card-side">
-          <div className="portrait" style={{ borderColor: MOOD_COLOR[mood] }} aria-hidden>
-            <BlobPortrait shape={profile.shape} age={profile.age} mood={mood} />
-          </div>
-          <p className="card-mood">
-            <span className="inspector-eyebrow">Mood</span>
-            {capitalise(mood)} · {MOOD_MEANING[mood]}
-          </p>
-        </div>
-
-        <div className="card-main">
-          <header className="card-head">
-            <h2 ref={heading} tabIndex={-1}>
-              {profile.name}
-            </h2>
-            <p className="card-sub">
-              {capitalise(profile.shape)} · {capitalise(ageGroup(profile.age))} · Age {profile.age}
-            </p>
-          </header>
-
-          <div className="meters">
-            <Meter
-              label="Perception"
-              score={profile.perception}
-              words={perceptionLabel(profile.perception)}
-              tone="perception"
-            />
-            <Meter
-              label="Interest"
-              score={profile.interest}
-              words={interestLabel(profile.interest)}
-              tone="interest"
-            />
-            <p className="meters-note">Scores are demo values; scene activity is live.</p>
-          </div>
-
-          <dl className="facts">
-            <Fact label="Traits">
-              <ul className="chips">
-                {profile.traits.map((trait) => (
-                  <li key={trait} title={TRAIT_MEANING[trait]}>
-                    {trait}
-                  </li>
-                ))}
-              </ul>
-            </Fact>
-            <Fact label="Family">
-              <Family profile={profile} fallback={heading} />
-            </Fact>
-            <Fact label="Activity">{activityText(activity)}</Fact>
-            <Fact label="Talking to">
-              {partnerId === undefined ? (
-                <span className="inspector-muted">Nobody</span>
-              ) : (
-                <BlobLink id={partnerId} fallback={heading} />
-              )}
-            </Fact>
-          </dl>
-
-          <footer className="card-foot">
-            <span className="inspector-badge">SIMULATED</span>
-            <span>
-              {PROFILE_SOURCE} · {PROFILE_NOTE}
-            </span>
-          </footer>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
  * The bottom-left inspector: a bar that is always there (browse, step, hint) with either the
- * selected blob's card or, while browsing, the list of blobs in the card's place. The scene selects
+ * selected blob's card or, while browsing, the list of blobs in the card's place (picking from it
+ * puts it away). The scene selects
  * by click; everything here works from the keyboard too. Escape closes the list first, then the
  * card.
  *
  * The bar comes first in the DOM (and is drawn at the bottom) so Tab goes from Browse straight into
  * whatever it opened.
+ *
+ * `onFocusInsetChange` reports how much of the view the inspector covers (the shell at the top, the
+ * card, list or bar at the bottom), measured from what is actually drawn, whenever it changes. The
+ * scene uses it to keep a focused blob clear of the inspector.
  */
-export default function BlobInspector() {
-  const { selectedId, selectBlob } = useBlobSelection();
+export default function BlobInspector({
+  onFocusInsetChange,
+}: {
+  onFocusInsetChange?: (inset: FocusInset) => void;
+}) {
+  const { selectedId, selectBlob, focusBlob } = useBlobSelection();
   const profile = selectedId === null ? undefined : getProfile(selectedId);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Whether the list was opened from the keyboard, and so should take focus when it appears.
@@ -229,6 +34,56 @@ export default function BlobInspector() {
   const dock = useRef<HTMLElement>(null);
   const browse = useRef<HTMLButtonElement>(null);
   const pickerId = useId();
+  // Set by a keyboard pick: the card that appears next takes focus, once.
+  const cardTakesFocus = useRef(false);
+  const reportInset = useRef(onFocusInsetChange);
+  const lastInset = useRef<FocusInset | null>(null);
+  const panelKind = pickerOpen ? "picker" : profile ? "card" : "bar";
+
+  function takeCardFocus() {
+    const take = cardTakesFocus.current;
+    cardTakesFocus.current = false;
+    return take;
+  }
+
+  useLayoutEffect(() => {
+    reportInset.current = onFocusInsetChange;
+  });
+
+  // Measures the card or list (or the bar when neither shows) and reports the inset when it changes.
+  // It watches the dock, its parent and the panel for resizes, and the window as well: a resized
+  // window moves the parent's bottom even when no panel changed size.
+  useLayoutEffect(() => {
+    const root = dock.current;
+    if (!root) return;
+    const parent = root.offsetParent ?? root.parentElement;
+    const bar = root.querySelector<HTMLElement>(".inspector-bar");
+    const panel = root.querySelector<HTMLElement>(".inspector-card, .inspector-picker");
+    if (!parent || !bar) return;
+
+    function measure() {
+      if (!root || !parent || !bar) return;
+      const gap = parseFloat(getComputedStyle(root).rowGap) || 0;
+      const inset = focusInset(
+        parent.getBoundingClientRect().bottom,
+        bar.getBoundingClientRect().top,
+        panel ? panel.offsetHeight : null,
+        gap,
+      );
+      if (lastInset.current && sameInset(lastInset.current, inset)) return;
+      lastInset.current = inset;
+      reportInset.current?.(inset);
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const element of [root, parent, bar, panel]) if (element) observer.observe(element);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [panelKind]);
 
   // Hands focus to the always-present browse button, but only when it was inside the inspector
   // (so a panel that closes under the keyboard doesn't strand focus, and a mouse click never jumps).
@@ -239,6 +94,21 @@ export default function BlobInspector() {
   function closeCard() {
     keepFocus();
     selectBlob(null);
+  }
+
+  // Stepping, like picking a blob, takes the camera along with the selection.
+  function step(direction: 1 | -1) {
+    const id = stepSelection(PROFILE_ORDER, selectedId, direction);
+    if (id !== null) focusBlob(id);
+  }
+
+  // Picking from the list puts the list away at once (so it never hides where the camera is going)
+  // and takes the camera to the blob. A keyboard pick moves focus to the new card's name; a pointer
+  // pick doesn't move focus.
+  function pick(id: number, viaKeyboard: boolean) {
+    cardTakesFocus.current = viaKeyboard;
+    setPickerOpen(false);
+    focusBlob(id);
   }
 
   function closePicker() {
@@ -299,7 +169,7 @@ export default function BlobInspector() {
           type="button"
           className="inspector-button inspector-step"
           aria-label="Previous blob"
-          onClick={() => selectBlob(stepSelection(PROFILE_ORDER, selectedId, -1))}
+          onClick={() => step(-1)}
         >
           ‹
         </button>
@@ -307,7 +177,7 @@ export default function BlobInspector() {
           type="button"
           className="inspector-button inspector-step"
           aria-label="Next blob"
-          onClick={() => selectBlob(stepSelection(PROFILE_ORDER, selectedId, 1))}
+          onClick={() => step(1)}
         >
           ›
         </button>
@@ -315,9 +185,14 @@ export default function BlobInspector() {
       </div>
 
       {pickerOpen ? (
-        <BlobPicker id={pickerId} takeFocus={pickerFromKeyboard} onClose={closePicker} />
+        <BlobPicker
+          id={pickerId}
+          takeFocus={pickerFromKeyboard}
+          onPick={pick}
+          onClose={closePicker}
+        />
       ) : (
-        profile && <Card profile={profile} onClose={closeCard} />
+        profile && <BlobCard profile={profile} onClose={closeCard} takeFocus={takeCardFocus} />
       )}
 
       <p role="status" className="inspector-sr">

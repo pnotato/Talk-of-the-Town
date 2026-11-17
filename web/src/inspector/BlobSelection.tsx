@@ -1,11 +1,24 @@
-import { type ReactNode, createContext, useCallback, useContext, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { type BlobActivity, sameActivity } from "./inspectorModel.ts";
 
 export type { BlobActivity };
 
+/** A separate request lets a portrait recenter an already selected blob. */
+export type BlobFocusRequest = { id: number; serial: number };
+
 type BlobSelection = {
   selectedId: number | null;
   selectBlob: (id: number | null) => void;
+  focusBlob: (id: number) => void;
+  focusRequest: BlobFocusRequest | null;
   activities: Readonly<Record<number, BlobActivity>>;
   updateActivities: (updates: Record<number, BlobActivity>) => void;
 };
@@ -18,10 +31,19 @@ const SelectionContext = createContext<BlobSelection | null>(null);
  */
 export function BlobSelectionProvider({ children }: { children: ReactNode }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [focusRequest, setFocusRequest] = useState<BlobFocusRequest | null>(null);
+  const focusSerial = useRef(0);
   const [activities, setActivities] = useState<Readonly<Record<number, BlobActivity>>>({});
 
-  // Both callbacks are stable, so the scene can list them as effect dependencies.
-  const selectBlob = useCallback((id: number | null) => setSelectedId(id), []);
+  // A canvas selection should not move the camera; explicit portrait navigation should.
+  const selectBlob = useCallback((id: number | null) => {
+    setSelectedId(id);
+    setFocusRequest(null);
+  }, []);
+  const focusBlob = useCallback((id: number) => {
+    setSelectedId(id);
+    setFocusRequest({ id, serial: ++focusSerial.current });
+  }, []);
 
   // Merges updates in, and keeps the same object when nothing changed so a repeated report from
   // the scene doesn't re-render every consumer.
@@ -39,8 +61,8 @@ export function BlobSelectionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ selectedId, selectBlob, activities, updateActivities }),
-    [selectedId, selectBlob, activities, updateActivities],
+    () => ({ selectedId, selectBlob, focusBlob, focusRequest, activities, updateActivities }),
+    [selectedId, selectBlob, focusBlob, focusRequest, activities, updateActivities],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

@@ -21,14 +21,16 @@ import {
   type ShaderMaterial,
   Vector3,
 } from "three";
-import { useBlobSelection } from "../inspector/BlobSelection.tsx";
+import { type BlobFocusRequest, useBlobSelection } from "../inspector/BlobSelection.tsx";
 import Blob from "./Blob.tsx";
 import { MOOD_FIRST_ID, scenarioFirstId, staticActivities } from "./blobActivity.ts";
 import { mediaQuery, useReducedMotion } from "./blobMedia.ts";
 import { MOODS } from "./blobMood.ts";
+import type { Inset } from "./blobFocus.ts";
 import { gestureFor } from "./blobPicking.ts";
 import BlobScenario from "./BlobScenario.tsx";
 import { SCENARIOS } from "./blobScenarios.ts";
+import FocusFlight from "./FocusFlight.tsx";
 import { RenderResolution } from "./RenderResolution.tsx";
 import { shapesFixture } from "./shapesFixture.ts";
 import {
@@ -69,7 +71,17 @@ const noRaycast = () => {};
  * on the bare ground calls `onDismiss`; a blob in front swallows its own click, so that never
  * fires for the click that selected it. The end of an orbit or pan drag is not a click.
  */
-function Stage({ view, onDismiss }: { view: View; onDismiss: () => void }) {
+function Stage({
+  view,
+  onDismiss,
+  focusRequest,
+  focusInset,
+}: {
+  view: View;
+  onDismiss: () => void;
+  focusRequest: BlobFocusRequest | null;
+  focusInset?: Partial<Inset>;
+}) {
   const camera = useThree((s) => s.camera);
   const canvas = useThree((s) => s.gl.domElement);
   const aspect = useThree((s) => s.size.width / s.size.height);
@@ -114,6 +126,7 @@ function Stage({ view, onDismiss }: { view: View; onDismiss: () => void }) {
 
   return (
     <>
+      <FocusFlight request={focusRequest} view={view} distance={distance} inset={focusInset} />
       <OrbitControls
         ref={controls}
         makeDefault
@@ -241,11 +254,11 @@ const labelStyle: CSSProperties = {
 };
 
 /** Every blob shape at child, adult and elder size, on an empty ground. */
-export default function ShapesScene() {
+export default function ShapesScene({ focusInset }: { focusInset?: Partial<Inset> }) {
   const tall = useSyncExternalStore(portrait.subscribe, portrait.matches);
   const view = tall ? VIEWS.tall : VIEWS.wide;
   const labels = useRef<(HTMLDivElement | null)[]>([]);
-  const { selectedId, selectBlob, updateActivities } = useBlobSelection();
+  const { selectedId, selectBlob, updateActivities, focusRequest } = useBlobSelection();
   const dismiss = useCallback(() => selectBlob(null), [selectBlob]);
 
   // The grid and the mood samples never change what they do; the scenarios report their own.
@@ -272,7 +285,12 @@ export default function ShapesScene() {
         {/* Balanced with KeyLight so a lit top face shows a blob's base colour (no tone mapping). */}
         <hemisphereLight args={["#eef4fa", "#7d8f6e", 1.6]} />
         <KeyLight view={view} />
-        <Stage view={view} onDismiss={dismiss} />
+        <Stage
+          view={view}
+          onDismiss={dismiss}
+          focusRequest={focusRequest}
+          focusInset={focusInset}
+        />
         <PinLabels labels={view.labels} elements={labels} />
 
         {shapesFixture.map((blob, i) => (

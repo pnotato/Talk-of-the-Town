@@ -51,6 +51,26 @@ export function activityText(activity: BlobActivity | undefined): string {
 }
 
 /**
+ * The blob's current action as one phrase and, for talking and listening, who it is with. The
+ * partner is only the one the scene reports, so "Talking to" never appears without a partner and
+ * a blob nobody is talking with is simply "Talking".
+ */
+export function describeAction(activity: BlobActivity | undefined): {
+  text: string;
+  partnerId?: number;
+} {
+  const text = activityText(activity);
+  const partnerId = activity?.partnerId;
+  if (
+    partnerId === undefined ||
+    (activity?.state !== "talking" && activity?.state !== "listening")
+  ) {
+    return { text };
+  }
+  return { text: `${text} to`, partnerId };
+}
+
+/**
  * The next (`step` 1) or previous (`step` -1) id in `order`, wrapping round. With nothing selected,
  * stepping forward gives the first and stepping back the last.
  */

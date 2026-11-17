@@ -47,6 +47,8 @@ export default function BlobPortrait({
         flat
         camera={{ fov: PORTRAIT_FOV, near: 0.1, far: 50 }}
         gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
+        // A portrait never moves on the page by itself, so it needn't listen to every scroll.
+        resize={{ scroll: false }}
       >
         {/* The same light as the Shapes sandbox, so a mood's colour matches the town's. */}
         <hemisphereLight args={["#eef4fa", "#7d8f6e", 1.6]} />

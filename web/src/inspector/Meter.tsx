@@ -1,6 +1,9 @@
 import { displayScore } from "./inspectorModel.ts";
 
-/** A 0–100 score as a labelled bar with its number and a few words, readable without colour. */
+/**
+ * A 0–100 score as a long bar with its name, number and a few words to the right, readable
+ * without colour.
+ */
 export default function Meter({
   label,
   score,
@@ -15,13 +18,6 @@ export default function Meter({
   const value = displayScore(score);
   return (
     <div className="meter">
-      <div className="meter-head">
-        <span className="meter-label">{label}</span>
-        <span className="meter-value">
-          <strong>{value}</strong>
-          <span className="meter-words">{words}</span>
-        </span>
-      </div>
       <div
         className={`meter-track meter-${tone}`}
         role="meter"
@@ -32,6 +28,11 @@ export default function Meter({
         aria-valuetext={`${value} out of 100, ${words}`}
       >
         <div className="meter-fill" style={{ width: `${value}%` }} />
+      </div>
+      <div className="meter-read" aria-hidden>
+        <span className="meter-label">{label}</span>
+        <strong className="meter-number">{value}</strong>
+        <span className="meter-words">{words}</span>
       </div>
     </div>
   );

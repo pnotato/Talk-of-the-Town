@@ -15,7 +15,7 @@
   bottom: max(16px, env(safe-area-inset-bottom));
   z-index: 2;
   box-sizing: border-box;
-  width: min(460px, calc(100% - 32px));
+  width: min(900px, calc(100% - 32px));
   display: flex;
   flex-direction: column-reverse;
   justify-content: flex-start;
@@ -133,27 +133,27 @@
   color: #d3d9e1;
 }
 
-/* Selected blob. */
+/* Selected blob: a wide, low panel with the blob's portrait overlapping its left edge. */
 
+/*
+ * One grid cell holds the portrait and the panel, so the portrait overlaps the panel's edge and
+ * both scroll together when the dock is short. The wrapper has no background of its own; it only
+ * pads out the panel's shadow so scrolling doesn't clip the top and sides.
+ */
 .inspector-card {
-  position: relative;
+  --portrait: 200px;
+  box-sizing: border-box;
   flex: 0 1 auto;
   min-height: 0;
-  display: flex;
-  overflow: hidden;
-  animation: inspector-in 180ms ease-out;
-}
-
-/* The part that scrolls when the dock is short; the close button sits outside it. */
-.card-scroll {
-  flex: 1;
-  min-width: 0;
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
-  gap: 16px;
-  padding: 16px;
+  grid-template-columns: var(--portrait) minmax(0, 1fr);
+  width: calc(100% + 16px);
+  margin: -8px -8px 0;
+  padding: 8px 8px 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  animation: inspector-in 180ms ease-out;
 }
 
 @keyframes inspector-in {
@@ -163,66 +163,114 @@
   }
 }
 
-.card-side {
+.card-panel {
+  grid-area: 1 / 1 / 2 / -1;
+  width: auto;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-left: calc(var(--portrait) * 0.45);
+  padding: 14px 14px 12px calc(var(--portrait) * 0.55 + 22px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.card-portrait {
+  position: relative;
+  grid-area: 1 / 1;
+  z-index: 2;
+  align-self: center;
+  width: var(--portrait);
+  height: var(--portrait);
 }
 
 .portrait {
   box-sizing: border-box;
-  width: 104px;
-  height: 104px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
   overflow: hidden;
-  border: 3px solid;
+  border: 4px solid;
   border-radius: 50%;
   background: radial-gradient(circle at 50% 30%, #f1f6fb, #bccfe0);
   box-shadow:
-    0 0 0 3px rgb(255 255 255 / 0.85),
-    0 6px 16px rgb(0 0 0 / 0.3);
-  transition: border-color 300ms;
+    0 0 0 4px rgb(255 255 255 / 0.88),
+    0 10px 24px rgb(0 0 0 / 0.32);
+  pointer-events: none;
+  transition:
+    border-color 300ms,
+    transform 150ms;
 }
 
-.card-mood {
+/* The native button over the portrait (and over a chip): invisible, with the click and focus. */
+.portrait-hit,
+.chip-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.portrait-hit {
+  border-radius: 50%;
+}
+
+.chip-hit {
+  border-radius: 999px;
+}
+
+/* Clear of the portrait's 4px white ring, and still inside the card's edge. */
+.card-portrait .portrait-hit:focus-visible {
+  outline-offset: 5px;
+}
+
+.portrait-hit:hover + .portrait {
+  transform: scale(1.02);
+}
+
+.portrait-mood {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  text-align: center;
+  padding: 2px 11px 2px 8px;
+  transform: translateX(-50%);
+  border: 1px solid rgb(255 255 255 / 0.25);
+  border-radius: 999px;
+  background: rgb(30 33 38 / 0.9);
   font-size: 12px;
-  color: #d3d9e1;
+  font-weight: 600;
+  pointer-events: none;
 }
 
-.card-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.portrait-mood-dot {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgb(255 255 255 / 0.85);
+  border-radius: 50%;
 }
 
-.card-head {
-  /* Clear of the close button. */
-  padding-right: 28px;
-}
-
-.card-head h2 {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
-}
-
-.card-sub {
-  margin: 2px 0 0;
-  color: #d3d9e1;
-  font-size: 13px;
+/* Sticks to the top of the scrolling card, so closing is always in reach. */
+.card-close-anchor {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  grid-area: 1 / 1 / 2 / -1;
+  align-self: start;
+  height: 0;
 }
 
 .inspector-close {
   position: absolute;
-  top: 8px;
+  top: 6px;
   right: 8px;
-  z-index: 1;
   display: grid;
   place-items: center;
   width: 36px;
@@ -237,42 +285,178 @@
   background: rgb(255 255 255 / 0.16);
 }
 
-/* Meters. */
+/* Name, then a rule. */
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 36px;
+}
+
+.card-head h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  /* A long name wraps rather than running into the close button. */
+  overflow-wrap: anywhere;
+}
+
+.card-rule {
+  flex: 1 1 12px;
+  min-width: 12px;
+  height: 1px;
+  background: rgb(255 255 255 / 0.28);
+}
+
+/* Age, life stage and shape, then family. */
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  color: #d3d9e1;
+}
+
+.card-meta p {
+  margin: 0;
+}
+
+.family {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+
+.family-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.family-label {
+  color: #b9c1cc;
+}
+
+/* A named blob: its portrait and name, with a button over all of it. */
+
+.blob-chip {
+  position: relative;
+  display: inline-block;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  font-weight: 600;
+}
+
+.chip-visual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px 2px 2px;
+}
+
+.chip-visual:not(:has(.chip-portrait)) {
+  padding-left: 12px;
+}
+
+.blob-chip:hover {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.chip-portrait {
+  box-sizing: border-box;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  border: 2px solid;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #f1f6fb, #bccfe0);
+  pointer-events: none;
+}
+
+/* Special tags and personality tags. */
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.tag-row h3 {
+  flex: none;
+  min-width: 88px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  padding: 1px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Special tags: solid and light, so they stand apart from personality at a glance. */
+.tag-special {
+  border-color: rgb(255 255 255 / 0.9);
+  background: rgb(255 255 255 / 0.9);
+  color: #23272d;
+  font-weight: 700;
+}
+
+/* Personality tags: tinted by category, always with the word, so colour is never the only cue. */
+.tag-personality {
+  background: var(--tag-tint);
+  border-color: var(--tag-line);
+}
+
+.tag-credulity {
+  --tag-tint: rgb(96 165 250 / 0.24);
+  --tag-line: rgb(147 197 253 / 0.65);
+}
+
+.tag-socialness {
+  --tag-tint: rgb(251 191 36 / 0.2);
+  --tag-line: rgb(252 211 77 / 0.65);
+}
+
+.tag-persuasiveness {
+  --tag-tint: rgb(167 139 250 / 0.26);
+  --tag-line: rgb(196 181 253 / 0.65);
+}
+
+/* Meters: a long bar, with its name, number and words to the right. */
 
 .meters {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.meter-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.meters-note {
-  margin: 0;
-  color: #b9c1cc;
-  font-size: 11px;
-}
-
-.meter-label {
-  color: #d3d9e1;
-  font-weight: 600;
-}
-
-.meter-value strong {
-  margin-right: 6px;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
+.meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 232px;
+  align-items: center;
+  gap: 14px;
 }
 
 .meter-track {
-  height: 8px;
-  margin-top: 3px;
+  height: 10px;
   overflow: hidden;
   border-radius: 999px;
   background: rgb(255 255 255 / 0.16);
@@ -292,71 +476,66 @@
   background: linear-gradient(90deg, #f0b84a, #ffdf8f);
 }
 
-/* Facts. */
-
-.facts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-  margin: 0;
-}
-
-.fact {
-  min-width: 0;
-}
-
-.fact:nth-child(-n + 2) {
-  grid-column: 1 / -1;
-}
-
-.fact dd {
-  margin: 2px 0 0;
-}
-
-.chips {
+.meter-read {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
 }
 
-.chips li {
-  padding: 1px 10px;
-  border: 1px solid rgb(255 255 255 / 0.2);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.1);
-  font-size: 12px;
+.meter-label {
+  min-width: 78px;
+  color: #d3d9e1;
+  font-weight: 600;
 }
 
-.family-line {
-  display: block;
+.meter-number {
+  min-width: 2ch;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
 }
 
-.inspector-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  text-decoration: underline;
-  text-decoration-color: rgb(255 255 255 / 0.45);
-  text-underline-offset: 3px;
-  cursor: pointer;
+.meter-words {
+  color: #d3d9e1;
 }
 
-.inspector-link:hover {
-  text-decoration-color: currentColor;
-}
+/* Current action, then the unobtrusive demo note. */
 
 .card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(255 255 255 / 0.18);
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.action-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  padding-top: 10px;
-  border-top: 1px solid rgb(255 255 255 / 0.14);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.card-note {
+  flex: 0 1 380px;
+  margin: 0;
   color: #b9c1cc;
   font-size: 11px;
+  line-height: 1.5;
+}
+
+.card-note .inspector-badge {
+  margin-right: 8px;
 }
 
 /* Picker. */
@@ -458,7 +637,64 @@
   font-size: 12px;
 }
 
-/* Phone. */
+/* Phone, and short screens: the portrait shrinks to sit inside the panel's top-left corner. */
+@media (max-width: 700px), (max-height: 520px) {
+  .inspector-card {
+    --portrait: 84px;
+    /* Never fills the room down to the app shell: some of the scene stays in view above the card,
+       enough for a focused blob (about 60px or more at 320×568 and 844×390). The card scrolls. */
+    max-height: min(54dvh, calc(100dvh - 240px));
+  }
+
+  .card-panel {
+    margin-left: 0;
+    padding: 12px;
+  }
+
+  .card-portrait {
+    align-self: start;
+    margin: 12px 0 0 12px;
+  }
+
+  .portrait {
+    border-width: 3px;
+    box-shadow: 0 0 0 2px rgb(255 255 255 / 0.85);
+  }
+
+  .card-portrait .portrait-hit:focus-visible {
+    outline-offset: 3px;
+  }
+
+  .portrait-mood {
+    bottom: -8px;
+    padding: 0 8px 0 6px;
+    font-size: 11px;
+  }
+
+  /* The first three rows sit beside the portrait; the rest use the full width. */
+  .card-head,
+  .card-meta,
+  .tag-row-special {
+    margin-left: calc(var(--portrait) + 12px);
+  }
+
+  .card-head h2 {
+    font-size: 19px;
+  }
+
+  .tag-row h3 {
+    min-width: 0;
+  }
+
+  .card-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-note {
+    flex-basis: auto;
+  }
+}
 
 @media (max-width: 560px) {
   .inspector-dock {
@@ -467,51 +703,31 @@
     width: calc(100% - 24px);
   }
 
-  .card-scroll {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 12px;
-    padding: 12px;
+  .meter {
+    grid-template-columns: 1fr;
+    gap: 3px;
   }
 
-  .portrait {
-    width: 72px;
-    height: 72px;
-    border-width: 2px;
-  }
-
-  .card-mood {
-    font-size: 11px;
-  }
-
-  .card-head h2 {
-    font-size: 18px;
+  .meter-read {
+    order: -1;
   }
 
   .picker-scroll ul {
     grid-template-columns: 1fr;
   }
-}
 
-/* Narrow phones: the facts stack, and the bar's hint drops to its own line. */
-@media (max-width: 360px) {
-  .facts {
-    grid-template-columns: 1fr;
-  }
-
-  .fact:nth-child(-n + 2) {
-    grid-column: auto;
+  .action {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 }
 
 /* Short screens (a phone on its side): tighter, so more of the card shows at once. */
-@media (max-height: 480px) {
-  .card-scroll {
+@media (max-height: 520px) {
+  .card-panel {
+    gap: 6px;
     padding: 10px 12px;
-    gap: 12px;
-  }
-
-  .card-main {
-    gap: 8px;
   }
 }
 
@@ -523,5 +739,9 @@
   .meter-fill,
   .portrait {
     transition: none;
+  }
+
+  .portrait-hit:hover + .portrait {
+    transform: none;
   }
 }

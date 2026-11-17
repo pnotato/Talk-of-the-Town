@@ -29,8 +29,11 @@ function moveFocus(event: KeyboardEvent<HTMLElement>) {
 /**
  * Every blob in the sandbox as a button, so the scene isn't the only way to pick one. It stands in
  * the selected blob's card's place while browsing, and fills the space the dock has (the list
- * scrolls; its header stays). Choosing a blob leaves it open for stepping through; Done, Escape or
- * the Browse button put it away and bring the card back.
+ * scrolls; its header stays).
+ *
+ * Choosing a blob hands it to `onPick`, which puts the list away and takes the camera there, so
+ * the list never hides the blob the camera is heading for. Done, Escape or the Browse button also
+ * put it away. Use Previous and Next to step through blobs without reopening the list.
  *
  * Opened from the keyboard, it takes focus on the chosen blob (or the first one). Opened by mouse
  * it only scrolls the chosen blob into view.
@@ -38,13 +41,16 @@ function moveFocus(event: KeyboardEvent<HTMLElement>) {
 export default function BlobPicker({
   id,
   takeFocus,
+  onPick,
   onClose,
 }: {
   id: string;
   takeFocus: boolean;
+  /** `viaKeyboard` is true for Enter or Space, which has no pointer position. */
+  onPick: (id: number, viaKeyboard: boolean) => void;
   onClose: () => void;
 }) {
-  const { selectedId, selectBlob, activities } = useBlobSelection();
+  const { selectedId, activities } = useBlobSelection();
   const list = useRef<HTMLDivElement>(null);
 
   // On open only: later selections shouldn't pull focus or the scroll position about.
@@ -80,7 +86,7 @@ export default function BlobPicker({
                       type="button"
                       className="picker-item"
                       aria-pressed={p.id === selectedId}
-                      onClick={() => selectBlob(p.id)}
+                      onClick={(event) => onPick(p.id, event.detail === 0)}
                     >
                       <span
                         className="picker-swatch"
