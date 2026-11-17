@@ -7,6 +7,8 @@ import { GRASS, GROUND_RADIUS } from "./TownGround.tsx";
 
 /** Height of the raised sidewalks and the plaza island; things on them stand this high. */
 export const CURB = 0.15;
+/** Top of the plaza paving and the lawns laid on the slabs: where blobs stand. */
+export const SURFACE = CURB + 0.01;
 
 const ASPHALT = "#5d6169";
 const PAINT = "#eeeae0";
@@ -106,9 +108,9 @@ export function CityGround({ city }: { city: CityLayout }) {
       roads: flatRects(city.roads, 0.02),
       paint: flatRects(roadMarkings(city), 0.03),
       sidewalks: slabs([...city.blocks, city.plaza]),
-      paving: flatPolygon(city.plaza.outline, CURB + 0.01),
+      paving: flatPolygon(city.plaza.outline, SURFACE),
       beds: mergeGeometries([
-        ...city.plaza.beds.map((bed) => flatPolygon(bed, CURB + 0.01)),
+        ...city.plaza.beds.map((bed) => flatPolygon(bed, SURFACE)),
         ...city.parks.map(({ x, z, width, depth }) =>
           flatPolygon(
             [
@@ -117,7 +119,7 @@ export function CityGround({ city }: { city: CityLayout }) {
               { x: x + width / 2, z: z + depth / 2 },
               { x: x - width / 2, z: z + depth / 2 },
             ],
-            CURB + 0.01,
+            SURFACE,
           ),
         ),
       ]),
