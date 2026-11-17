@@ -2,12 +2,16 @@ import { type CSSProperties, useState } from "react";
 import CityScene from "../scene/CityScene.tsx";
 import { DEFAULT_CROWD_SEED } from "../scene/scatterCrowd.ts";
 
-// Top right, clear of the app shell's badge and nav at the top left.
+// Bottom right, over the fields at the city's edge and clear of the app shell's SIMULATED badge
+// and nav at the top left, even on a phone.
 const panel: CSSProperties = {
   position: "absolute",
-  top: 16,
+  bottom: 16,
   right: 16,
+  maxWidth: "calc(100% - 32px)",
+  boxSizing: "border-box",
   display: "flex",
+  flexWrap: "wrap",
   alignItems: "center",
   gap: 12,
   padding: "6px 10px",
