@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import CityPage from "./pages/CityPage.tsx";
 import ShapesPage from "./pages/ShapesPage.tsx";
 import TownPage from "./pages/TownPage.tsx";
 
@@ -7,6 +8,7 @@ import TownPage from "./pages/TownPage.tsx";
 const pages = [
   { hash: "#/town", label: "Town", Page: TownPage },
   { hash: "#/shapes", label: "Shapes", Page: ShapesPage },
+  { hash: "#/city", label: "City", Page: CityPage },
 ];
 
 function subscribeToHash(onChange: () => void) {

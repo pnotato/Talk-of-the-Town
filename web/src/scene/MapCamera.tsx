@@ -9,7 +9,7 @@ import type { MapLayout } from "./mapLayout.ts";
 const LANDSCAPE_ELEVATION = MathUtils.degToRad(50);
 const PORTRAIT_ELEVATION = MathUtils.degToRad(64);
 const MIN_POLAR = MathUtils.degToRad(10); // nearly straight down
-const MAX_POLAR = MathUtils.degToRad(64); // low, but the town never turns edge-on
+const MAX_POLAR = MathUtils.degToRad(64); // low, but the map never turns edge-on
 const ZOOM_OUT_ROOM = 1.35; // how far past the default framing the player may zoom out
 const FRAME_FILL = 0.92; // share of the view the town fills by default
 
@@ -60,14 +60,17 @@ function frameTown(points: Vector3[], fovDeg: number, aspect: number): Framing {
 
 interface Props {
   map: MapLayout;
-  /** Closest zoom. With MAX_POLAR it keeps the camera above the map's roofs. */
-  minDistance: number;
+  /** Closest zoom. */
+  minDistance?: number;
+  /** A height the camera must stay above, even fully zoomed in at its lowest tilt. */
+  clearance?: number;
   /** Colour the far fields fade into; the sky behind should match. */
   fogColor: string;
 }
 
 /** Pan and zoom over a map, clamped so the map always stays in view. */
-export function MapCamera({ map, minDistance, fogColor }: Props) {
+export function MapCamera({ map, minDistance = 0, clearance = 0, fogColor }: Props) {
+  const closest = Math.max(minDistance, clearance / Math.cos(MAX_POLAR));
   const fov = useThree((s) => (s.camera as PerspectiveCamera).fov);
   const aspect = useThree((s) => s.size.width / s.size.height);
   const controls = useRef<ComponentRef<typeof MapControls>>(null);
@@ -132,7 +135,7 @@ export function MapCamera({ map, minDistance, fogColor }: Props) {
         makeDefault
         onChange={clampTarget}
         enableDamping={!reducedMotion}
-        minDistance={minDistance}
+        minDistance={closest}
         maxDistance={maxDistance}
         minPolarAngle={MIN_POLAR}
         maxPolarAngle={MAX_POLAR}
