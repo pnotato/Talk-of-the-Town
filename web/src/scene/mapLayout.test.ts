@@ -3,6 +3,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  BLOB_RADIUS,
+  BLOB_REACH,
   CAMERA_MARGIN,
   CAMERA_RAMP,
   cameraFloor,
@@ -67,11 +69,11 @@ describe("standingSpots", () => {
     assert.ok(spots.length > (0.75 * polygonArea(BOW_TIE)) / perSpot, `${spots.length} spots`);
   });
 
-  test("every spot is inside, a blob's radius clear of the edge and the furniture", () => {
+  test("every spot is inside, a blob's radius clear of the edge and its reach of the furniture", () => {
     for (const p of spots) {
       assert.ok(insidePolygon(p, BOW_TIE));
-      assert.ok(distanceToOutline(p, BOW_TIE) >= 0.6 - 1e-9);
-      for (const o of OBSTACLES) assert.ok(distanceToObstacle(p, o) >= 0.6 - 1e-9);
+      assert.ok(distanceToOutline(p, BOW_TIE) >= BLOB_RADIUS - 1e-9);
+      for (const o of OBSTACLES) assert.ok(distanceToObstacle(p, o) >= BLOB_REACH - 1e-9);
     }
   });
 

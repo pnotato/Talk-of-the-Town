@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { type CityLayout, layoutCity, VEHICLE_LENGTH, VEHICLE_WIDTH } from "./layoutCity.ts";
 import { TREE_RADIUS } from "./layoutTown.ts";
-import { distanceToObstacle, insidePolygon, type Point } from "./mapLayout.ts";
+import { BLOB_REACH, distanceToObstacle, insidePolygon, type Point } from "./mapLayout.ts";
 
 interface Rect {
   minX: number;
@@ -213,7 +213,7 @@ describe("layoutCity", () => {
           assert.ok(insidePolygon(p, outline));
           for (const f of city.furniture) {
             const box = { x: f.x, z: f.z, width: f.width, depth: f.depth, rotationY: f.rotationY };
-            assert.ok(distanceToObstacle(p, { kind: "box", ...box }) >= 0.6 - EPS);
+            assert.ok(distanceToObstacle(p, { kind: "box", ...box }) >= BLOB_REACH - EPS);
           }
         }
       });
