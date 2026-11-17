@@ -27,6 +27,7 @@ check:
 	go vet ./...
 	go test ./...
 	npm --prefix web run typecheck
+	npm --prefix web test
 	npm --prefix web run lint
 	npm --prefix web run format:check
 
