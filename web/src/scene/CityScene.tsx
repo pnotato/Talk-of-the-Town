@@ -7,6 +7,7 @@ import { CityStreetLife } from "./CityStreetLife.tsx";
 import { layoutCity } from "./layoutCity.ts";
 import { MapCamera } from "./MapCamera.tsx";
 import { MapLights } from "./MapLights.tsx";
+import { RenderResolution } from "./RenderResolution.tsx";
 import { GROUND_RADIUS } from "./TownGround.tsx";
 import { TownTrees } from "./TownTrees.tsx";
 
@@ -36,11 +37,12 @@ export default function CityScene({
     <Canvas
       shadows="percentage"
       flat
-      dpr={[1, 2]}
+      dpr={1}
       camera={{ fov: 30, near: 1, far: GROUND_RADIUS * 1.2 }}
       role="img"
       aria-label={`City map: ${homeCount} homes in ${neighbourhoodCount} districts around a plaza of news screens. Drag to pan, scroll or pinch to zoom.`}
     >
+      <RenderResolution />
       <color attach="background" args={[SKY]} />
       <MapLights map={city} />
       <CityGround city={city} />
