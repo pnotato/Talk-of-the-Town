@@ -137,3 +137,20 @@ export const BLOB_GEOMETRY: Record<Shape, BufferGeometry> = {
   tear: standOnGround(teardrop(), ADULT_HEIGHT.tear),
   capsule: standOnGround(new CapsuleGeometry(0.36, 0.36, 12, 48), ADULT_HEIGHT.capsule),
 };
+
+/**
+ * Half-width (x) and half-depth (z) of the flat part each shape stands on, measured from its
+ * geometry: 0 for round bottoms, which roll instead. A body tipping on its feet pivots on this edge.
+ */
+export const BASE_EXTENT = Object.fromEntries(
+  SHAPES.map((shape) => {
+    const position = BLOB_GEOMETRY[shape].getAttribute("position");
+    let [x, z] = [0, 0];
+    for (let i = 0; i < position.count; i++) {
+      if (position.getY(i) > 0.002) continue;
+      x = Math.max(x, Math.abs(position.getX(i)));
+      z = Math.max(z, Math.abs(position.getZ(i)));
+    }
+    return [shape, { x, z }];
+  }),
+) as Record<Shape, { x: number; z: number }>;
