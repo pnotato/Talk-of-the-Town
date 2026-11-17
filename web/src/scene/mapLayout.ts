@@ -76,7 +76,15 @@ export interface MapLayout {
 // A blob's standing room: spots sit on a hex grid this far apart, about 2.8 square units
 // each. The widest blob (an elder) is 1.2 across, which leaves 0.6 between neighbours.
 export const SPOT_SPACING = 1.8;
-const BLOB_RADIUS = 0.6;
+// A blob's feet stay this far inside the edge of where it stands.
+export const BLOB_RADIUS = 0.6;
+/**
+ * How far from its spot any part of a blob can reach while it idles or holds a pose: an elder
+ * star shaking in anger, or an elder square slumped forward, tips past its own radius.
+ * Obstacles keep this far off, so nobody clips into a bench, a kiosk or the steps; two
+ * neighbours reaching towards each other still leave a gap. blobReach.test.ts measures it.
+ */
+export const BLOB_REACH = 0.85;
 
 /** Even-odd test, so concave outlines (a bow-tie) work. */
 export function insidePolygon(p: Point, polygon: Point[]): boolean {
@@ -165,8 +173,9 @@ export function cameraFloor(solids: Solid[], x: number, z: number): number {
 }
 
 /**
- * Hex-grid standing spots inside an outline, a blob's radius clear of its edge and of every
- * obstacle, sorted nearest the outline's middle first so a smaller crowd fills the centre.
+ * Hex-grid standing spots inside an outline, a blob's radius clear of its edge and its reach
+ * clear of every obstacle, sorted nearest the outline's middle first so a smaller crowd fills
+ * the centre.
  */
 export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] {
   const xs = outline.map((p) => p.x);
@@ -188,7 +197,7 @@ export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] 
       const p = { x: middle.x + c * SPOT_SPACING + shift, z: middle.z + r * row };
       if (!insidePolygon(p, outline)) continue;
       if (distanceToOutline(p, outline) < BLOB_RADIUS) continue;
-      if (obstacles.some((o) => distanceToObstacle(p, o) < BLOB_RADIUS)) continue;
+      if (obstacles.some((o) => distanceToObstacle(p, o) < BLOB_REACH)) continue;
       spots.push(p);
     }
   }
