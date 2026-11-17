@@ -1,7 +1,7 @@
 import { MapControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { type ComponentRef, useLayoutEffect, useMemo, useRef } from "react";
-import { type Camera, MathUtils, PerspectiveCamera, Spherical, Vector3 } from "three";
+import { type Camera, MathUtils, PerspectiveCamera, Vector3 } from "three";
 import { cameraFloor, type MapLayout, type Solid } from "./mapLayout.ts";
 
 // Default look-down angle above the horizon. Portrait screens are width-bound, so a
@@ -66,45 +66,13 @@ function frameTown(
 // After the controls update (drei runs them at -1) and before the shadow fit (0).
 const AFTER_CONTROLS = -0.5;
 
-// Scratch for lifting the camera, so the frame loop allocates nothing.
-const offset = new Vector3();
-const spherical = new Spherical();
-
-// Whether a camera `radius` from the target, at polar angle `phi`, is above the floor.
-function clears(solids: Solid[], target: Vector3, radius: number, phi: number, theta: number) {
-  const out = Math.sin(phi) * radius;
-  const floor = cameraFloor(
-    solids,
-    target.x + out * Math.sin(theta),
-    target.z + out * Math.cos(theta),
-  );
-  return target.y + Math.cos(phi) * radius >= floor;
-}
-
-// Lift the camera above the floor round the same target: the least steeper tilt that clears
-// it, or at the steepest tilt, backing off until it does. The floor is continuous, so the
+// Lift the camera straight up onto the floor, still looking at the same target: steeper and
+// a little further off at once. The floor is continuous and so is the rig's path, so the
 // lift is too: no pop as the camera passes a tower.
 function liftAboveFloor(camera: Camera, target: Vector3, solids: Solid[]) {
-  spherical.setFromVector3(offset.copy(camera.position).sub(target));
-  const { theta } = spherical;
-  if (clears(solids, target, spherical.radius, spherical.phi, theta)) return;
-  if (clears(solids, target, spherical.radius, MIN_POLAR, theta)) {
-    let lo = MIN_POLAR;
-    let hi = spherical.phi;
-    for (let i = 0; i < 20; i++) {
-      const mid = (lo + hi) / 2;
-      if (clears(solids, target, spherical.radius, mid, theta)) lo = mid;
-      else hi = mid;
-    }
-    spherical.phi = lo;
-  } else {
-    spherical.phi = MIN_POLAR;
-    for (let i = 0; i < 100; i++) {
-      if (clears(solids, target, spherical.radius, MIN_POLAR, theta)) break;
-      spherical.radius *= 1.05;
-    }
-  }
-  camera.position.copy(target).add(offset.setFromSpherical(spherical));
+  const floor = cameraFloor(solids, camera.position.x, camera.position.z);
+  if (camera.position.y >= floor) return;
+  camera.position.y = floor;
   camera.lookAt(target);
 }
 
