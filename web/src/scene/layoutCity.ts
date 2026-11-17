@@ -34,7 +34,6 @@ const BUILDING_GAP = 1;
 const DOOR_SPACING = 3;
 const DOOR_CORNER = 2; // doors keep this far from a building's corners, and so from each other round one
 const SCREEN_BOTTOM = 4; // above the doors and their canopies
-const SCREEN_TURN = (25 * Math.PI) / 180; // side screens turn this far towards the camera
 const SCREEN_OFF_WALL = 0.15;
 const ROOFTOP = 2; // headroom for water tanks and plant on the roofs
 const LAMP_INSET = 0.8;
@@ -93,6 +92,8 @@ export interface CityPlaza extends CityRect {
 export interface CityLayout extends MapLayout {
   plaza: CityPlaza;
   blocks: CityBlock[];
+  /** Lawns inside a block's sidewalk, planted with trees. */
+  parks: CityRect[];
   buildings: CityBuilding[];
   /** Axis-aligned strips of roadway; they overlap at junctions. */
   roads: CityRect[];
@@ -225,6 +226,8 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
 
   const blocks: CityBlock[] = [];
   const buildings: CityBuilding[] = [];
+  const parks: CityRect[] = [];
+  const parkTrees: TownTree[] = [];
   const lamps: Point[] = [];
   const slotsByCell = new Map<string, { door: Point; facing: number }[]>();
   for (let r = 1; r <= rings; r++) {
@@ -244,8 +247,22 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
           z: z === area.minZ ? z + LAMP_INSET : z - LAMP_INSET,
         });
       }
-      const kind: BuildingKind = district >= 0 ? "apartments" : j > 0 ? "shops" : "offices";
       const slots: { door: Point; facing: number }[] = [];
+      slotsByCell.set(key(cell), slots);
+      // Unless a district needs it, the block south of the plaza is a park, which keeps the
+      // default camera's view of the plaza open.
+      if (district < 0 && i === 0 && j === 1) {
+        const lawn = {
+          minX: area.minX + SIDEWALK,
+          maxX: area.maxX - SIDEWALK,
+          minZ: area.minZ + SIDEWALK,
+          maxZ: area.maxZ - SIDEWALK,
+        };
+        parks.push(rectOf(lawn));
+        parkTrees.push(...grove(lawn, random));
+        continue;
+      }
+      const kind: BuildingKind = district >= 0 ? "apartments" : j > 0 ? "shops" : "offices";
       lotsOf(cell).forEach((lot) => {
         const height = heightFor(i, j, r, random);
         // Screens need a flat wall, so the buildings round the plaza don't step in.
@@ -254,7 +271,6 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
         buildings.push({ ...rectOf(lot), height, podium, kind });
         if (kind === "apartments") slots.push(...doorSlots(lot));
       });
-      slotsByCell.set(key(cell), slots);
     }
   }
 
@@ -286,7 +302,7 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   };
   const roads = layoutRoads(rings, cellRect, extent);
   const vehicles = parkVehicles([...blocks, plaza.island], random);
-  const trees = plantTrees(plaza, extent, random);
+  const trees = [...parkTrees, ...plantTrees(plaza, extent, random)];
 
   const neighbourhoods = districtCells.map((cells, k) => {
     const centres = cells.map((c) => rectOf(cellRect(c)));
@@ -334,6 +350,7 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     height,
     plaza: plaza.island,
     blocks,
+    parks,
     buildings,
     roads,
     screens,
@@ -442,7 +459,7 @@ function layoutPlaza(width: number, depth: number) {
 
 // Big screens on the buildings round the plaza, and a news ticker on the tower. Only walls
 // the default camera can see get one: the tower to the north, its neighbours either side,
-// and the two buildings at the plaza's ends, turned towards the camera.
+// and the corners of the two buildings at the plaza's ends.
 function placeScreens(lotsOf: (cell: Cell) => Lot[], screens: CityPanel[], tickers: CityPanel[]) {
   const [tower] = lotsOf([0, -1]);
   const towerWidth = tower.maxX - tower.minX;
@@ -493,26 +510,19 @@ function placeScreens(lotsOf: (cell: Cell) => Lot[], screens: CityPanel[], ticke
     });
   }
 
-  // The ends: hinged on the wall facing the plaza, swung out towards the camera.
+  // The ends: wrapped round the corner nearest both the plaza and the camera, facing
+  // between them, so the camera never sees them edge-on.
   for (const side of [-1, 1]) {
     const lots = lotsOf([side, 0]);
     const lot = side < 0 ? lots[1] : lots[0];
-    const wallX = side < 0 ? lot.maxX : lot.minX;
-    const outward = -side; // the wall faces the plaza
-    const facing = outward * (Math.PI / 2 - SCREEN_TURN);
-    const along = { x: Math.cos(facing), z: -Math.sin(facing) };
-    // Of the two directions along the screen, the one leaving the wall.
-    const out = along.x * outward > 0 ? along : { x: -along.x, z: -along.z };
+    const corner = { x: side < 0 ? lot.maxX : lot.minX, z: lot.maxZ };
+    const facing = -side * (Math.PI / 4);
     const w = (lot.maxZ - lot.minZ) * 0.5;
     const h = w * 0.6;
-    const hinge = {
-      x: wallX + outward * SCREEN_OFF_WALL,
-      z: (lot.minZ + lot.maxZ) / 2 - (out.z * w) / 2,
-    };
     screens.push({
-      x: hinge.x + (out.x * w) / 2,
+      x: corner.x + Math.sin(facing) * SCREEN_OFF_WALL,
       y: SCREEN_BOTTOM + 0.5 + h / 2,
-      z: hinge.z + (out.z * w) / 2,
+      z: corner.z + Math.cos(facing) * SCREEN_OFF_WALL,
       width: w,
       height: h,
       rotationY: facing,
@@ -579,6 +589,25 @@ function parkVehicles(kerbs: CityRect[], random: () => number): CityVehicle[] {
     }
   }
   return vehicles;
+}
+
+// Two loose rows of trees across a park lawn, a little jitter so they don't look planted
+// by a machine.
+function grove(lawn: Rect, random: () => number): TownTree[] {
+  const trees: TownTree[] = [];
+  const width = lawn.maxX - lawn.minX;
+  const depth = lawn.maxZ - lawn.minZ;
+  const columns = Math.max(1, Math.floor((width - 4) / 5));
+  for (const row of [0.3, 0.7]) {
+    for (let c = 0; c < columns; c++) {
+      trees.push({
+        x: lawn.minX + 2 + ((c + 0.5) * (width - 4)) / columns + (random() - 0.5),
+        z: lawn.minZ + row * depth + (random() - 0.5),
+        size: 0.85 + random() * 0.25,
+      });
+    }
+  }
+  return trees;
 }
 
 // Trees in the plaza's beds and a seeded scatter in the fields round the city.

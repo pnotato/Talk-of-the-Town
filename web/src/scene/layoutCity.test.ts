@@ -264,17 +264,19 @@ describe("layoutCity", () => {
       });
 
       test("screens hang on a building, above the doors", () => {
+        const tallest = Math.max(...city.buildings.map((b) => b.height));
         for (const s of city.screens) {
           const along = { x: Math.cos(s.rotationY), z: -Math.sin(s.rotationY) };
           const ends = [-1, 1].map((k) => ({
             x: s.x + (along.x * k * s.width) / 2,
             z: s.z + (along.z * k * s.width) / 2,
           }));
-          const onWall = ends.some((e) => buildings.some((b) => inside(e, b, -0.3)));
-          assert.ok(onWall, "screen is not mounted on a building");
-          assert.ok(!buildings.some((b) => inside(s, b)), "screen sinks into a building");
+          const touching = buildings.some((b) => inside(s, b, -0.3));
+          assert.ok(touching, "screen is not mounted on a building");
+          for (const p of [s, ...ends]) {
+            assert.ok(!buildings.some((b) => inside(p, b)), "screen sinks into a building");
+          }
           assert.ok(s.y - s.height / 2 >= 3.5, "screen hangs over the doors");
-          const tallest = Math.max(...city.buildings.map((b) => b.height));
           assert.ok(s.y + s.height / 2 <= tallest, "screen pokes above the skyline");
         }
       });
