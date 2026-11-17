@@ -106,6 +106,13 @@ describe("cameraFloor", () => {
     assert.equal(cameraFloor(solids, 0, 0), roof);
     assert.equal(cameraFloor(solids, 4.9, 2.9), roof);
     assert.equal(cameraFloor(solids, 5 + CAMERA_MARGIN, 0), roof);
+    // 1.5 off a wall keeps the near plane (1 ahead, about 0.5 wide) out of it.
+    assert.ok(cameraFloor(solids, 5 + 1.5, 0) >= 30 + 1.5, "the margin is too thin");
+  });
+
+  test("eases out over several units, so passing a tower is a glide, not a jump", () => {
+    const third = GROUND_CLEARANCE + (roof - GROUND_CLEARANCE) / 3;
+    assert.ok(cameraFloor([tower], 5 + 6, 0) > third, "drops too soon past the wall");
   });
 
   test("eases down across the ramp, never rising as you leave", () => {
@@ -120,8 +127,8 @@ describe("cameraFloor", () => {
 
   test("continuous: a small step never jumps the floor", () => {
     const step = 0.01;
-    // Steepest smoothstep slope is 1.5 x height / ramp.
-    const steepest = (1.5 * (roof - GROUND_CLEARANCE) * step) / CAMERA_RAMP + 1e-9;
+    // A slope of 10 at most: a 30-unit tower's floor eases over a few units, not a step.
+    const steepest = 10 * step;
     for (let x = -30; x <= 30; x += step) {
       const a = cameraFloor(solids, x, 4);
       const b = cameraFloor(solids, x + step, 4);
