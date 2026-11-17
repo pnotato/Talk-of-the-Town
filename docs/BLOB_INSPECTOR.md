@@ -2,7 +2,9 @@
 
 On **Shapes**, click or tap any blob to open its bottom-left profile. A ring marks the selection. Click another blob to switch; click empty ground, press Escape, or use the close button to dismiss. Orbit/pan gestures do not change the selection, even when the pointer returns to where it started.
 
-The wide translucent grey panel has a large circular portrait overlapping its left edge. It shows name, age, life stage and shape; **Special tags** (Leader, Recluse, Family-oriented and explicit Parent / Child roles) and family portraits near the top; Interest then Perception meters; colored personality tags; and a bottom **Current action** row with the conversation partner's portrait.
+The compact translucent slate-grey panel has a circular portrait overlapping its left edge. On desktop the dock is 660px wide and the portrait is 152px across; the rectangle stays close to that height rather than growing into a tall card. It shows name, age, life stage and shape; subdued **Special tags** (Leader, Recluse, Family-oriented and explicit Parent / Child roles) and text-sized family portraits near the top; Interest then Perception meters; muted personality tags; and a single **Current action** row with the conversation partner's portrait.
+
+Meters show only their labels and fill levels: no visible numbers or score descriptions. Screen readers retain the underlying values and descriptions. Inline family/partner portraits are 18px, with native button targets at least 24px high. The card has no repeated SIMULATED badge, demo footer, or mood pill; the existing app-level SIMULATED label remains.
 
 Click the main portrait to recenter the selected blob. Click a relative's or partner's portrait/name to select that blob and move the camera to where it currently stands. Repeated clicks recenter the same blob, even after panning away. Navigation preserves the camera angle, gently adjusts distance, and accounts for the measured panel height so the destination stays above it. A walking blob is located from its actual scene position, not its next animation destination; this is one-shot navigation, not continuous tracking. Manual orbit, pan, zoom or touch interrupts the camera flight.
 
@@ -18,9 +20,9 @@ Click the main portrait to recenter the selected blob. Click a relative's or par
 
 ## Data boundary
 
-**This is a Shapes sandbox, not a live simulation run.** The screen and profile are labeled SIMULATED, Sandbox profile, and Demo data. The authored names, traits, parent/child relationships, and numeric scores live in `web/src/inspector/blobProfiles.ts` and are fictional fixtures. Relationships are explicitly authored, never inferred from age.
+**This is a Shapes sandbox, not a live simulation run.** The app-level SIMULATED label identifies the screen; an accessible profile description identifies the sandbox/demo source without repeating a visible footer in every card. The authored names, traits, parent/child relationships, and numeric scores live in `web/src/inspector/blobProfiles.ts` and are fictional fixtures. Relationships are explicitly authored, never inferred from age.
 
-The scene reports its current scripted activity, mood, and conversation partner once per animation beat. Those reports update the portrait and activity fields, **not the numeric scores**. The card explains this distinction. Walking activity describes the movement beat, including its brief settling period.
+The scene reports its current scripted activity, mood, and conversation partner once per animation beat. Those reports update the portrait and activity fields, **not the numeric scores**. The accessible profile description explains this distinction. Walking activity describes the movement beat, including its brief settling period.
 
 `BlobSelectionProvider` is scoped to `ShapesPage`; navigating away clears selection. `Blob` accepts optional selection props so other scenes do not need the provider. Portraits reuse the scene's geometry in demand-rendered canvases with capped pixel ratio and no shadows or controls. The picker has no WebGL canvases; family thumbnails are capped at two, with extra relatives rendered as name buttons.
 

@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useCallback, useEffect, useRef } from "react";
+import { type ReactNode, type RefObject, useCallback, useEffect, useId, useRef } from "react";
 import { MOOD_COLOR, MOOD_MEANING } from "../scene/blobMood.ts";
 import { ageGroup } from "../scene/blobSize.ts";
 import BlobPortrait from "../scene/BlobPortrait.tsx";
@@ -86,7 +86,7 @@ function Family({
     { label: "Child of", ids: profile.parentIds },
     { label: "Parent of", ids: profile.childIds },
   ].filter((group) => group.ids.length > 0);
-  if (groups.length === 0) return <span className="inspector-muted">No family listed</span>;
+  if (groups.length === 0) return null;
 
   let thumbnails = MAX_FAMILY_THUMBNAILS;
   return groups.map(({ label, ids }) => (
@@ -102,23 +102,17 @@ function Family({
 function Tags({
   kind,
   label,
-  empty,
   children,
 }: {
   kind: "special" | "personality";
   label: string;
-  empty: string;
   children: ReactNode[];
 }) {
+  if (children.length === 0) return null;
   return (
-    <div className={`tag-row tag-row-${kind}`}>
-      <h3 className="inspector-eyebrow">{label}</h3>
-      {children.length > 0 ? (
-        <ul className="tags">{children}</ul>
-      ) : (
-        <span className="inspector-muted tag-empty">{empty}</span>
-      )}
-    </div>
+    <ul className={`tags tag-row-${kind}`} aria-label={label}>
+      {children}
+    </ul>
   );
 }
 
@@ -143,6 +137,7 @@ export default function BlobCard({
 }) {
   const { activities, focusBlob } = useBlobSelection();
   const heading = useRef<HTMLHeadingElement>(null);
+  const descriptionId = useId();
   useEffect(() => {
     if (takeFocus?.()) heading.current?.focus();
     // On appearing only: later renders mustn't pull focus.
@@ -157,7 +152,14 @@ export default function BlobCard({
   const personality = personalityTags(profile);
 
   return (
-    <section className="inspector-card" aria-label={`Selected blob: ${profile.name}`}>
+    <section
+      className="inspector-card"
+      aria-label={`Selected blob: ${profile.name}`}
+      aria-describedby={descriptionId}
+    >
+      <p id={descriptionId} className="inspector-sr">
+        {PROFILE_SOURCE} · {PROFILE_NOTE} · Scores are demo values; scene activity is live.
+      </p>
       {/* Sticks to the top of the scrolling card, so closing is always in reach. */}
       <div className="card-close-anchor">
         <button
@@ -183,19 +185,12 @@ export default function BlobCard({
           type="button"
           className="portrait-hit"
           aria-label={`Go to ${profile.name}`}
+          aria-description={`${capitalise(mood)} expression. ${MOOD_MEANING[mood]}`}
           onClick={() => focusBlob(profile.id)}
         />
         <div className="portrait" style={{ borderColor: MOOD_COLOR[mood] }} aria-hidden>
           <BlobPortrait shape={profile.shape} age={profile.age} mood={mood} />
         </div>
-        <p className="portrait-mood" title={MOOD_MEANING[mood]}>
-          <span
-            className="portrait-mood-dot"
-            style={{ background: MOOD_COLOR[mood] }}
-            aria-hidden
-          />
-          {capitalise(mood)}
-        </p>
       </div>
 
       <div className="inspector-surface card-panel">
@@ -203,19 +198,20 @@ export default function BlobCard({
           <h2 ref={heading} tabIndex={-1}>
             {profile.name}
           </h2>
-          <span className="card-rule" aria-hidden />
         </header>
 
         <div className="card-meta">
           <p>
             Age {profile.age} · {capitalise(ageGroup(profile.age))} · {capitalise(profile.shape)}
           </p>
-          <div className="family">
-            <Family profile={profile} fallback={heading} />
-          </div>
+          {(profile.parentIds.length > 0 || profile.childIds.length > 0) && (
+            <div className="family">
+              <Family profile={profile} fallback={heading} />
+            </div>
+          )}
         </div>
 
-        <Tags kind="special" label="Special tags" empty="None">
+        <Tags kind="special" label="Special tags">
           {special.map((tag) => (
             <li key={tag.kind} className={`tag tag-special tag-${tag.kind}`} title={tag.meaning}>
               {tag.label}
@@ -238,7 +234,7 @@ export default function BlobCard({
           />
         </div>
 
-        <Tags kind="personality" label="Personality" empty="No personality tags">
+        <Tags kind="personality" label="Personality">
           {personality.map((tag) => (
             <li
               key={tag.trait}
@@ -250,21 +246,15 @@ export default function BlobCard({
           ))}
         </Tags>
 
-        <footer className="card-foot">
-          <div className="action">
-            <h3 className="inspector-eyebrow">Current action</h3>
-            <div className="action-line">
-              <span>{action.text}</span>
-              {action.partnerId !== undefined && (
-                <BlobChip id={action.partnerId} thumbnail fallback={heading} />
-              )}
-            </div>
+        <div className="action">
+          <h3 className="inspector-eyebrow">Current action</h3>
+          <div className="action-line">
+            <span>{action.text}</span>
+            {action.partnerId !== undefined && (
+              <BlobChip id={action.partnerId} thumbnail fallback={heading} />
+            )}
           </div>
-          <p className="card-note">
-            <span className="inspector-badge">SIMULATED</span>
-            {PROFILE_SOURCE} · {PROFILE_NOTE} · Scores are demo values; scene activity is live.
-          </p>
-        </footer>
+        </div>
       </div>
     </section>
   );
