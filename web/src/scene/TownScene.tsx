@@ -1,18 +1,21 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import { layoutTown } from "./layoutTown.ts";
+import { MapCamera } from "./MapCamera.tsx";
+import { MapLights } from "./MapLights.tsx";
 import { RenderResolution } from "./RenderResolution.tsx";
-import { TownCamera } from "./TownCamera.tsx";
 import { GROUND_RADIUS, TownGround } from "./TownGround.tsx";
 import { TownHomes } from "./TownHomes.tsx";
-import { TownLights } from "./TownLights.tsx";
 import { TownPaths } from "./TownPaths.tsx";
 import { TownSquare } from "./TownSquare.tsx";
+import { townMap } from "./townMap.ts";
 import { TownTrees } from "./TownTrees.tsx";
 
 // docs/MODEL.md: 53 homes dealt round-robin into 5 neighbourhoods.
 const HOMES = 53;
 const NEIGHBOURHOODS = 5;
+// Close enough to see a doorstep; at the camera's lowest tilt it stays above every roof.
+const MIN_DISTANCE = 10;
 
 // Sky and fog share one colour, so the fields fade into the sky with no visible edge.
 const SKY = "#d4e2ee";
@@ -31,6 +34,7 @@ export default function TownScene({
     () => layoutTown(homeCount, neighbourhoodCount),
     [homeCount, neighbourhoodCount],
   );
+  const map = useMemo(() => townMap(layout), [layout]);
 
   // PCF shadows softened by shadow.radius: R3F's default soft type is gone in three r187.
   // `flat` skips tone mapping so the muted palette stays true to docs/blobs.png.
@@ -46,13 +50,13 @@ export default function TownScene({
     >
       <RenderResolution />
       <color attach="background" args={[SKY]} />
-      <TownLights layout={layout} />
+      <MapLights map={map} />
       <TownGround neighbourhoods={layout.neighbourhoods} />
       <TownPaths paths={layout.paths} />
       <TownSquare square={layout.square} />
       <TownHomes homes={layout.homes} />
       <TownTrees trees={layout.trees} />
-      <TownCamera layout={layout} fogColor={SKY} />
+      <MapCamera map={map} minDistance={MIN_DISTANCE} fogColor={SKY} />
     </Canvas>
   );
 }

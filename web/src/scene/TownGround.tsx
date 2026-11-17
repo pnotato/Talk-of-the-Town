@@ -4,7 +4,7 @@ import type { TownNeighbourhood } from "./layoutTown.ts";
 
 // Far past where the fog turns solid even on a very narrow screen, so the world never ends.
 export const GROUND_RADIUS = 5000;
-const GRASS = "#a3b292";
+export const GRASS = "#a3b292";
 const LAWN = "#b3c39d"; // each neighbourhood's own lawn, a touch fresher than the fields
 
 /** Open fields plus one round lawn under each neighbourhood, so each reads as a group. */
