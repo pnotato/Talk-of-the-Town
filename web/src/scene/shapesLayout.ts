@@ -78,9 +78,9 @@ const WIDE: Layout = (() => {
       ...SHAPES.map((shape, i) => ({ at: new Vector3(x(i), 0, z.child + 0.95), title: shape })),
       ...AGE_GROUPS.map((g) => ({ at: new Vector3(sideX, 0.3, z[g]), ...ageLabel(g) })),
       { at: new Vector3(moodX(0) - 1.3, 0.3, moodsZ), ...MOODS_LABEL },
-      // Above the back row's heads, where there's nothing behind them to cover.
+      // Above the back row's heads, clear of a happy hop, where nothing behind can be covered.
       ...MOODS.map((m, i) => ({
-        at: new Vector3(moodX(i), 1.1, moodsZ),
+        at: new Vector3(moodX(i), 1.35, moodsZ),
         above: true,
         ...moodLabel(m),
       })),
