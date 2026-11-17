@@ -21,12 +21,12 @@ export const MOOD_COLOR: Record<Mood, string> = {
 /** A few words on what each mood says about the blob, for labels. */
 export const MOOD_MEANING: Record<Mood, string> = {
   smile: "likes the company",
-  sleepy: "undecided, doesn't care",
+  sleepy: "doesn't care",
   flat: "undecided",
-  o: "undecided, intrigued",
-  frown: "doubts the company",
-  worried: "doubts it, and cares",
-  angry: "angry at the company",
+  o: "intrigued",
+  frown: "doubts it",
+  worried: "doubts it, cares",
+  angry: "angry at it",
 };
 
 export type EyeStyle = "open" | "shut";

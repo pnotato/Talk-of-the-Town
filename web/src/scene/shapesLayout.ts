@@ -1,25 +1,36 @@
 import { Box3, MathUtils, OrthographicCamera, Vector3, type Vector3Tuple } from "three";
-import { SHAPES } from "./blobGeometry.ts";
+import { type Shape, SHAPES } from "./blobGeometry.ts";
+import { MOOD_MEANING, MOODS, type Mood } from "./blobMood.ts";
+import { type Scenario, SCENARIOS, scenarioHalfWidth } from "./blobScenarios.ts";
 import { AGE_GROUPS, type AgeGroup, ageGroup } from "./blobSize.ts";
 import { shapesFixture } from "./shapesFixture.ts";
 
 // Where the Shapes sandbox puts its blobs and labels, and how the camera and the sun frame them.
 
-export const FOV = 35;
+// A narrow field of view from further back keeps the front and back rows at similar sizes.
+export const FOV = 26;
 
 // Key light from the front right and high, so shadows fall back and to the left as in
 // docs/blobs.png.
 export const LIGHT_POSITION = new Vector3(5, 10, 6);
 
-export type Label = { at: Vector3; title: string; detail?: string };
+/** A label pinned to a point in the scene: centred on it, or sitting on top of it if `above`. */
+export type Label = { at: Vector3; title: string; detail?: string; above?: boolean };
 
 type Layout = {
   /** Where each shapesFixture blob stands, by index. */
-  positions: Vector3Tuple[];
+  grid: Vector3Tuple[];
+  /** Where the Moods row's blob for each of MOODS stands, by index. */
+  moods: Vector3Tuple[];
+  /** The centre of each of SCENARIOS, by index. */
+  actions: Vector3Tuple[];
   labels: Label[];
   /** Camera angle above the ground. */
   elevation: number;
 };
+
+/** The Moods row uses one shape, so mood is the only thing that changes along it. */
+export const MOOD_ROW_SHAPE: Shape = "square";
 
 const GROUP_NAME: Record<AgeGroup, string> = { child: "Child", adult: "Adult", elder: "Elder" };
 
@@ -28,40 +39,98 @@ function ageLabel(group: AgeGroup) {
   return { title: GROUP_NAME[group], detail: `age ${[...ages].join(", ")}` };
 }
 
+const moodLabel = (mood: Mood) => ({ title: mood, detail: MOOD_MEANING[mood] });
+const actionLabel = ({ title, detail }: Scenario) => ({ title, detail });
+const MOODS_LABEL = { title: "Moods" };
+const ACTIONS_LABEL = { title: "Actions" };
+
 const centred = (index: number, count: number, gap: number) => (index - (count - 1) / 2) * gap;
 
-// Wide screens: a column per shape and a row per age group. Children in front and elders at the
-// back, so perspective works against the size cue: if the rows read clearly here, they read
-// anywhere in the town.
+/** Centres for items of the given widths laid side by side, `gap` apart, centred on x = 0. */
+function packed(widths: number[], gap: number) {
+  const total = widths.reduce((sum, w) => sum + w, 0) + gap * (widths.length - 1);
+  let left = -total / 2;
+  return widths.map((w) => {
+    const centre = left + w / 2;
+    left += w + gap;
+    return centre;
+  });
+}
+
+// Room a scenario needs across: its actors' reach plus a body either side.
+const ACTION_WIDTHS = SCENARIOS.map((s) => 2 * scenarioHalfWidth(s) + 1);
+
+// Wide screens, back to front: the Moods row, then a column per shape and a row per age group,
+// then the Actions. Children stand in front of adults and elders, so perspective works against the
+// size cue: if the rows read clearly here, they read anywhere in the town.
 const WIDE: Layout = (() => {
   const x = (i: number) => centred(i, SHAPES.length, 1.8);
-  const z: Record<AgeGroup, number> = { child: 3, adult: 0, elder: -3 };
+  const z: Record<AgeGroup, number> = { child: 2.8, adult: 0, elder: -2.8 };
+  const [moodsZ, actionsZ, sideX] = [-5.7, 6.4, x(0) - 1.5];
+  const moodX = (i: number) => centred(i, MOODS.length, 1.9);
+  const actionX = packed(ACTION_WIDTHS, 0.4);
   return {
-    elevation: MathUtils.degToRad(38),
-    positions: shapesFixture.map((b) => [x(SHAPES.indexOf(b.shape)), 0, z[ageGroup(b.age)]]),
+    elevation: MathUtils.degToRad(40),
+    grid: shapesFixture.map((b) => [x(SHAPES.indexOf(b.shape)), 0, z[ageGroup(b.age)]]),
+    moods: MOODS.map((_, i) => [moodX(i), 0, moodsZ]),
+    actions: SCENARIOS.map((_, i) => [actionX[i], 0, actionsZ]),
     labels: [
       ...SHAPES.map((shape, i) => ({ at: new Vector3(x(i), 0, z.child + 0.95), title: shape })),
-      ...AGE_GROUPS.map((group) => ({
-        at: new Vector3(x(0) - 1.5, 0.3, z[group]),
-        ...ageLabel(group),
+      ...AGE_GROUPS.map((g) => ({ at: new Vector3(sideX, 0.3, z[g]), ...ageLabel(g) })),
+      { at: new Vector3(moodX(0) - 1.3, 0.3, moodsZ), ...MOODS_LABEL },
+      // Above the back row's heads, where there's nothing behind them to cover.
+      ...MOODS.map((m, i) => ({
+        at: new Vector3(moodX(i), 1.1, moodsZ),
+        above: true,
+        ...moodLabel(m),
+      })),
+      { at: new Vector3(actionX[0] - ACTION_WIDTHS[0] / 2 - 0.7, 0.3, actionsZ), ...ACTIONS_LABEL },
+      ...SCENARIOS.map((s, i) => ({
+        at: new Vector3(actionX[i], 0, actionsZ + 1.2),
+        ...actionLabel(s),
       })),
     ],
   };
 })();
 
-// Tall screens (phones): transposed, so the six shapes run down the screen instead of across it.
-// Age groups stand side by side at the same depth, which keeps the size comparison fair.
+// Tall screens (phones): the grid is transposed, so the six shapes run down the screen instead of
+// across it, and age groups stand side by side at the same depth, which keeps the size comparison
+// fair. Moods (two rows) and Actions (two by two) follow below.
 const TALL: Layout = (() => {
   const x = (group: AgeGroup) => centred(AGE_GROUPS.indexOf(group), AGE_GROUPS.length, 1.9);
   const z = (i: number) => centred(i, SHAPES.length, 2.2);
+  const moodsZ = z(SHAPES.length - 1) + 3.4;
+  const moodSpot = (i: number): Vector3Tuple => {
+    const [rowLength, row] = [4, Math.floor(i / 4)];
+    const inRow = row === 0 ? rowLength : MOODS.length - rowLength;
+    return [centred(i % rowLength, inRow, 1.6), 0, moodsZ + row * 2.2];
+  };
+  const actionsZ = moodsZ + 6;
+  const actionSpot = (i: number): Vector3Tuple => [
+    i % 2 ? 1.6 : -1.6,
+    0,
+    actionsZ + Math.floor(i / 2) * 3.2,
+  ];
   return {
     elevation: MathUtils.degToRad(45),
-    positions: shapesFixture.map((b) => [x(ageGroup(b.age)), 0, z(SHAPES.indexOf(b.shape))]),
+    grid: shapesFixture.map((b) => [x(ageGroup(b.age)), 0, z(SHAPES.indexOf(b.shape))]),
+    moods: MOODS.map((_, i) => moodSpot(i)),
+    actions: SCENARIOS.map((_, i) => actionSpot(i)),
     labels: [
       ...SHAPES.map((shape, i) => ({ at: new Vector3(x("child") - 1.5, 0.3, z(i)), title: shape })),
-      ...AGE_GROUPS.map((group) => ({
-        at: new Vector3(x(group), 0, z(SHAPES.length - 1) + 1.1),
-        ...ageLabel(group),
+      ...AGE_GROUPS.map((g) => ({
+        at: new Vector3(x(g), 0, z(SHAPES.length - 1) + 1.1),
+        ...ageLabel(g),
+      })),
+      { at: new Vector3(0, 0, moodsZ - 1.2), ...MOODS_LABEL },
+      ...MOODS.map((m, i) => ({
+        at: new Vector3(...moodSpot(i)).setZ(moodSpot(i)[2] + 0.85),
+        ...moodLabel(m),
+      })),
+      { at: new Vector3(0, 0, actionsZ - 1.6), ...ACTIONS_LABEL },
+      ...SCENARIOS.map((s, i) => ({
+        at: new Vector3(...actionSpot(i)).setZ(actionSpot(i)[2] + 1),
+        ...actionLabel(s),
       })),
     ],
   };
@@ -97,19 +166,24 @@ function fitShadowCamera(content: Box3) {
   };
 }
 
-// Rough world-space half sizes of an elder's footprint and of a label, for framing.
+// Rough world-space sizes for framing: half extents of an elder's footprint and of a label, how
+// tall a blob gets, and how high a speech bubble reaches.
 const BLOB_EXTENT = new Vector3(0.75, 0, 0.75);
 const BLOB_TOP = 1.35;
-const LABEL_EXTENT = new Vector3(0.7, 0, 0.3);
+const BUBBLE_TOP = 1.8;
+const LABEL_EXTENT = new Vector3(0.7, 0, 0.5);
 
 /** A layout plus everything the camera and the shadow map need to frame it. */
 function frame(layout: Layout) {
   const content = new Box3();
-  for (const position of layout.positions) {
-    const base = new Vector3(...position);
-    content.expandByPoint(base.clone().sub(BLOB_EXTENT));
-    content.expandByPoint(base.add(BLOB_EXTENT).setY(BLOB_TOP));
-  }
+  const addBlobs = ([x, , z]: Vector3Tuple, halfWidth: number, top: number) => {
+    content.expandByPoint(new Vector3(x - halfWidth, 0, z - BLOB_EXTENT.z));
+    content.expandByPoint(new Vector3(x + halfWidth, top, z + BLOB_EXTENT.z));
+  };
+  for (const p of [...layout.grid, ...layout.moods]) addBlobs(p, BLOB_EXTENT.x, BLOB_TOP);
+  layout.actions.forEach((p, i) =>
+    addBlobs(p, scenarioHalfWidth(SCENARIOS[i]) + BLOB_EXTENT.x, BUBBLE_TOP),
+  );
   for (const { at } of layout.labels) {
     content.expandByPoint(at.clone().sub(LABEL_EXTENT));
     content.expandByPoint(at.clone().add(LABEL_EXTENT));

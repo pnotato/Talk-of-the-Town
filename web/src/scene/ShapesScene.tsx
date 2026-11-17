@@ -20,8 +20,20 @@ import {
   Vector3,
 } from "three";
 import Blob from "./Blob.tsx";
-import { FOV, type Label, LIGHT_POSITION, VIEWS, type View, fitDistance } from "./shapesLayout.ts";
+import { mediaQuery, useReducedMotion } from "./blobMedia.ts";
+import { MOODS } from "./blobMood.ts";
+import BlobScenario from "./BlobScenario.tsx";
+import { SCENARIOS } from "./blobScenarios.ts";
 import { shapesFixture } from "./shapesFixture.ts";
+import {
+  FOV,
+  type Label,
+  LIGHT_POSITION,
+  MOOD_ROW_SHAPE,
+  VIEWS,
+  type View,
+  fitDistance,
+} from "./shapesLayout.ts";
 
 const SKY = "#d4e2ee";
 const GROUND = "#9cad93";
@@ -39,18 +51,6 @@ function keepTargetOver({ min, max }: Box3, event?: OrbitControlsChangeEvent) {
   object.position.add(panBefore.subVectors(target, panBefore));
 }
 
-function mediaQuery(query: string) {
-  const list = matchMedia(query);
-  return {
-    subscribe(onChange: () => void) {
-      list.addEventListener("change", onChange);
-      return () => list.removeEventListener("change", onChange);
-    },
-    matches: () => list.matches,
-  };
-}
-
-const reducedMotion = mediaQuery("(prefers-reduced-motion: reduce)");
 const portrait = mediaQuery("(orientation: portrait)");
 
 const viewDirection = new Vector3();
@@ -60,7 +60,7 @@ function Stage({ view }: { view: View }) {
   const camera = useThree((s) => s.camera);
   const aspect = useThree((s) => s.size.width / s.size.height);
   const distance = fitDistance(view, aspect);
-  const reduceMotion = useSyncExternalStore(reducedMotion.subscribe, reducedMotion.matches);
+  const reduceMotion = useReducedMotion();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const fog = useRef<Fog>(null);
   const grid = useRef<Mesh<BufferGeometry, ShaderMaterial>>(null);
@@ -147,10 +147,10 @@ function KeyLight({ view }: { view: View }) {
   );
 }
 
-/** Centres a label element on a point in the canvas, or hides it. */
-function pin(element: HTMLElement, x: number, y: number, visible: boolean) {
+/** Pins a label element to a point in the canvas (centred on it, or on top of it), or hides it. */
+function pin(element: HTMLElement, x: number, y: number, above: boolean, visible: boolean) {
   element.style.visibility = visible ? "visible" : "hidden";
-  element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+  element.style.transform = `translate(${x}px, ${y}px) translate(-50%, ${above ? -100 : -50}%)`;
 }
 
 const ndc = new Vector3();
@@ -189,7 +189,9 @@ function PinLabels({
       ndc.copy(labels[i].at).project(camera);
       // Outside the depth range means behind the camera or past the far plane.
       const visible = Math.abs(ndc.z) < 1;
-      pin(element, ((ndc.x + 1) / 2) * size.width, ((1 - ndc.y) / 2) * size.height, visible);
+      const x = ((ndc.x + 1) / 2) * size.width;
+      const y = ((1 - ndc.y) / 2) * size.height;
+      pin(element, x, y, labels[i].above ?? false, visible);
     }
   });
   return null;
@@ -201,14 +203,16 @@ const labelStyle: CSSProperties = {
   left: 0,
   visibility: "hidden", // until PinLabels places it
   pointerEvents: "none",
-  padding: "2px 8px",
+  padding: "2px 6px",
   borderRadius: 6,
   background: "rgb(255 255 255 / 0.85)",
   boxShadow: "0 1px 2px rgb(0 0 0 / 0.15)",
   color: "#1f2328",
-  font: "500 13px/1.3 system-ui, sans-serif",
+  font: "500 12px/1.3 system-ui, sans-serif",
   textAlign: "center",
-  whiteSpace: "nowrap",
+  // Long meanings wrap onto a second line instead of running into the next label.
+  maxWidth: 78,
+  width: "max-content",
 };
 
 /** Every blob shape at child, adult and elder size, on an empty ground. */
@@ -243,7 +247,26 @@ export default function ShapesScene() {
             id={blob.id}
             shape={blob.shape}
             age={blob.age}
-            position={view.positions[i]}
+            position={view.grid[i]}
+          />
+        ))}
+        {MOODS.map((mood, i) => (
+          <Blob
+            key={mood}
+            id={100 + i}
+            shape={MOOD_ROW_SHAPE}
+            age={35}
+            mood={mood}
+            idle
+            position={view.moods[i]}
+          />
+        ))}
+        {SCENARIOS.map((scenario, i) => (
+          <BlobScenario
+            key={scenario.title}
+            scenario={scenario}
+            position={view.actions[i]}
+            firstId={200 + 10 * i}
           />
         ))}
       </Canvas>
