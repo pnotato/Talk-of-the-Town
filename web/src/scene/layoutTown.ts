@@ -5,6 +5,8 @@
 // path runs out from the square to a loop street, and homes stand around the outside of
 // the loop facing it. Big neighbourhoods add further loops and rings of homes outward.
 
+import { seededRandom } from "./mapLayout.ts";
+
 export const HOME_WIDTH = 2.8; // along the street
 export const HOME_DEPTH = 2.4; // front (door) to back
 // Headroom over the tallest roof, chimney or tree the scene builds, for framing and shadows.
@@ -132,7 +134,7 @@ export function layoutTown(homeCount: number, neighbourhoodCount: number): TownL
   if (n > 1)
     distance = Math.max(distance, (widest + NEIGHBOURHOOD_GAP / 2) / Math.sin(Math.PI / n));
 
-  const random = mulberry32(Math.imul(homeCount, 0x9e3779b1) ^ Math.imul(n, 0x85ebca6b));
+  const random = seededRandom(Math.imul(homeCount, 0x9e3779b1) ^ Math.imul(n, 0x85ebca6b));
   const homes: TownHome[] = [];
   const neighbourhoods: TownNeighbourhood[] = [];
   const paths: TownPath[] = [];
@@ -294,16 +296,4 @@ function spokeHalfGap(radius: number): number {
   const corner = Math.hypot(front, HOME_WIDTH / 2);
   const reach = SPOKE_WIDTH / 2 + SPOKE_CLEARANCE + TURN_SLACK;
   return Math.atan2(HOME_WIDTH / 2, front) + Math.asin(reach / corner);
-}
-
-// Tiny seeded PRNG (mulberry32): deterministic jitter without a dependency.
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }

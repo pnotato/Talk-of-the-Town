@@ -205,7 +205,8 @@ describe("layoutCity", () => {
         for (const p of spots) {
           assert.ok(insidePolygon(p, outline));
           for (const f of city.furniture) {
-            assert.ok(distanceToObstacle(p, { kind: "box", ...f }) >= 0.6 - EPS);
+            const box = { x: f.x, z: f.z, width: f.width, depth: f.depth, rotationY: f.rotationY };
+            assert.ok(distanceToObstacle(p, { kind: "box", ...box }) >= 0.6 - EPS);
           }
         }
       });
@@ -271,6 +272,7 @@ describe("layoutCity", () => {
           }));
           const onWall = ends.some((e) => buildings.some((b) => inside(e, b, -0.3)));
           assert.ok(onWall, "screen is not mounted on a building");
+          assert.ok(!buildings.some((b) => inside(s, b)), "screen sinks into a building");
           assert.ok(s.y - s.height / 2 >= 3.5, "screen hangs over the doors");
           const tallest = Math.max(...city.buildings.map((b) => b.height));
           assert.ok(s.y + s.height / 2 <= tallest, "screen pokes above the skyline");

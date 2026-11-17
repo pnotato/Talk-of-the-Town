@@ -156,3 +156,15 @@ export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] 
   const away = (p: Point) => Math.hypot(p.x - middle.x, p.z - middle.z);
   return spots.sort((a, b) => away(a) - away(b) || a.x - b.x || a.z - b.z);
 }
+
+/** Tiny seeded PRNG (mulberry32): deterministic jitter without a dependency. */
+export function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
