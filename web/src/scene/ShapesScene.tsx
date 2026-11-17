@@ -238,7 +238,13 @@ export default function ShapesScene() {
         <PinLabels labels={view.labels} elements={labels} />
 
         {shapesFixture.map((blob, i) => (
-          <Blob key={blob.id} shape={blob.shape} age={blob.age} position={view.positions[i]} />
+          <Blob
+            key={blob.id}
+            id={blob.id}
+            shape={blob.shape}
+            age={blob.age}
+            position={view.positions[i]}
+          />
         ))}
       </Canvas>
 
