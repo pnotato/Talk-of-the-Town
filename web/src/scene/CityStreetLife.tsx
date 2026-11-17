@@ -1,5 +1,12 @@
 import { useEffect, useMemo } from "react";
-import { BoxGeometry, type BufferGeometry, CylinderGeometry, IcosahedronGeometry } from "three";
+import {
+  BoxGeometry,
+  type BufferGeometry,
+  Color,
+  CylinderGeometry,
+  Float32BufferAttribute,
+  IcosahedronGeometry,
+} from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { type Placement, UNIT_BOX, useInstances } from "./cityInstances.ts";
 import { CURB } from "./CityGround.tsx";
@@ -18,7 +25,8 @@ const PAINT = {
   car: ["#c8553d", "#4f6d7a", "#e6e1d6", "#3d5a40", "#7a6c8f"],
   van: "#eef0f2",
 };
-const STEPS = "#b84a3a";
+const TREAD = new Color("#d4634c");
+const RISER = new Color("#8f3326");
 const KIOSKS = ["#2a9d8f", "#d1495b"];
 
 // Built once and shared, each at a size of 1 so instances scale them.
@@ -39,6 +47,16 @@ function shapes(): Record<string, BufferGeometry> {
     new BoxGeometry(0.08, 0.45, 0.5).translate(-0.42, 0.22, -0.1),
     new BoxGeometry(0.08, 0.45, 0.5).translate(0.42, 0.22, -0.1),
   ];
+  // Treads lighter than risers, so the steps read as steps.
+  for (const tier of tiers) {
+    const normal = tier.getAttribute("normal");
+    const colors: number[] = [];
+    for (let v = 0; v < normal.count; v++) {
+      const c = normal.getY(v) > 0.5 ? TREAD : RISER;
+      colors.push(c.r, c.g, c.b);
+    }
+    tier.setAttribute("color", new Float32BufferAttribute(colors, 3));
+  }
   return {
     steps: mergeGeometries(tiers),
     bench: mergeGeometries(bench),
@@ -211,7 +229,7 @@ export function CityStreetLife({ city }: { city: CityLayout }) {
         castShadow
         receiveShadow
       >
-        <meshLambertMaterial color={STEPS} />
+        <meshLambertMaterial vertexColors />
       </instancedMesh>
       <instancedMesh
         ref={benchesRef}

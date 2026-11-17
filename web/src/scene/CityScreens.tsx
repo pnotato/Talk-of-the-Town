@@ -13,10 +13,28 @@ import {
 } from "three";
 import { useReducedMotion } from "./blobMedia.ts";
 import { CURB } from "./CityGround.tsx";
-import type { CityLayout, CityPanel } from "./layoutCity.ts";
-import { newsPlaceholder, newsTicker, SCREEN_LOOKS } from "./newsPlaceholder.ts";
+import type { CityLayout, CityPanel, TickerStrip } from "./layoutCity.ts";
+import {
+  ADS,
+  adPlaceholder,
+  newsPlaceholder,
+  newsTicker,
+  SCREEN_LOOKS,
+} from "./screenPlaceholders.ts";
 
 const UNIT_PLANE = new PlaneGeometry(1, 1);
+
+// A unit panel whose u runs over this strip's stretch of its run, in lengths of the ticker
+// texture (one texture length is the strip's height times the texture's aspect).
+function tickerGeometry(strip: TickerStrip, textureAspect: number): PlaneGeometry {
+  const geometry = new PlaneGeometry(1, 1);
+  const uv = geometry.getAttribute("uv");
+  const perUnit = 1 / (strip.height * textureAspect);
+  for (let i = 0; i < uv.count; i++) {
+    uv.setX(i, (strip.run + uv.getX(i) * strip.width) * perUnit);
+  }
+  return geometry;
+}
 const BEZEL = 0.35; // dark frame round each screen
 const BEZEL_DEPTH = 0.3;
 const TICKER_SPEED = 0.04; // strip lengths per second
@@ -48,12 +66,17 @@ export function CityScreen({ panel, content, ref }: ScreenProps) {
 
 /** The plaza's screens with their frames, and the tower's scrolling news ticker. */
 export function CityScreens({ city }: { city: CityLayout }) {
-  // The real news story plugs in here: swap a placeholder for a texture drawn from it.
+  // Real content plugs in here: swap a screen's placeholder for a texture drawn from the
+  // story (news) or from whatever the screen should show (ads).
   const placeholders = useMemo(
     () =>
-      city.screens.map((s, i) =>
-        newsPlaceholder(s.width / s.height, SCREEN_LOOKS[i % SCREEN_LOOKS.length]),
-      ),
+      city.screens.map((s, i) => {
+        // Its place among screens of its kind, so neighbours show different looks.
+        const n = city.screens.slice(0, i).filter((o) => o.content === s.content).length;
+        return s.content === "news"
+          ? newsPlaceholder(s.width / s.height, SCREEN_LOOKS[n % SCREEN_LOOKS.length])
+          : adPlaceholder(s.width / s.height, ADS[n % ADS.length]);
+      }),
     [city.screens],
   );
   useEffect(() => () => placeholders.forEach((t) => t.dispose()), [placeholders]);
@@ -89,13 +112,13 @@ export function CityScreens({ city }: { city: CityLayout }) {
     mesh.computeBoundingSphere();
   }, [panels]);
 
-  // The strip keeps its text's proportions on a panel of any length.
-  const strip = city.tickers[0];
-  useLayoutEffect(() => {
-    if (!strip) return;
+  // Each strip samples its stretch of the run, so the text keeps its proportions and carries
+  // on round a corner from one strip to the next.
+  const stripGeometries = useMemo(() => {
     const image = ticker.image as HTMLCanvasElement;
-    ticker.repeat.set(strip.width / (strip.height * (image.width / image.height)), 1);
-  }, [ticker, strip]);
+    return city.tickers.map((strip) => tickerGeometry(strip, image.width / image.height));
+  }, [ticker, city.tickers]);
+  useEffect(() => () => stripGeometries.forEach((g) => g.dispose()), [stripGeometries]);
 
   const reducedMotion = useReducedMotion();
   const tickerMesh = useRef<Mesh>(null);
@@ -111,13 +134,17 @@ export function CityScreens({ city }: { city: CityLayout }) {
       {city.screens.map((panel, i) => (
         <CityScreen key={i} panel={panel} content={placeholders[i]} />
       ))}
-      {city.tickers.map((panel, i) => (
-        <CityScreen
+      {city.tickers.map((strip, i) => (
+        <mesh
           key={`ticker-${i}`}
           ref={i === 0 ? tickerMesh : undefined}
-          panel={panel}
-          content={ticker}
-        />
+          geometry={stripGeometries[i]}
+          position={[strip.x, CURB + strip.y, strip.z]}
+          rotation-y={strip.rotationY}
+          scale={[strip.width, strip.height, 1]}
+        >
+          <meshBasicMaterial map={ticker} toneMapped={false} />
+        </mesh>
       ))}
       <instancedMesh
         ref={bezels}

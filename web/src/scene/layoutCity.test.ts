@@ -97,14 +97,21 @@ describe("layoutCity", () => {
     assert.ok(gathering.spots.length >= 100, `${gathering.spots.length} spots`);
   });
 
-  test("screens face into the plaza and towards the default camera, never away", () => {
+  test("screens face into the plaza, never away from the default camera", () => {
     const city = layoutCity(53, 5);
-    assert.ok(city.screens.length >= 4);
+    assert.ok(
+      city.screens.length >= 12 && city.screens.length <= 20,
+      `${city.screens.length} screens`,
+    );
+    assert.ok(
+      city.screens.some((s) => s.content === "news") &&
+        city.screens.some((s) => s.content === "ad"),
+    );
     const { x, z } = city.plaza;
     for (const s of city.screens) {
       const facing = { x: Math.sin(s.rotationY), z: Math.cos(s.rotationY) };
       assert.ok(facing.x * (x - s.x) + facing.z * (z - s.z) > 0, "screen faces the plaza");
-      assert.ok(facing.z > 0, "screen faces south, where the default camera is");
+      assert.ok(facing.z > -1e-9, "screen faces away from the default camera, to the south");
     }
   });
 
@@ -278,6 +285,25 @@ describe("layoutCity", () => {
           }
           assert.ok(s.y - s.height / 2 >= 3.5, "screen hangs over the doors");
           assert.ok(s.y + s.height / 2 <= tallest, "screen pokes above the skyline");
+        }
+      });
+
+      test("screens and tickers on one wall never overlap", () => {
+        const panels = [...city.screens, ...city.tickers];
+        for (let i = 0; i < panels.length; i++) {
+          for (let j = i + 1; j < panels.length; j++) {
+            const a = panels[i];
+            const b = panels[j];
+            if (Math.abs(a.rotationY - b.rotationY) > 1e-6) continue;
+            const along = { x: Math.cos(a.rotationY), z: -Math.sin(a.rotationY) };
+            const normal = { x: Math.sin(a.rotationY), z: Math.cos(a.rotationY) };
+            const apart = (b.x - a.x) * normal.x + (b.z - a.z) * normal.z;
+            if (Math.abs(apart) > 0.5) continue; // different walls
+            const offset = (b.x - a.x) * along.x + (b.z - a.z) * along.z;
+            const sideways = Math.abs(offset) - (a.width + b.width) / 2;
+            const upright = Math.abs(b.y - a.y) - (a.height + b.height) / 2;
+            assert.ok(Math.max(sideways, upright) >= 0.3, `panels ${i} and ${j} overlap`);
+          }
         }
       });
 

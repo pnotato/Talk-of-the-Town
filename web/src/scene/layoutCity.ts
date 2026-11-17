@@ -61,12 +61,25 @@ export interface CityBuilding extends CityRect {
   kind: BuildingKind;
 }
 
-/** A flat panel facing its local +z: a billboard screen or a news ticker. */
+/** A flat panel facing its local +z, on or off a wall. */
 export interface CityPanel extends Point {
   y: number; // centre height
   width: number;
   height: number;
   rotationY: number;
+}
+
+/** A screen, and the kind of placeholder it shows until real content plugs in. */
+export interface ScreenPanel extends CityPanel {
+  content: "news" | "ad";
+}
+
+/**
+ * A strip of news ticker. Strips that wrap a corner share a run: `run` is how far along it
+ * this strip starts, so the scrolling text carries on round the corner.
+ */
+export interface TickerStrip extends CityPanel {
+  run: number;
 }
 
 export type FurnitureKind = "steps" | "bench" | "planter" | "kiosk";
@@ -98,8 +111,8 @@ export interface CityLayout extends MapLayout {
   buildings: CityBuilding[];
   /** Axis-aligned strips of roadway; they overlap at junctions. */
   roads: CityRect[];
-  screens: CityPanel[];
-  tickers: CityPanel[];
+  screens: ScreenPanel[];
+  tickers: TickerStrip[];
   furniture: CityFurniture[];
   lamps: Point[];
   vehicles: CityVehicle[];
@@ -291,8 +304,8 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   });
 
   const plaza = layoutPlaza(plazaX, plazaZ);
-  const screens: CityPanel[] = [];
-  const tickers: CityPanel[] = [];
+  const screens: ScreenPanel[] = [];
+  const tickers: TickerStrip[] = [];
   placeScreens(lotsOf, screens, tickers);
 
   const extent = {
@@ -302,7 +315,11 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     maxZ: cellRect([0, rings]).maxZ + ROAD,
   };
   const roads = layoutRoads(rings, cellRect, extent);
-  const vehicles = parkVehicles([...blocks, plaza.island], random);
+  const vehicles = parkVehicles(
+    [...blocks.map((rect) => ({ rect, busy: false })), { rect: plaza.island, busy: true }],
+    random,
+  );
+  queueAtCrossings(plaza.island, vehicles, random);
   const trees = [...parkTrees, ...plantTrees(plaza, extent, random)];
 
   const neighbourhoods = districtCells.map((cells, k) => {
@@ -386,12 +403,14 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   };
 }
 
-// Tall to the north, where the screens are; low to the south, where the camera looks over.
+// A canyon round the plaza, tallest at the news tower; low to the south, where the default
+// camera looks over; lower again further out.
 function heightFor(i: number, j: number, ring: number, random: () => number): number {
-  if (i === 0 && j === -1) return 30;
+  if (i === 0 && j === -1) return 44;
   if (j > 0) return 5 + random() * 3;
-  if (ring === 1) return j < 0 ? 20 + random() * 8 : 14 + random() * 8;
-  return 8 + random() * 8;
+  // Stepped: the ends lower than the corners behind them, whose screens show over them.
+  if (ring === 1) return j < 0 ? 34 + random() * 8 : 22 + random() * 6;
+  return j < 0 ? 12 + random() * 8 : 8 + random() * 6;
 }
 
 // Door slots along a lot's walls that face the sidewalk, evenly spaced, clear of corners.
@@ -481,69 +500,121 @@ function layoutPlaza(width: number, depth: number) {
   };
 }
 
-// Big screens on the buildings round the plaza, and a news ticker on the tower. Only walls
-// the default camera can see get one: the tower to the north, its neighbours either side,
-// and the corners of the two buildings at the plaza's ends.
-function placeScreens(lotsOf: (cell: Cell) => Lot[], screens: CityPanel[], tickers: CityPanel[]) {
+// One wall of a lot, for hanging panels on: where it starts, the way a panel's local +x runs
+// along it, and how a panel on it faces (outwards).
+interface Wall {
+  start: Point;
+  along: Point;
+  length: number;
+  rotationY: number;
+}
+
+function wall(lot: Rect, side: "north" | "south" | "east" | "west"): Wall {
+  const w = lot.maxX - lot.minX;
+  const d = lot.maxZ - lot.minZ;
+  if (side === "south")
+    return { start: { x: lot.minX, z: lot.maxZ }, along: { x: 1, z: 0 }, length: w, rotationY: 0 };
+  if (side === "north")
+    return {
+      start: { x: lot.maxX, z: lot.minZ },
+      along: { x: -1, z: 0 },
+      length: w,
+      rotationY: Math.PI,
+    };
+  if (side === "east")
+    return {
+      start: { x: lot.maxX, z: lot.maxZ },
+      along: { x: 0, z: -1 },
+      length: d,
+      rotationY: Math.PI / 2,
+    };
+  return {
+    start: { x: lot.minX, z: lot.minZ },
+    along: { x: 0, z: 1 },
+    length: d,
+    rotationY: -Math.PI / 2,
+  };
+}
+
+// A panel flat on a wall, `from` along it, its bottom `bottom` up.
+function onWall(w: Wall, from: number, width: number, bottom: number, height: number): CityPanel {
+  const at = from + width / 2;
+  return {
+    x: w.start.x + w.along.x * at + Math.sin(w.rotationY) * SCREEN_OFF_WALL,
+    y: bottom + height / 2,
+    z: w.start.z + w.along.z * at + Math.cos(w.rotationY) * SCREEN_OFF_WALL,
+    width,
+    height,
+    rotationY: w.rotationY,
+  };
+}
+
+// The plaza's wall of screens: news on the big ones, made-up ads on the rest, and tickers.
+// Only walls the default camera can see get any: the news tower to the north, its two
+// neighbours, and the two towers at the plaza's ends, whose plaza corners carry the
+// corner screens and a ticker wrapped round them.
+function placeScreens(
+  lotsOf: (cell: Cell) => Lot[],
+  screens: ScreenPanel[],
+  tickers: TickerStrip[],
+) {
+  const news = (p: CityPanel) => screens.push({ ...p, content: "news" });
+  const ad = (p: CityPanel) => screens.push({ ...p, content: "ad" });
+
   const [tower] = lotsOf([0, -1]);
-  const towerWidth = tower.maxX - tower.minX;
-  const front = tower.maxZ + SCREEN_OFF_WALL;
-  const mainW = Math.min(towerWidth * 0.7, 24);
+  const face = wall(tower, "south");
+  const W = face.length;
+  const mainW = Math.min(W * 0.58, 24);
   const mainH = mainW * 0.42;
-  screens.push({
-    x: (tower.minX + tower.maxX) / 2,
-    y: SCREEN_BOTTOM + mainH / 2,
-    z: front,
-    width: mainW,
-    height: mainH,
-    rotationY: 0,
-  });
-  const tickerY = SCREEN_BOTTOM + mainH + 1.1;
-  tickers.push({
-    x: (tower.minX + tower.maxX) / 2,
-    y: tickerY,
-    z: front,
-    width: towerWidth,
-    height: 1,
-    rotationY: 0,
-  });
+  const banner = { width: 3.2, height: 14, inset: 0.8 };
+  news(onWall(face, (W - mainW) / 2, mainW, SCREEN_BOTTOM, mainH));
+  // The ticker runs between the two tall banners at the tower's edges.
+  const tickerFrom = banner.inset + banner.width + 0.8;
+  const tickerBottom = SCREEN_BOTTOM + mainH + 0.6;
+  tickers.push({ ...onWall(face, tickerFrom, W - 2 * tickerFrom, tickerBottom, 1), run: 0 });
   const crownW = mainW * 0.55;
   const crownH = crownW * 0.5;
-  screens.push({
-    x: (tower.minX + tower.maxX) / 2,
-    y: tickerY + 1.1 + crownH / 2,
-    z: front,
-    width: crownW,
-    height: crownH,
-    rotationY: 0,
-  });
+  const crownBottom = tickerBottom + 1 + 0.8;
+  const crownFrom = (W - crownW) / 2;
+  news(onWall(face, crownFrom, crownW, crownBottom, crownH));
+  ad(onWall(face, crownFrom - 1 - 7, 7, crownBottom, 4));
+  ad(onWall(face, crownFrom + crownW + 1, 7, crownBottom, 4));
+  for (const from of [banner.inset, W - banner.inset - banner.width]) {
+    ad(onWall(face, from, banner.width, SCREEN_BOTTOM, banner.height));
+    ad(onWall(face, from, banner.width, SCREEN_BOTTOM + banner.height + 0.8, 3));
+  }
+  // A big band higher up, so the screens climb the tower.
+  const bandW = Math.min(W * 0.55, 22);
+  ad(onWall(face, (W - bandW) / 2, bandW, crownBottom + crownH + 1.2, 8));
 
-  // The lots of the north corners nearest the plaza: the east one to the west, and so on.
+  // The north corners: the lots nearest the plaza, a wide panel under a tall banner, high
+  // enough to show over the towers at the plaza's ends.
+  const overEnds = 14;
   for (const side of [-1, 1]) {
     const lots = lotsOf([side, -1]);
-    const lot = side < 0 ? lots[1] : lots[0];
-    const w = (lot.maxX - lot.minX) * 0.8;
-    const h = w * 0.6;
-    screens.push({
-      x: (lot.minX + lot.maxX) / 2,
-      y: SCREEN_BOTTOM + h / 2,
-      z: lot.maxZ + SCREEN_OFF_WALL,
-      width: w,
-      height: h,
-      rotationY: 0,
-    });
+    const front = wall(side < 0 ? lots[1] : lots[0], "south");
+    ad(onWall(front, (front.length - 7.4) / 2, 7.4, overEnds, 4.4));
+    ad(onWall(front, (front.length - 2.6) / 2, 2.6, overEnds + 5.2, 9));
   }
 
-  // The ends: wrapped round the corner nearest both the plaza and the camera, facing
-  // between them, so the camera never sees them edge-on.
+  // The ends: a wide panel and a tall banner on the wall facing the plaza, the corner
+  // screen, and a ticker wrapped round that corner above it.
   for (const side of [-1, 1]) {
     const lots = lotsOf([side, 0]);
     const lot = side < 0 ? lots[1] : lots[0];
+    const inward = wall(lot, side < 0 ? "east" : "west");
+    const south = wall(lot, "south");
+    const L = inward.length;
+    // Measured from the plaza corner, which is where the east wall starts and the west ends.
+    const fromCorner = (d: number, width: number) => (side < 0 ? d : L - d - width);
+    ad(onWall(inward, fromCorner(6, 9), 9, SCREEN_BOTTOM, 5.2));
+    ad(onWall(inward, fromCorner(L - 3, 2.8), 2.8, SCREEN_BOTTOM, 10));
+
     const corner = { x: side < 0 ? lot.maxX : lot.minX, z: lot.maxZ };
     const facing = -side * (Math.PI / 4);
     const w = (lot.maxZ - lot.minZ) * 0.5;
     const h = w * 0.6;
-    screens.push({
+    news({
       x: corner.x + Math.sin(facing) * SCREEN_OFF_WALL,
       y: SCREEN_BOTTOM + 0.5 + h / 2,
       z: corner.z + Math.cos(facing) * SCREEN_OFF_WALL,
@@ -551,6 +622,24 @@ function placeScreens(lotsOf: (cell: Cell) => Lot[], screens: CityPanel[], ticke
       height: h,
       rotationY: facing,
     });
+
+    // Read left to right, the text reaches the corner on one wall and carries on round it.
+    const bottom = SCREEN_BOTTOM + 0.5 + h + 1.2;
+    const southLength = 6;
+    const inwardLength = 9;
+    const southStrip = onWall(
+      south,
+      side < 0 ? south.length - southLength : 0,
+      southLength,
+      bottom,
+      1,
+    );
+    const inwardStrip = onWall(inward, fromCorner(0, inwardLength), inwardLength, bottom, 1);
+    if (side < 0) {
+      tickers.push({ ...southStrip, run: 0 }, { ...inwardStrip, run: southLength });
+    } else {
+      tickers.push({ ...inwardStrip, run: 0 }, { ...southStrip, run: inwardLength });
+    }
   }
 }
 
@@ -567,32 +656,38 @@ function layoutRoads(rings: number, cellRect: (cell: Cell) => Rect, extent: Rect
   return roads;
 }
 
-// Now and then a parked car along a kerb, clear of the junctions and of each other.
-function parkVehicles(kerbs: CityRect[], random: () => number): CityVehicle[] {
+// Cars along the kerbs: now and then on a quiet street, nose to tail round the plaza and
+// mostly taxis there. All clear of the junctions (and their crossings) and of each other.
+function parkVehicles(
+  kerbs: { rect: CityRect; busy: boolean }[],
+  random: () => number,
+): CityVehicle[] {
   const vehicles: CityVehicle[] = [];
-  for (const b of kerbs) {
+  const pitch = VEHICLE_LENGTH + 1.5;
+  for (const { rect: b, busy } of kerbs) {
+    const out = 0.3 + VEHICLE_WIDTH / 2;
     const sides = [
       {
         along: "x",
-        fixed: b.z - b.depth / 2 - 0.3 - VEHICLE_WIDTH / 2,
+        fixed: b.z - b.depth / 2 - out,
         from: b.x - b.width / 2,
         to: b.x + b.width / 2,
       },
       {
         along: "x",
-        fixed: b.z + b.depth / 2 + 0.3 + VEHICLE_WIDTH / 2,
+        fixed: b.z + b.depth / 2 + out,
         from: b.x - b.width / 2,
         to: b.x + b.width / 2,
       },
       {
         along: "z",
-        fixed: b.x - b.width / 2 - 0.3 - VEHICLE_WIDTH / 2,
+        fixed: b.x - b.width / 2 - out,
         from: b.z - b.depth / 2,
         to: b.z + b.depth / 2,
       },
       {
         along: "z",
-        fixed: b.x + b.width / 2 + 0.3 + VEHICLE_WIDTH / 2,
+        fixed: b.x + b.width / 2 + out,
         from: b.z - b.depth / 2,
         to: b.z + b.depth / 2,
       },
@@ -600,19 +695,67 @@ function parkVehicles(kerbs: CityRect[], random: () => number): CityVehicle[] {
     for (const side of sides) {
       const lo = side.from + PARK_CLEAR + VEHICLE_LENGTH / 2;
       const hi = side.to - PARK_CLEAR - VEHICLE_LENGTH / 2;
-      if (hi < lo || random() > 0.3) continue;
-      const at = lo + random() * (hi - lo);
-      const roll = random();
-      const kind = roll < 0.5 ? "taxi" : roll < 0.85 ? "car" : "van";
-      const turn = random() < 0.5 ? 0 : Math.PI;
-      vehicles.push(
-        side.along === "x"
-          ? { x: at, z: side.fixed, rotationY: turn + Math.PI / 2, kind }
-          : { x: side.fixed, z: at, rotationY: turn, kind },
-      );
+      if (hi < lo) continue;
+      const spots = busy
+        ? Array.from({ length: Math.floor((hi - lo) / pitch) + 1 }, (_, k) => lo + k * pitch)
+        : [lo + random() * (hi - lo)];
+      for (const at of spots) {
+        if (random() > (busy ? 0.7 : 0.3)) continue;
+        const roll = random();
+        const kind = roll < (busy ? 0.75 : 0.5) ? "taxi" : roll < 0.88 ? "car" : "van";
+        const turn = random() < 0.5 ? 0 : Math.PI;
+        vehicles.push(
+          side.along === "x"
+            ? { x: at, z: side.fixed, rotationY: turn + Math.PI / 2, kind }
+            : { x: side.fixed, z: at, rotationY: turn, kind },
+        );
+      }
     }
   }
   return vehicles;
+}
+
+// Footprint of a vehicle, which is only ever turned by a quarter.
+function vehicleRect(v: CityVehicle): Rect {
+  const turned = Math.abs(Math.sin(v.rotationY)) > 0.5;
+  const w = (turned ? VEHICLE_LENGTH : VEHICLE_WIDTH) / 2;
+  const d = (turned ? VEHICLE_WIDTH : VEHICLE_LENGTH) / 2;
+  return { minX: v.x - w, maxX: v.x + w, minZ: v.z - d, maxZ: v.z + d };
+}
+
+// A car waiting at a crossing on each road round the plaza, in the lane away from it, nose
+// just short of the crossing; dropped where a parked car is already in the way.
+function queueAtCrossings(plaza: CityRect, vehicles: CityVehicle[], random: () => number) {
+  const halfX = plaza.width / 2;
+  const halfZ = plaza.depth / 2;
+  const stop = 0.6 + 2.4 + 0.6 + VEHICLE_LENGTH / 2; // past the junction's crossing
+  const lane = ROAD * 0.75;
+  const waiting: CityVehicle[] = [];
+  for (const side of [-1, 1]) {
+    const dir = random() < 0.5 ? -1 : 1;
+    // North and south of the plaza, driving east or west.
+    waiting.push({
+      x: dir * (halfX - stop),
+      z: side * (halfZ + lane),
+      rotationY: (dir * Math.PI) / 2,
+      kind: random() < 0.6 ? "taxi" : "car",
+    });
+    // East and west of it, driving north or south.
+    waiting.push({
+      x: side * (halfX + lane),
+      z: dir * (halfZ - stop),
+      rotationY: dir > 0 ? 0 : Math.PI,
+      kind: random() < 0.6 ? "taxi" : "car",
+    });
+  }
+  for (const car of waiting) {
+    const r = vehicleRect(car);
+    const blocked = vehicles.some((v) => {
+      const o = vehicleRect(v);
+      return Math.max(o.minX - r.maxX, r.minX - o.maxX, o.minZ - r.maxZ, r.minZ - o.maxZ) < 0.5;
+    });
+    if (!blocked) vehicles.push(car);
+  }
 }
 
 // Two loose rows of trees across a park lawn, a little jitter so they don't look planted
