@@ -19,6 +19,9 @@ export type Shape = "square" | "circle" | "triangle" | "star" | "tear" | "capsul
 export const SHAPES: readonly Shape[] = ["square", "circle", "triangle", "star", "tear", "capsule"];
 
 const RADIAL_SEGMENTS = 48;
+// Start lathes at the back: LatheGeometry's seam sits where it starts, and a seam down the middle of
+// the face would let rays aimed at the face's centre line slip between triangles.
+const LATHE_START = Math.PI;
 
 /**
  * Adult height of each shape in world units, tuned by eye so every silhouette carries a similar
@@ -78,6 +81,7 @@ function softCone(): BufferGeometry {
   return new LatheGeometry(
     [centre, ...roundCorner(centre, rim, apex, 0.1), ...tip],
     RADIAL_SEGMENTS,
+    LATHE_START,
   );
 }
 
@@ -88,7 +92,7 @@ function teardrop(): BufferGeometry {
     const t = Math.PI * (1 - i / steps);
     return new Vector2(0.62 * Math.sin(t) * Math.sin(t / 2) ** 1.5, (1 + Math.cos(t)) / 2);
   });
-  return new LatheGeometry(profile, RADIAL_SEGMENTS);
+  return new LatheGeometry(profile, RADIAL_SEGMENTS, LATHE_START);
 }
 
 /** Upright five-point star facing +z, extruded and bevelled so it has body from every angle. */

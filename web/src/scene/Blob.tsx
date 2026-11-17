@@ -2,11 +2,8 @@ import type { ThreeElements } from "@react-three/fiber";
 import { MeshStandardMaterial } from "three";
 import BlobFace from "./BlobFace.tsx";
 import { BLOB_GEOMETRY, type Shape } from "./blobGeometry.ts";
+import { MOOD_COLOR, type Mood } from "./blobMood.ts";
 import { blobScale } from "./blobSize.ts";
-
-// The lit mustard sampled from docs/blobs.png. The canvas renders without tone mapping, so a face
-// lit head-on shows this exact colour. One base colour for every blob: colour is kept for scores.
-const BLOB_YELLOW = "#c8af56";
 
 // Shared by every blob of the same colour.
 const bodyMaterials = new Map<string, MeshStandardMaterial>();
@@ -23,21 +20,20 @@ function bodyMaterial(color: string) {
 type BlobProps = Omit<ThreeElements["group"], "scale" | "children"> & {
   shape: Shape;
   age: number;
-  /** Any CSS colour. */
-  color?: string;
+  mood?: Mood;
 };
 
 /** One blob: its shape is its culture, its size is its age (docs/BLOBS.md). */
-export default function Blob({ shape, age, color = BLOB_YELLOW, ...group }: BlobProps) {
+export default function Blob({ shape, age, mood = "smile", ...group }: BlobProps) {
   return (
     <group {...group} scale={blobScale(age)}>
       <mesh
         geometry={BLOB_GEOMETRY[shape]}
-        material={bodyMaterial(color)}
+        material={bodyMaterial(MOOD_COLOR[mood])}
         castShadow
         receiveShadow
       />
-      <BlobFace shape={shape} />
+      <BlobFace shape={shape} mood={mood} />
     </group>
   );
 }
