@@ -6,7 +6,7 @@
 // (neighbourhoods) take whole blocks of apartment buildings, one door per home onto the
 // sidewalk; the other blocks are offices and shops. Big screens on the buildings round the
 // plaza face into it and towards the default camera, which looks north from the south.
-import { TREE_RADIUS, type TownTree } from "./layoutTown.ts";
+import { TREE_HEIGHT, TREE_RADIUS, type TownTree } from "./layoutTown.ts";
 import {
   type Disc,
   type Solid,
@@ -357,8 +357,8 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     ...lamps.map((l) => ({ ...l, radius: 0.5 })),
   ];
 
-  // Everything tall the camera must keep out of: buildings, and screens that hang out past
-  // their walls.
+  // Everything the camera must keep out of: buildings, screens that hang out past their
+  // walls, trees and kiosks (a camera inside a canopy looks as wrong as inside a tower).
   const BEZEL_DEPTH = 0.4;
   const solids: Solid[] = [
     ...buildings.map((b) => ({
@@ -377,6 +377,27 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
       rotationY: p.rotationY,
       height: p.y + p.height / 2,
     })),
+    ...trees.map((t) => {
+      const span = 2 * TREE_RADIUS * t.size;
+      return {
+        x: t.x,
+        z: t.z,
+        width: span,
+        depth: span,
+        rotationY: 0,
+        height: TREE_HEIGHT * t.size,
+      };
+    }),
+    ...plaza.furniture
+      .filter((f) => f.kind === "kiosk")
+      .map((f) => ({
+        x: f.x,
+        z: f.z,
+        width: f.width + 0.8,
+        depth: f.depth + 0.8,
+        rotationY: 0,
+        height: f.height + 0.4,
+      })),
   ];
 
   return {

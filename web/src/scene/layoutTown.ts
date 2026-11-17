@@ -32,6 +32,7 @@ const FOUNTAIN_RADIUS = 1.9;
 
 // Trees: one on each neighbourhood's green, and a seeded scatter over the open fields.
 export const TREE_RADIUS = 1.1; // canopy radius of a size-1 tree
+export const TREE_HEIGHT = 3.2; // top of a size-1 tree's canopy, as TownTrees draws it
 const GREEN_TREE_SIZE = 1.3;
 const TREE_DENSITY = 0.006; // scattered trees per square unit of field
 const TREE_BELT = 14; // width of the field around the town that gets trees

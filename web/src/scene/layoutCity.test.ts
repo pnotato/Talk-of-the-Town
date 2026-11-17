@@ -307,14 +307,18 @@ describe("layoutCity", () => {
         }
       });
 
-      test("every building and screen is a solid the camera keeps out of", () => {
+      test("every building, screen, tree and kiosk is a solid the camera keeps out of", () => {
         for (const b of city.buildings) {
           const solid = city.solids.find((s) => s.x === b.x && s.z === b.z && s.width === b.width);
           assert.ok(solid && solid.height >= b.height, "a building is missing from the solids");
         }
+        const kiosks = city.furniture.filter((f) => f.kind === "kiosk").length;
+        const panels = city.screens.length + city.tickers.length;
+        const expected = city.buildings.length + panels + city.trees.length + kiosks;
         assert.equal(
           city.solids.length,
-          city.buildings.length + city.screens.length + city.tickers.length,
+          expected,
+          "solids are buildings, panels, trees and kiosks",
         );
       });
 
