@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { type Camera, DirectionalLight, Matrix4, Vector3 } from "three";
-import { TOWN_HEIGHT, TREE_RADIUS, type TownLayout } from "./layoutTown.ts";
+import type { MapLayout } from "./mapLayout.ts";
 
 const SKY_LIGHT = "#e3eef7";
 const GROUND_LIGHT = "#8d9a78";
@@ -14,17 +14,15 @@ const SHADOW_MAP_SIZE = 2048;
 // Shadow map axes, as the shadow camera's lookAt (up = +y) lays them out.
 const SHADOW_RIGHT = new Vector3(0, 1, 0).cross(SUN_DIRECTION).normalize();
 const SHADOW_UP = SUN_DIRECTION.clone().cross(SHADOW_RIGHT);
-// Longest stretch of sunbeam between a receiver and something that can shade it: from the
-// ground up to the tallest roof or tree. Casters that far towards the sun, even off-screen,
-// must stay in the shadow camera's depth range.
-const SUNBEAM = TOWN_HEIGHT / SUN_DIRECTION.y;
-// A fitted shadow camera's size steps down from the whole town's in 10% rungs, so its texels
+// A fitted shadow camera's size steps down from the whole map's in 10% rungs, so its texels
 // keep their size, and stay on one grid, while the player pans at a given zoom.
 const SIZE_STEP = 1.1;
 
 interface Sphere {
   centre: Vector3;
   radius: number;
+  /** Height of the tallest thing in it. */
+  height: number;
 }
 
 // Scratch for fitting, so a refit allocates nothing.
@@ -36,28 +34,28 @@ const vs = new Float64Array(8);
 const depths = new Float64Array(8);
 const axis = { centre: 0, half: 0 };
 
-// Whole town: an orthographic shadow camera that just contains the sphere around every
+// Whole map: an orthographic shadow camera that just contains the sphere around every
 // caster and receiver, so no shadow is ever clipped.
-function aimAtTown(light: DirectionalLight, town: Sphere) {
-  const distance = town.radius * 2;
-  light.position.copy(town.centre).addScaledVector(SUN_DIRECTION, distance);
-  light.target.position.copy(town.centre);
+function aimAtWhole(light: DirectionalLight, whole: Sphere) {
+  const distance = whole.radius * 2;
+  light.position.copy(whole.centre).addScaledVector(SUN_DIRECTION, distance);
+  light.target.position.copy(whole.centre);
   light.target.updateMatrixWorld();
   const cam = light.shadow.camera;
-  cam.left = -town.radius;
-  cam.right = town.radius;
-  cam.top = town.radius;
-  cam.bottom = -town.radius;
-  cam.near = distance - town.radius;
-  cam.far = distance + town.radius;
+  cam.left = -whole.radius;
+  cam.right = whole.radius;
+  cam.top = whole.radius;
+  cam.bottom = -whole.radius;
+  cam.near = distance - whole.radius;
+  cam.far = distance + whole.radius;
   cam.updateProjectionMatrix();
 }
 
-// The slab of town the camera can see, between the ground and the tallest roof or tree,
+// The slab of the map the camera can see, between the ground and the tallest roof or tree,
 // is the hull of the view's corner rays cut at both heights. Writes those 8 points into
 // us/vs (shadow map axes) and depths (towards the sun). False when a corner ray never
 // comes down, i.e. the view reaches the horizon.
-function projectVisibleSlab(camera: Camera): boolean {
+function projectVisibleSlab(camera: Camera, top: number): boolean {
   const eye = camera.position;
   for (let c = 0; c < 4; c++) {
     ray
@@ -65,7 +63,7 @@ function projectVisibleSlab(camera: Camera): boolean {
       .unproject(camera)
       .sub(eye);
     for (let level = 0; level < 2; level++) {
-      const height = level * TOWN_HEIGHT;
+      const height = level * top;
       if (eye.y > height) {
         if (ray.y >= 0) return false;
         point.copy(eye).addScaledVector(ray, (height - eye.y) / ray.y);
@@ -82,46 +80,46 @@ function projectVisibleSlab(camera: Camera): boolean {
   return true;
 }
 
-// One axis of the fitted shadow camera: the points' extent clipped to the town's, rounded
-// up to a rung, centred on a whole texel. The top rung is the town itself. Writes `axis`.
-function fitAxis(values: Float64Array, townCentre: number, townHalf: number) {
+// One axis of the fitted shadow camera: the points' extent clipped to the whole map's, rounded
+// up to a rung, centred on a whole texel. The top rung is the whole map. Writes `axis`.
+function fitAxis(values: Float64Array, wholeCentre: number, wholeHalf: number) {
   let lo = Infinity;
   let hi = -Infinity;
   for (let i = 0; i < values.length; i++) {
     lo = Math.min(lo, values[i]);
     hi = Math.max(hi, values[i]);
   }
-  lo = Math.max(lo, townCentre - townHalf);
-  hi = Math.min(hi, townCentre + townHalf);
+  lo = Math.max(lo, wholeCentre - wholeHalf);
+  hi = Math.min(hi, wholeCentre + wholeHalf);
   // At least a unit across, so the log below stays finite; plus a texel of slack so that
   // snapping the centre can't uncover an edge.
   const half = Math.max((hi - lo) / 2, 1) * (1 + 2 / SHADOW_MAP_SIZE);
-  const rung = Math.max(0, Math.floor(Math.log(townHalf / half) / Math.log(SIZE_STEP)));
-  axis.half = townHalf / SIZE_STEP ** rung;
+  const rung = Math.max(0, Math.floor(Math.log(wholeHalf / half) / Math.log(SIZE_STEP)));
+  axis.half = wholeHalf / SIZE_STEP ** rung;
   if (rung === 0) {
-    axis.centre = townCentre;
+    axis.centre = wholeCentre;
     return;
   }
   const texel = (2 * axis.half) / SHADOW_MAP_SIZE;
   axis.centre = Math.round((lo + hi) / 2 / texel) * texel;
 }
 
-// Spend the shadow map on what is on screen. Every caster is inside the town's sphere, so
+// Spend the shadow map on what is on screen. Every caster is inside the map's sphere, so
 // shadows only land inside its square in shadow map space: the fit never needs more.
-function fitShadow(light: DirectionalLight, camera: Camera, town: Sphere) {
-  if (!projectVisibleSlab(camera)) {
-    aimAtTown(light, town);
+function fitShadow(light: DirectionalLight, camera: Camera, whole: Sphere) {
+  if (!projectVisibleSlab(camera, whole.height)) {
+    aimAtWhole(light, whole);
     return;
   }
-  fitAxis(us, town.centre.dot(SHADOW_RIGHT), town.radius);
+  fitAxis(us, whole.centre.dot(SHADOW_RIGHT), whole.radius);
   const u = axis.centre;
   const halfU = axis.half;
-  fitAxis(vs, town.centre.dot(SHADOW_UP), town.radius);
+  fitAxis(vs, whole.centre.dot(SHADOW_UP), whole.radius);
   const v = axis.centre;
   const halfV = axis.half;
-  // Zoomed out far enough to see the whole town: keep the one fixed fit.
-  if (halfU === town.radius && halfV === town.radius) {
-    aimAtTown(light, town);
+  // Zoomed out far enough to see the whole map: keep the one fixed fit.
+  if (halfU === whole.radius && halfV === whole.radius) {
+    aimAtWhole(light, whole);
     return;
   }
 
@@ -131,8 +129,11 @@ function fitShadow(light: DirectionalLight, camera: Camera, town: Sphere) {
     sunward = Math.max(sunward, depths[i]);
     away = Math.min(away, depths[i]);
   }
-  // Start a unit above the highest point that can shade anything in view.
-  const top = sunward + SUNBEAM + 1;
+  // Longest stretch of sunbeam between a receiver and something that can shade it: from the
+  // ground up to the tallest thing. Casters that far towards the sun, even off-screen, must
+  // stay in the depth range, so start a unit above the highest of them.
+  const sunbeam = whole.height / SUN_DIRECTION.y;
+  const top = sunward + sunbeam + 1;
   light.position
     .set(0, 0, 0)
     .addScaledVector(SHADOW_RIGHT, u)
@@ -151,29 +152,24 @@ function fitShadow(light: DirectionalLight, camera: Camera, town: Sphere) {
 }
 
 /** Soft sky fill plus one shadow-casting sun whose shadow camera follows the view. */
-export function TownLights({ layout }: { layout: TownLayout }) {
+export function MapLights({ map }: { map: MapLayout }) {
   const sun = useRef<DirectionalLight>(null);
 
-  // A sphere around everything that casts or receives a shadow.
-  const town = useMemo((): Sphere => {
-    const { bounds, square, neighbourhoods, trees } = layout;
+  // A sphere around everything that casts a shadow.
+  const whole = useMemo((): Sphere => {
+    const { bounds, casters, height } = map;
     const centre = new Vector3((bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2);
-    const discs = [
-      square,
-      ...neighbourhoods,
-      ...trees.map((t) => ({ x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
-    ];
     const reach = Math.max(
-      ...discs.map((d) => Math.hypot(d.x - centre.x, d.z - centre.z) + d.radius),
+      ...casters.map((d) => Math.hypot(d.x - centre.x, d.z - centre.z) + d.radius),
     );
-    return { centre, radius: Math.hypot(reach, TOWN_HEIGHT) };
-  }, [layout]);
+    return { centre, radius: Math.hypot(reach, height), height };
+  }, [map]);
 
   // Refit only when the view has changed since the last fit. Comparing matrices rather than
   // listening for the controls' "change" also catches resizes and the last of the damping,
   // which the controls stop reporting below 1e-3 per frame.
   const fitted = useMemo(() => ({ view: new Matrix4(), projection: new Matrix4() }), []);
-  const fittedTown = useRef<Sphere>(null);
+  const fittedWhole = useRef<Sphere>(null);
 
   // Default priority runs after the controls' own update (and the camera's target clamp),
   // and before this frame renders.
@@ -181,16 +177,16 @@ export function TownLights({ layout }: { layout: TownLayout }) {
     if (!sun.current) return;
     camera.updateMatrixWorld();
     if (
-      fittedTown.current === town &&
+      fittedWhole.current === whole &&
       fitted.view.equals(camera.matrixWorld) &&
       fitted.projection.equals(camera.projectionMatrix)
     ) {
       return;
     }
-    fittedTown.current = town;
+    fittedWhole.current = whole;
     fitted.view.copy(camera.matrixWorld);
     fitted.projection.copy(camera.projectionMatrix);
-    fitShadow(sun.current, camera, town);
+    fitShadow(sun.current, camera, whole);
   });
 
   return (

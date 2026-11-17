@@ -2,7 +2,7 @@ import { MapControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { type ComponentRef, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { MathUtils, PerspectiveCamera, Vector3 } from "three";
-import { TOWN_HEIGHT, type TownLayout } from "./layoutTown.ts";
+import type { MapLayout } from "./mapLayout.ts";
 
 // Default look-down angle above the horizon. Portrait screens are width-bound, so a
 // steeper look there spends their spare height on the town.
@@ -10,8 +10,6 @@ const LANDSCAPE_ELEVATION = MathUtils.degToRad(50);
 const PORTRAIT_ELEVATION = MathUtils.degToRad(64);
 const MIN_POLAR = MathUtils.degToRad(10); // nearly straight down
 const MAX_POLAR = MathUtils.degToRad(64); // low, but the town never turns edge-on
-// Close enough to see a doorstep; with MAX_POLAR the camera stays above every roof and tree.
-const MIN_DISTANCE = 10;
 const ZOOM_OUT_ROOM = 1.35; // how far past the default framing the player may zoom out
 const FRAME_FILL = 0.92; // share of the view the town fills by default
 
@@ -19,20 +17,6 @@ interface Framing {
   position: Vector3;
   target: Vector3;
   distance: number;
-}
-
-// Points on the town's outline, at the ground and at roof height.
-function outline(layout: TownLayout): Vector3[] {
-  const points: Vector3[] = [];
-  for (const d of [layout.square, ...layout.neighbourhoods]) {
-    for (let i = 0; i < 32; i++) {
-      const a = (i / 32) * Math.PI * 2;
-      const x = d.x + Math.cos(a) * d.radius;
-      const z = d.z + Math.sin(a) * d.radius;
-      points.push(new Vector3(x, 0, z), new Vector3(x, TOWN_HEIGHT, z));
-    }
-  }
-  return points;
 }
 
 function elevationFor(aspect: number): number {
@@ -75,17 +59,19 @@ function frameTown(points: Vector3[], fovDeg: number, aspect: number): Framing {
 }
 
 interface Props {
-  layout: TownLayout;
+  map: MapLayout;
+  /** Closest zoom. With MAX_POLAR it keeps the camera above the map's roofs. */
+  minDistance: number;
   /** Colour the far fields fade into; the sky behind should match. */
   fogColor: string;
 }
 
-/** Pan and zoom over the town, clamped so the town always stays in view. */
-export function TownCamera({ layout, fogColor }: Props) {
+/** Pan and zoom over a map, clamped so the map always stays in view. */
+export function MapCamera({ map, minDistance, fogColor }: Props) {
   const fov = useThree((s) => (s.camera as PerspectiveCamera).fov);
   const aspect = useThree((s) => s.size.width / s.size.height);
   const controls = useRef<ComponentRef<typeof MapControls>>(null);
-  const points = useMemo(() => outline(layout), [layout]);
+  const points = useMemo(() => map.frame.map((p) => new Vector3(p.x, p.y, p.z)), [map]);
   const reducedMotion = useMemo(() => matchMedia("(prefers-reduced-motion: reduce)").matches, []);
 
   // Zoom-out room follows the window, so the whole town stays reachable after a resize.
@@ -96,10 +82,11 @@ export function TownCamera({ layout, fogColor }: Props) {
 
   // Fog starts past the far side of the town even fully zoomed out, so only the fields
   // beyond it fade into the sky, on any screen.
-  const { minX, maxX, minZ, maxZ } = layout.bounds;
+  const { minX, maxX, minZ, maxZ } = map.bounds;
+  const ellipse = map.roam === "ellipse";
   const fogNear = maxDistance + Math.max(maxX - minX, maxZ - minZ);
 
-  // Frame the whole town once per layout; resizing later keeps the player's view.
+  // Frame the whole map once; resizing later keeps the player's view.
   const aspectAtMount = useRef(aspect);
   useLayoutEffect(() => {
     const c = controls.current;
@@ -110,24 +97,32 @@ export function TownCamera({ layout, fogColor }: Props) {
     c.update();
   }, [points, fov]);
 
-  // Keep the orbit target over the town: inside the ellipse that fills the bounds, since
-  // the corners of a round town's bounds are empty fields. The camera moves by the same
+  // Keep the orbit target over the map: inside its bounds, or inside the ellipse that fills
+  // them when the map is round (its corners are empty fields). The camera moves by the same
   // amount, so the view slides to a stop at the edge instead of turning.
   const clampTarget = useCallback(() => {
     const c = controls.current;
     if (!c) return;
     const t = c.target;
-    const cx = (minX + maxX) / 2;
-    const cz = (minZ + maxZ) / 2;
-    const out = Math.hypot((t.x - cx) / ((maxX - minX) / 2), (t.z - cz) / ((maxZ - minZ) / 2));
-    if (out <= 1) return;
-    const dx = cx + (t.x - cx) / out - t.x;
-    const dz = cz + (t.z - cz) / out - t.z;
+    let dx: number;
+    let dz: number;
+    if (ellipse) {
+      const cx = (minX + maxX) / 2;
+      const cz = (minZ + maxZ) / 2;
+      const out = Math.hypot((t.x - cx) / ((maxX - minX) / 2), (t.z - cz) / ((maxZ - minZ) / 2));
+      if (out <= 1) return;
+      dx = cx + (t.x - cx) / out - t.x;
+      dz = cz + (t.z - cz) / out - t.z;
+    } else {
+      dx = MathUtils.clamp(t.x, minX, maxX) - t.x;
+      dz = MathUtils.clamp(t.z, minZ, maxZ) - t.z;
+      if (dx === 0 && dz === 0) return;
+    }
     t.x += dx;
     t.z += dz;
     c.object.position.x += dx;
     c.object.position.z += dz;
-  }, [minX, maxX, minZ, maxZ]);
+  }, [ellipse, minX, maxX, minZ, maxZ]);
 
   return (
     <>
@@ -137,7 +132,7 @@ export function TownCamera({ layout, fogColor }: Props) {
         makeDefault
         onChange={clampTarget}
         enableDamping={!reducedMotion}
-        minDistance={MIN_DISTANCE}
+        minDistance={minDistance}
         maxDistance={maxDistance}
         minPolarAngle={MIN_POLAR}
         maxPolarAngle={MAX_POLAR}
