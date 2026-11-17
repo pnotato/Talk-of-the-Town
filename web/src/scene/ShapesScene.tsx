@@ -24,6 +24,7 @@ import { mediaQuery, useReducedMotion } from "./blobMedia.ts";
 import { MOODS } from "./blobMood.ts";
 import BlobScenario from "./BlobScenario.tsx";
 import { SCENARIOS } from "./blobScenarios.ts";
+import { RenderResolution } from "./RenderResolution.tsx";
 import { shapesFixture } from "./shapesFixture.ts";
 import {
   FOV,
@@ -232,8 +233,10 @@ export default function ShapesScene() {
         // r187 has removed (it warns and falls back).
         shadows="percentage"
         flat
+        dpr={1}
         camera={{ fov: FOV, near: 0.1, far: 1000 }}
       >
+        <RenderResolution />
         <color attach="background" args={[SKY]} />
         {/* Balanced with KeyLight so a lit top face shows a blob's base colour (no tone mapping). */}
         <hemisphereLight args={["#eef4fa", "#7d8f6e", 1.6]} />
