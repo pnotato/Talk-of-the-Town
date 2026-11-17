@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import { layoutTown } from "./layoutTown.ts";
+import { RenderResolution } from "./RenderResolution.tsx";
 import { TownCamera } from "./TownCamera.tsx";
 import { GROUND_RADIUS, TownGround } from "./TownGround.tsx";
 import { TownHomes } from "./TownHomes.tsx";
@@ -38,11 +39,12 @@ export default function TownScene({
     <Canvas
       shadows="percentage"
       flat
-      dpr={[1, 2]}
+      dpr={1}
       camera={{ fov: 30, near: 1, far: GROUND_RADIUS * 1.2 }}
       role="img"
       aria-label={`Town map: ${homeCount} homes in ${neighbourhoodCount} neighbourhoods around a square. Drag to pan, scroll or pinch to zoom.`}
     >
+      <RenderResolution />
       <color attach="background" args={[SKY]} />
       <TownLights layout={layout} />
       <TownGround neighbourhoods={layout.neighbourhoods} />
