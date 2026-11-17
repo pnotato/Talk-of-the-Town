@@ -1,6 +1,6 @@
 import { MapControls } from "@react-three/drei";
-import { useThree } from "@react-three/fiber";
-import { type ComponentRef, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { type ComponentRef, useLayoutEffect, useMemo, useRef } from "react";
 import { MathUtils, PerspectiveCamera, Vector3 } from "three";
 import type { MapLayout } from "./mapLayout.ts";
 
@@ -102,8 +102,10 @@ export function MapCamera({ map, minDistance = 0, clearance = 0, fogColor }: Pro
 
   // Keep the orbit target over the map: inside its bounds, or inside the ellipse that fills
   // them when the map is round (its corners are empty fields). The camera moves by the same
-  // amount, so the view slides to a stop at the edge instead of turning.
-  const clampTarget = useCallback(() => {
+  // amount, so the view slides to a stop at the edge instead of turning. Every frame, just
+  // after the controls update (priority -1, subscribed after them): their "change" event
+  // stays silent for the last of the damping, which could carry the target past the edge.
+  useFrame(() => {
     const c = controls.current;
     if (!c) return;
     const t = c.target;
@@ -125,7 +127,7 @@ export function MapCamera({ map, minDistance = 0, clearance = 0, fogColor }: Pro
     t.z += dz;
     c.object.position.x += dx;
     c.object.position.z += dz;
-  }, [ellipse, minX, maxX, minZ, maxZ]);
+  }, -1);
 
   return (
     <>
@@ -133,7 +135,6 @@ export function MapCamera({ map, minDistance = 0, clearance = 0, fogColor }: Pro
       <MapControls
         ref={controls}
         makeDefault
-        onChange={clampTarget}
         enableDamping={!reducedMotion}
         minDistance={closest}
         maxDistance={maxDistance}
