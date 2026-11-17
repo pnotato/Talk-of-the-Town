@@ -21,6 +21,11 @@ export interface Box extends Point {
 
 export type Obstacle = ({ kind: "disc" } & Disc) | ({ kind: "box" } & Box);
 
+/** Something tall the camera must stay out of: a footprint and the height of its top. */
+export interface Solid extends Box {
+  height: number;
+}
+
 export interface Bounds {
   minX: number;
   maxX: number;
@@ -62,6 +67,8 @@ export interface MapLayout {
   frame: { x: number; y: number; z: number }[];
   /** Discs covering everything that casts a shadow. */
   casters: Disc[];
+  /** Tall things the camera must never be inside; see cameraFloor. */
+  solids: Solid[];
   /** Height of the tallest thing on the map. */
   height: number;
 }
@@ -110,19 +117,51 @@ export function polygonArea(polygon: Point[]): number {
   return Math.abs(twice) / 2;
 }
 
+/** Distance from a point to a turned box's edge; 0 inside it. */
+export function distanceToBox(x: number, z: number, b: Box): number {
+  const c = Math.cos(b.rotationY);
+  const s = Math.sin(b.rotationY);
+  // Into the box's own axes (inverse of three's rotation.y).
+  const dx = x - b.x;
+  const dz = z - b.z;
+  const lx = c * dx - s * dz;
+  const lz = s * dx + c * dz;
+  const ox = Math.max(0, Math.abs(lx) - b.width / 2);
+  const oz = Math.max(0, Math.abs(lz) - b.depth / 2);
+  return Math.hypot(ox, oz);
+}
+
 /** Distance from a point to an obstacle's edge; 0 inside it. */
 export function distanceToObstacle(p: Point, o: Obstacle): number {
   if (o.kind === "disc") return Math.max(0, Math.hypot(p.x - o.x, p.z - o.z) - o.radius);
-  const c = Math.cos(o.rotationY);
-  const s = Math.sin(o.rotationY);
-  // Into the box's own axes (inverse of three's rotation.y).
-  const dx = p.x - o.x;
-  const dz = p.z - o.z;
-  const lx = c * dx - s * dz;
-  const lz = s * dx + c * dz;
-  const ox = Math.max(0, Math.abs(lx) - o.width / 2);
-  const oz = Math.max(0, Math.abs(lz) - o.depth / 2);
-  return Math.hypot(ox, oz);
+  return distanceToBox(p.x, p.z, o);
+}
+
+// The camera keeps this far off any wall or roof, and this far off the ground.
+export const CAMERA_MARGIN = 2;
+export const GROUND_CLEARANCE = 2;
+// Beyond the margin the floor eases down to the ground over this distance, so flying past
+// a tower's edge lifts the camera smoothly instead of popping it up.
+export const CAMERA_RAMP = 10;
+
+/**
+ * Lowest height the camera may be at above (x, z): a solid's top plus the margin while
+ * within the margin of its footprint, easing down to ground clearance across the ramp.
+ * Continuous everywhere, so a camera held at or above it moves without jumps. Allocates
+ * nothing, so it can run every frame.
+ */
+export function cameraFloor(solids: Solid[], x: number, z: number): number {
+  let floor = GROUND_CLEARANCE;
+  for (let i = 0; i < solids.length; i++) {
+    const solid = solids[i];
+    const away = distanceToBox(x, z, solid) - CAMERA_MARGIN;
+    if (away >= CAMERA_RAMP) continue;
+    const top = solid.height + CAMERA_MARGIN;
+    const t = away <= 0 ? 0 : away / CAMERA_RAMP;
+    const ease = 1 - t * t * (3 - 2 * t); // smoothstep down from 1 to 0
+    floor = Math.max(floor, GROUND_CLEARANCE + (top - GROUND_CLEARANCE) * ease);
+  }
+  return floor;
 }
 
 /**

@@ -55,5 +55,7 @@ export function townMap(town: TownLayout): MapLayout {
       ...town.trees.map((t) => ({ x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
     ],
     height: TOWN_HEIGHT,
+    // Every roof and tree is below the camera's lowest point at the town's closest zoom.
+    solids: [],
   };
 }

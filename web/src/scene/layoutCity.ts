@@ -9,6 +9,7 @@
 import { TREE_RADIUS, type TownTree } from "./layoutTown.ts";
 import {
   type Disc,
+  type Solid,
   type MapHome,
   type MapLayout,
   type Obstacle,
@@ -339,6 +340,28 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     ...lamps.map((l) => ({ ...l, radius: 0.5 })),
   ];
 
+  // Everything tall the camera must keep out of: buildings, and screens that hang out past
+  // their walls.
+  const BEZEL_DEPTH = 0.4;
+  const solids: Solid[] = [
+    ...buildings.map((b) => ({
+      x: b.x,
+      z: b.z,
+      width: b.width,
+      depth: b.depth,
+      rotationY: 0,
+      height: b.height,
+    })),
+    ...[...screens, ...tickers].map((p) => ({
+      x: p.x,
+      z: p.z,
+      width: p.width,
+      depth: BEZEL_DEPTH,
+      rotationY: p.rotationY,
+      height: p.y + p.height / 2,
+    })),
+  ];
+
   return {
     homes,
     neighbourhoods,
@@ -347,6 +370,7 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     roam: "box",
     frame,
     casters,
+    solids,
     height,
     plaza: plaza.island,
     blocks,

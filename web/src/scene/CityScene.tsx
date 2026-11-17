@@ -1,5 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
+import { MathUtils } from "three";
 import { CityBuildings } from "./CityBuildings.tsx";
 import { CityGround } from "./CityGround.tsx";
 import { CityScreens } from "./CityScreens.tsx";
@@ -14,6 +15,10 @@ import { TownTrees } from "./TownTrees.tsx";
 // docs/MODEL.md: 53 homes dealt round-robin into 5 neighbourhoods.
 const HOMES = 53;
 const NEIGHBOURHOODS = 5;
+
+const CLOSEST = 12;
+const LOWEST_TILT = MathUtils.degToRad(95); // a touch past level, to look up at the screens
+const EYE_HEIGHT = 4;
 
 // The town's sky, so both maps feel like one game.
 const SKY = "#d4e2ee";
@@ -50,8 +55,15 @@ export default function CityScene({
       <CityScreens city={city} />
       <CityStreetLife city={city} />
       <TownTrees trees={city.trees} />
-      {/* Fully zoomed in at the lowest tilt, the camera still clears the tallest roof. */}
-      <MapCamera map={city} clearance={city.height + 2} fogColor={SKY} />
+      {/* Close enough to see faces; the camera floor keeps it out of the towers. It orbits a
+          point a few units up, so tilted low it looks across the plaza at the screens. */}
+      <MapCamera
+        map={city}
+        minDistance={CLOSEST}
+        maxPolar={LOWEST_TILT}
+        targetHeight={EYE_HEIGHT}
+        fogColor={SKY}
+      />
     </Canvas>
   );
 }

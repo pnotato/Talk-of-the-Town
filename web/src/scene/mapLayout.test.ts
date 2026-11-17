@@ -3,12 +3,17 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  CAMERA_MARGIN,
+  CAMERA_RAMP,
+  cameraFloor,
   distanceToObstacle,
   distanceToOutline,
   insidePolygon,
   type Obstacle,
   type Point,
+  GROUND_CLEARANCE,
   polygonArea,
+  type Solid,
   SPOT_SPACING,
   standingSpots,
 } from "./mapLayout.ts";
@@ -82,5 +87,59 @@ describe("standingSpots", () => {
   test("nearest the middle come first", () => {
     const away = (p: Point) => Math.hypot(p.x, p.z);
     for (let i = 1; i < spots.length; i++) assert.ok(away(spots[i]) >= away(spots[i - 1]));
+  });
+});
+
+describe("cameraFloor", () => {
+  // A 10 x 6 tower 30 tall at the origin, and a thin screen turned 45 degrees beside it.
+  const tower: Solid = { x: 0, z: 0, width: 10, depth: 6, rotationY: 0, height: 30 };
+  const screen: Solid = { x: 12, z: 6, width: 8, depth: 0.3, rotationY: Math.PI / 4, height: 12 };
+  const solids = [tower, screen];
+  const roof = 30 + CAMERA_MARGIN;
+
+  test("far from everything, only the ground clearance", () => {
+    assert.equal(cameraFloor(solids, 60, 60), GROUND_CLEARANCE);
+    assert.equal(cameraFloor([], 0, 0), GROUND_CLEARANCE);
+  });
+
+  test("over a footprint or within the margin of it, above the roof", () => {
+    assert.equal(cameraFloor(solids, 0, 0), roof);
+    assert.equal(cameraFloor(solids, 4.9, 2.9), roof);
+    assert.equal(cameraFloor(solids, 5 + CAMERA_MARGIN, 0), roof);
+  });
+
+  test("eases down across the ramp, never rising as you leave", () => {
+    let last = Infinity;
+    for (let d = 0; d <= CAMERA_MARGIN + CAMERA_RAMP + 1; d += 0.05) {
+      const floor = cameraFloor([tower], 5 + d, 0);
+      assert.ok(floor <= last + 1e-12, `rises at ${d.toFixed(2)}`);
+      last = floor;
+    }
+    assert.equal(cameraFloor([tower], 5 + CAMERA_MARGIN + CAMERA_RAMP, 0), GROUND_CLEARANCE);
+  });
+
+  test("continuous: a small step never jumps the floor", () => {
+    const step = 0.01;
+    // Steepest smoothstep slope is 1.5 x height / ramp.
+    const steepest = (1.5 * (roof - GROUND_CLEARANCE) * step) / CAMERA_RAMP + 1e-9;
+    for (let x = -30; x <= 30; x += step) {
+      const a = cameraFloor(solids, x, 4);
+      const b = cameraFloor(solids, x + step, 4);
+      assert.ok(
+        Math.abs(b - a) <= steepest,
+        `jumps ${Math.abs(b - a).toFixed(3)} at x ${x.toFixed(2)}`,
+      );
+    }
+  });
+
+  test("the highest solid nearby wins, turned ones included", () => {
+    assert.equal(
+      cameraFloor(solids, 12, 6),
+      Math.max(12 + CAMERA_MARGIN, cameraFloor([tower], 12, 6)),
+    );
+    assert.ok(
+      cameraFloor([screen], 12 + 2.5, 6 - 2.5) === 12 + CAMERA_MARGIN,
+      "along the turned screen",
+    );
   });
 });

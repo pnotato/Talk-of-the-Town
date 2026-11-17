@@ -281,6 +281,17 @@ describe("layoutCity", () => {
         }
       });
 
+      test("every building and screen is a solid the camera keeps out of", () => {
+        for (const b of city.buildings) {
+          const solid = city.solids.find((s) => s.x === b.x && s.z === b.z && s.width === b.width);
+          assert.ok(solid && solid.height >= b.height, "a building is missing from the solids");
+        }
+        assert.equal(
+          city.solids.length,
+          city.buildings.length + city.screens.length + city.tickers.length,
+        );
+      });
+
       // Trees may stand in the fields outside the city; bounds frame the city itself.
       test("everything else lies inside the bounds", () => {
         const b = city.bounds;
