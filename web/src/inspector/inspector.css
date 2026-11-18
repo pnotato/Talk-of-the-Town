@@ -403,10 +403,10 @@
   overflow-wrap: anywhere;
 }
 
-/* Warm neutral special tags; personality categories have restrained pastel highlights. */
+/* Sunny special tags and brighter pastel personality highlights retain dark, readable text. */
 .tag-special {
-  background: #ece4d5;
-  color: #615745;
+  background: #ffe3a0;
+  color: #6c4b16;
   font-weight: 400;
 }
 
@@ -417,18 +417,18 @@
 }
 
 .tag-credulity {
-  --tag-tint: #dfe9ed;
-  --tag-ink: #465e68;
+  --tag-tint: #c9edf9;
+  --tag-ink: #245c73;
 }
 
 .tag-socialness {
-  --tag-tint: #f3e3ce;
-  --tag-ink: #765935;
+  --tag-tint: #ffdbb5;
+  --tag-ink: #78431c;
 }
 
 .tag-persuasiveness {
-  --tag-tint: #e8e1ee;
-  --tag-ink: #655371;
+  --tag-tint: #e3d3ff;
+  --tag-ink: #60428b;
 }
 
 /* Meters show only their labels; values and score words remain on the accessible meter. */
@@ -464,11 +464,11 @@
 }
 
 .meter-perception .meter-fill {
-  background: #627f8c;
+  background: #148e84;
 }
 
 .meter-interest .meter-fill {
-  background: #9b7646;
+  background: #cb651b;
 }
 
 .meter-label {
