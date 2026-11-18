@@ -175,9 +175,10 @@ export function cameraFloor(solids: Solid[], x: number, z: number): number {
 /**
  * Hex-grid standing spots inside an outline, a blob's radius clear of its edge and its reach
  * clear of every obstacle, sorted nearest the outline's middle first so a smaller crowd fills
- * the centre.
+ * the centre. The grid runs through `anchor`, the outline's middle unless given: a narrow strip
+ * passes the point where its cells fit best.
  */
-export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] {
+export function standingSpots(outline: Point[], obstacles: Obstacle[], anchor?: Point): Point[] {
   const xs = outline.map((p) => p.x);
   const zs = outline.map((p) => p.z);
   const minX = Math.min(...xs);
@@ -186,15 +187,17 @@ export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] 
   const maxZ = Math.max(...zs);
   const middle = { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 };
   const row = (SPOT_SPACING * Math.sqrt(3)) / 2;
+  const origin = anchor ?? middle;
 
   const spots: Point[] = [];
-  // Anchored on the middle, so the same outline always gives the same grid.
-  const rows = Math.ceil((maxZ - minZ) / 2 / row);
-  const columns = Math.ceil((maxX - minX) / 2 / SPOT_SPACING) + 1;
+  // Anchored, so the same outline always gives the same grid; wide enough to cover the outline
+  // from an anchor anywhere inside it.
+  const rows = Math.ceil((maxZ - minZ) / row) + 1;
+  const columns = Math.ceil((maxX - minX) / SPOT_SPACING) + 1;
   for (let r = -rows; r <= rows; r++) {
     const shift = (Math.abs(r) % 2) * (SPOT_SPACING / 2);
     for (let c = -columns; c <= columns; c++) {
-      const p = { x: middle.x + c * SPOT_SPACING + shift, z: middle.z + r * row };
+      const p = { x: origin.x + c * SPOT_SPACING + shift, z: origin.z + r * row };
       if (!insidePolygon(p, outline)) continue;
       if (distanceToOutline(p, outline) < BLOB_RADIUS) continue;
       if (obstacles.some((o) => distanceToObstacle(p, o) < BLOB_REACH)) continue;
