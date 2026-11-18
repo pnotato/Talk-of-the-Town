@@ -21,8 +21,11 @@ test("homes keep their index and neighbourhood, with the door on the front face"
 });
 
 test("the square has a standing spot for each of 100 blobs, clear of the fountain", () => {
-  const { spots, outline } = map.gathering;
-  assert.ok(spots.length >= 100, `${spots.length} spots`);
+  assert.equal(map.gathering.areas.length, 1, "the town's one walkable area is its square");
+  const [{ name, spots, outline }] = map.gathering.areas;
+  assert.equal(name, "square");
+  // Pinned: the town's grid is unchanged by the city's walkable areas.
+  assert.equal(spots.length, 102);
   for (const p of spots) {
     assert.ok(insidePolygon(p, outline));
     assert.ok(distanceToOutline(p, outline) >= BLOB_RADIUS - 1e-9);

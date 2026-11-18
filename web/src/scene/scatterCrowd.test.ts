@@ -6,7 +6,13 @@ import { SHAPES } from "./blobGeometry.ts";
 import { MOODS } from "./blobMood.ts";
 import { ageGroup } from "./blobSize.ts";
 import { layoutCity } from "./layoutCity.ts";
-import { BLOB_REACH, distanceToObstacle, insidePolygon, type Point } from "./mapLayout.ts";
+import {
+  BLOB_REACH,
+  distanceToObstacle,
+  gatheringSpots,
+  insidePolygon,
+  type Point,
+} from "./mapLayout.ts";
 import {
   AGE_BANDS,
   CROWD_SIZE,
@@ -16,15 +22,15 @@ import {
 } from "./scatterCrowd.ts";
 
 const city = layoutCity(53, 5);
-const cells = city.gathering.spots;
+const cells = gatheringSpots(city.gathering);
 const crowd = scatterCrowd(DEFAULT_CROWD_SEED, cells, CROWD_SIZE);
 const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
 
-describe("the plaza's grid", () => {
+describe("the walkable grid", () => {
   test("every city has at least 100 cells, comfortably more than the crowd", () => {
     for (const homes of [0, 1, 10, 53, 100, 200]) {
       for (let n = 1; n <= 8; n++) {
-        const { length } = layoutCity(homes, n).gathering.spots;
+        const { length } = gatheringSpots(layoutCity(homes, n).gathering);
         assert.ok(length >= 100, `${homes} homes in ${n}: ${length} cells`);
         assert.ok(length >= 1.5 * CROWD_SIZE, `${homes} homes in ${n}: ${length} cells`);
       }
@@ -41,11 +47,14 @@ describe("scatterCrowd", () => {
     );
   });
 
-  test("stands every blob on its own cell, inside the plaza and clear of the furniture", () => {
+  test("stands every blob on its own cell, on a walkable area and clear of the furniture", () => {
     assert.equal(new Set(crowd.map((b) => b.cell)).size, crowd.length);
     for (const b of crowd) {
       assert.deepEqual({ x: b.x, z: b.z }, cells[b.cell]);
-      assert.ok(insidePolygon(b, city.gathering.outline), `blob ${b.id} is off the plaza`);
+      assert.ok(
+        city.gathering.areas.some((a) => insidePolygon(b, a.outline)),
+        `blob ${b.id} is off the grid`,
+      );
       for (const f of city.furniture) {
         const box = { ...f, kind: "box" as const };
         assert.ok(distanceToObstacle(b, box) >= BLOB_REACH, `blob ${b.id} is in the ${f.kind}`);
@@ -120,7 +129,8 @@ describe("scatterCrowd", () => {
   });
 
   test("every cell is as likely as any other, not nearest the middle first", () => {
-    const trials = 300;
+    // Enough crowds that each cell expects about 160 blobs.
+    const trials = Math.ceil((160 * cells.length) / CROWD_SIZE);
     const hits = new Array<number>(cells.length).fill(0);
     for (let seed = 1; seed <= trials; seed++) {
       for (const b of scatterCrowd(seed, cells, CROWD_SIZE)) hits[b.cell]++;
@@ -129,6 +139,27 @@ describe("scatterCrowd", () => {
     hits.forEach((n, cell) => {
       assert.ok(Math.abs(n - expected) < 0.35 * expected, `cell ${cell}: ${n}, not ~${expected}`);
     });
+  });
+
+  test("spreads over the plaza, the park and the sidewalks, each by its share of cells", () => {
+    const names = [...new Set(city.gathering.areas.map((a) => a.name))];
+    assert.deepEqual(names, ["plaza", "park", "sidewalk"]);
+    const areaOf = city.gathering.areas.flatMap((a) => a.spots.map(() => a.name));
+    for (const name of names) {
+      const share = areaOf.filter((n) => n === name).length / cells.length;
+      let blobs = 0;
+      for (const seed of SEEDS) {
+        blobs += scatterCrowd(seed, cells, CROWD_SIZE).filter(
+          (b) => areaOf[b.cell] === name,
+        ).length;
+      }
+      const expected = share * CROWD_SIZE * SEEDS.length;
+      assert.ok(blobs > 0, `nobody on the ${name}`);
+      assert.ok(
+        Math.abs(blobs - expected) < 0.15 * expected,
+        `${blobs} on the ${name}, not ~${expected}`,
+      );
+    }
   });
 
   test("fills every cell when asked to, and refuses more blobs than cells", () => {

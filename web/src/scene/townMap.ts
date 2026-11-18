@@ -42,10 +42,15 @@ export function townMap(town: TownLayout): MapLayout {
       centre: { x: n.x, z: n.z },
     })),
     gathering: {
-      outline,
-      spots: standingSpots(outline, [
-        { kind: "disc", x: square.x, z: square.z, radius: square.fountainRadius },
-      ]),
+      areas: [
+        {
+          name: "square",
+          outline,
+          spots: standingSpots(outline, [
+            { kind: "disc", x: square.x, z: square.z, radius: square.fountainRadius },
+          ]),
+        },
+      ],
     },
     bounds: town.bounds,
     roam: "ellipse",

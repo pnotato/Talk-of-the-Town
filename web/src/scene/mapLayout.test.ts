@@ -10,6 +10,7 @@ import {
   cameraFloor,
   distanceToObstacle,
   distanceToOutline,
+  gatheringSpots,
   insidePolygon,
   type Obstacle,
   type Point,
@@ -90,6 +91,57 @@ describe("standingSpots", () => {
     const away = (p: Point) => Math.hypot(p.x, p.z);
     for (let i = 1; i < spots.length; i++) assert.ok(away(spots[i]) >= away(spots[i - 1]));
   });
+});
+
+describe("standingSpots through an anchor", () => {
+  // A sidewalk 2.5 wide running north-south: too narrow for the default grid to fit more than
+  // one column, but a grid through the right point zigzags down it in two.
+  const strip: Point[] = [
+    { x: 0, z: 0 },
+    { x: 2.5, z: 0 },
+    { x: 2.5, z: 30 },
+    { x: 0, z: 30 },
+  ];
+  const anchor = { x: 0.8, z: 15 };
+  const through = standingSpots(strip, [], anchor);
+  const spots = standingSpots(BOW_TIE, OBSTACLES);
+
+  test("the grid passes through the anchor", () => {
+    assert.ok(through.some((p) => p.x === anchor.x && p.z === anchor.z));
+    const row = (SPOT_SPACING * Math.sqrt(3)) / 2;
+    for (const p of through) {
+      const r = Math.round((p.z - anchor.z) / row);
+      assert.ok(Math.abs(p.z - anchor.z - r * row) < 1e-9, "off the anchor's rows");
+      const c = (p.x - anchor.x - (Math.abs(r) % 2) * (SPOT_SPACING / 2)) / SPOT_SPACING;
+      assert.ok(Math.abs(c - Math.round(c)) < 1e-9, "off the anchor's columns");
+    }
+  });
+
+  test("fills a strip the default grid only half fills, keeping every rule", () => {
+    assert.ok(through.length > 1.5 * standingSpots(strip, []).length);
+    for (const p of through) {
+      assert.ok(insidePolygon(p, strip));
+      assert.ok(distanceToOutline(p, strip) >= BLOB_RADIUS - 1e-9);
+    }
+  });
+
+  test("an anchor that isn't given is the outline's middle: the old grid", () => {
+    assert.deepEqual(standingSpots(BOW_TIE, OBSTACLES, { x: 0, z: 0 }), spots);
+  });
+});
+
+test("gatheringSpots runs through every area's cells in order", () => {
+  const a = { x: 1, z: 2 };
+  const b = { x: 3, z: 4 };
+  const c = { x: 5, z: 6 };
+  const gathering = {
+    areas: [
+      { name: "plaza", outline: [], spots: [a, b] },
+      { name: "park", outline: [], spots: [] },
+      { name: "sidewalk", outline: [], spots: [c] },
+    ],
+  };
+  assert.deepEqual(gatheringSpots(gathering), [a, b, c]);
 });
 
 describe("cameraFloor", () => {
