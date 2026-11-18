@@ -21,7 +21,7 @@ function PortraitCamera({ shape }: { shape: Shape }) {
 }
 
 /**
- * A small face-forward portrait of one blob in the given shape, age and mood, for the inspector.
+ * A small portrait of one blob, looking slightly screen-right and up, for the inspector.
  * It fills its parent, which must have a size.
  *
  * It draws on demand: a frame when the blob or the canvas changes, and none otherwise. There are no

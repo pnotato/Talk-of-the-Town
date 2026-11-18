@@ -7,8 +7,9 @@ import { blobScale } from "./blobSize.ts";
 /** A narrow field of view from further back flattens the blob less than a close lens would. */
 export const PORTRAIT_FOV = 24;
 
-/** The camera sits this far above the blob's middle, looking slightly down on its face. */
-export const PORTRAIT_ELEVATION = MathUtils.degToRad(14);
+/** A slightly low, left-hand viewpoint makes the face look screen-right and upward. */
+export const PORTRAIT_ELEVATION = MathUtils.degToRad(-8);
+export const PORTRAIT_AZIMUTH = MathUtils.degToRad(-14);
 
 // Room left around the biggest blob (an elder), so its shadowless outline never touches the edge.
 const PADDING = 1.14;
@@ -36,22 +37,37 @@ export function portraitFraming(
   const halfDepth = max.z * sz;
 
   const targetY = height * AIM;
-  // The camera looks down, so depth adds to the height it sees, and the nearest part of the blob is
-  // closer to the lens than its middle.
-  const above = Math.max(height - targetY, targetY);
-  const visibleHalfHeight =
-    above * Math.cos(PORTRAIT_ELEVATION) + halfDepth * Math.sin(PORTRAIT_ELEVATION);
+  const sinYaw = Math.sin(PORTRAIT_AZIMUTH);
+  const cosYaw = Math.cos(PORTRAIT_AZIMUTH);
+  const sinPitch = Math.sin(PORTRAIT_ELEVATION);
+  const cosPitch = Math.cos(PORTRAIT_ELEVATION);
   const tan = Math.tan(MathUtils.degToRad(PORTRAIT_FOV / 2));
   const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
-  const distance =
-    PADDING * Math.max(visibleHalfHeight / tan, halfWidth / (tan * safeAspect)) + halfDepth;
+
+  // Fit each bounding-box corner in camera space. Combining independent worst-case width and
+  // depth would zoom out unnecessarily when the portrait is turned.
+  let distance = 0;
+  for (const x of [-halfWidth, halfWidth]) {
+    for (const y of [-targetY, height - targetY]) {
+      for (const z of [-halfDepth, halfDepth]) {
+        const across = x * cosYaw - z * sinYaw;
+        const depth = x * sinYaw + z * cosYaw;
+        const up = y * cosPitch - depth * sinPitch;
+        const toward = depth * cosPitch + y * sinPitch;
+        distance = Math.max(
+          distance,
+          toward + PADDING * Math.max(Math.abs(up) / tan, Math.abs(across) / (tan * safeAspect)),
+        );
+      }
+    }
+  }
 
   return {
     target: [0, targetY, 0],
     position: [
-      0,
+      distance * cosPitch * Math.sin(PORTRAIT_AZIMUTH),
       targetY + distance * Math.sin(PORTRAIT_ELEVATION),
-      distance * Math.cos(PORTRAIT_ELEVATION),
+      distance * cosPitch * cosYaw,
     ],
   };
 }

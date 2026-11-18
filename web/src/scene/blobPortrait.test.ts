@@ -48,18 +48,31 @@ describe("portraitFraming", () => {
 
   test("fills the frame rather than leaving the blob lost in it", () => {
     for (const shape of SHAPES) {
-      const ys = corners(shape, 75).map((c) => project(shape, 1, c).y);
-      assert.ok(Math.max(...ys) - Math.min(...ys) > 1.4, shape);
+      const projected = corners(shape, 75).map((c) => project(shape, 1, c));
+      const xs = projected.map((p) => p.x);
+      const ys = projected.map((p) => p.y);
+      // A turned square can be width-limited rather than height-limited.
+      const width = Math.max(...xs) - Math.min(...xs);
+      const height = Math.max(...ys) - Math.min(...ys);
+      assert.ok(Math.max(width, height) > 1.4 && Math.min(width, height) > 1.1, shape);
     }
   });
 
-  test("looks down on the blob from the front, aimed at its face height", () => {
+  test("shows the face looking subtly right and up, still mostly front-on", () => {
     for (const shape of SHAPES) {
       const { position, target } = portraitFraming(shape, 1);
-      assert.equal(position[0], 0);
+      assert.ok(position[0] < 0, "camera is to the blob's left");
       assert.ok(position[2] > 0, "in front, where the face is");
-      assert.ok(position[1] > target[1], "raised");
+      assert.ok(position[1] < target[1], "camera is slightly below the face");
+      assert.ok(Math.abs(position[0] / position[2]) < 0.3, "gentle horizontal angle");
+      assert.ok(Math.abs((position[1] - target[1]) / position[2]) < 0.2, "gentle lift");
       assert.ok(target[1] > 0.4 * ADULT_HEIGHT[shape]);
+
+      const center = new Vector3(...target);
+      const forward = center.clone().add(new Vector3(0, 0, 0.2));
+      const origin = project(shape, 1, center);
+      const face = project(shape, 1, forward);
+      assert.ok(face.x > origin.x && face.y > origin.y, "face points screen-right and up");
     }
   });
 
