@@ -20,9 +20,20 @@ import {
 } from "./plazaGrid.ts";
 
 const EPS = 1e-9;
-const { spots, outline } = layoutCity(53, 5).gathering;
-const tiles = tileOutlines(spots, outline);
+const { areas } = layoutCity(53, 5).gathering;
+const [{ spots }] = areas; // the plaza
+const tilesByArea = areas.map((area) => tileOutlines(area.spots, area.outline));
 const HEX_AREA = polygonArea(hexTile({ x: 0, z: 0 }));
+
+// A bow-tie: wide at both ends, pinched at the waist (concave at two corners).
+const BOW_TIE: Point[] = [
+  { x: -20, z: -10 },
+  { x: 0, z: -4 },
+  { x: 20, z: -10 },
+  { x: 20, z: 10 },
+  { x: 0, z: 4 },
+  { x: -20, z: 10 },
+];
 
 test("neighbouring tiles meet along parallel sides, a grout joint apart", () => {
   let pairs = 0;
@@ -45,6 +56,7 @@ test("neighbouring tiles meet along parallel sides, a grout joint apart", () => 
 });
 
 test("insetPolygon moves every edge of the bow-tie in by the same distance", () => {
+  const outline = BOW_TIE;
   const d = 0.5;
   const inset = insetPolygon(outline, d);
   assert.equal(inset.length, outline.length);
@@ -64,31 +76,40 @@ test("insetPolygon moves every edge of the bow-tie in by the same distance", () 
   assert.deepEqual(insetPolygon([...outline].reverse(), d).reverse(), inset);
 });
 
-test("tiles stay on the paving, half a joint in from its edge", () => {
-  assert.equal(tiles.length, spots.length);
-  for (const tile of tiles) {
-    for (const p of tile) {
-      assert.ok(insidePolygon(p, outline), "a tile runs off the paving");
-      assert.ok(distanceToOutline(p, outline) >= GROUT / 2 - 1e-6, "a tile reaches the edge");
-    }
-  }
-});
-
-test("tiles clear of the edge are whole hexes; tiles at the edge are cut, not lost", () => {
-  let cut = 0;
-  tiles.forEach((tile, i) => {
-    const area = polygonArea(tile);
-    if (distanceToOutline(spots[i], outline) >= TILE_RADIUS + GROUT / 2) {
-      assert.ok(Math.abs(area - HEX_AREA) < 1e-9, `tile ${i} is not whole`);
-    } else {
-      if (area < HEX_AREA - 1e-9) cut++;
-      assert.ok(area > 0.6 * HEX_AREA, `tile ${i} keeps ${(area / HEX_AREA).toFixed(2)}`);
+test("each area's tiles stay on that area, half a joint in from its own edge", () => {
+  areas.forEach(({ name, outline, spots }, a) => {
+    assert.equal(tilesByArea[a].length, spots.length);
+    for (const tile of tilesByArea[a]) {
+      for (const p of tile) {
+        assert.ok(insidePolygon(p, outline), `a tile runs off the ${name}`);
+        assert.ok(
+          distanceToOutline(p, outline) >= GROUT / 2 - 1e-6,
+          `a ${name} tile reaches its edge`,
+        );
+      }
     }
   });
-  assert.ok(cut > 0, "no tile met the edge");
+});
+
+test("tiles clear of the edge are whole hexes; tiles at an edge are cut, not lost", () => {
+  // The plaza's cells happen to sit far enough in that none is cut; the strips' and the park's are.
+  const cut = new Set<string>();
+  areas.forEach(({ name, outline, spots }, a) => {
+    tilesByArea[a].forEach((tile, i) => {
+      const area = polygonArea(tile);
+      if (distanceToOutline(spots[i], outline) >= TILE_RADIUS + GROUT / 2) {
+        assert.ok(Math.abs(area - HEX_AREA) < 1e-9, `${name} tile ${i} is not whole`);
+      } else {
+        if (area < HEX_AREA - 1e-9) cut.add(name);
+        assert.ok(area > 0.6 * HEX_AREA, `${name} tile ${i} keeps ${(area / HEX_AREA).toFixed(2)}`);
+      }
+    });
+  });
+  assert.deepEqual([...cut].sort(), ["park", "sidewalk"]);
 });
 
 test("the triangles face up and cover every tile exactly", () => {
+  const tiles = tilesByArea.flat();
   const positions = tilePositions(tiles, 0.16);
   let area = 0;
   for (let i = 0; i < positions.length; i += 9) {

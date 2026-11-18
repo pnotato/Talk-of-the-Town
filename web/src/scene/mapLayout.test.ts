@@ -10,6 +10,7 @@ import {
   cameraFloor,
   distanceToObstacle,
   distanceToOutline,
+  gatheringSpots,
   insidePolygon,
   type Obstacle,
   type Point,
@@ -127,6 +128,20 @@ describe("standingSpots through an anchor", () => {
   test("an anchor that isn't given is the outline's middle: the old grid", () => {
     assert.deepEqual(standingSpots(BOW_TIE, OBSTACLES, { x: 0, z: 0 }), spots);
   });
+});
+
+test("gatheringSpots runs through every area's cells in order", () => {
+  const a = { x: 1, z: 2 };
+  const b = { x: 3, z: 4 };
+  const c = { x: 5, z: 6 };
+  const gathering = {
+    areas: [
+      { name: "plaza", outline: [], spots: [a, b] },
+      { name: "park", outline: [], spots: [] },
+      { name: "sidewalk", outline: [], spots: [c] },
+    ],
+  };
+  assert.deepEqual(gatheringSpots(gathering), [a, b, c]);
 });
 
 describe("cameraFloor", () => {

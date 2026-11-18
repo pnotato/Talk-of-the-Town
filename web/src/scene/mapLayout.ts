@@ -48,11 +48,24 @@ export interface MapNeighbourhood {
   centre: Point;
 }
 
-export interface MapGathering {
-  /** The paved area where everyone gathers, as a simple (possibly concave) polygon. */
+/** Somewhere blobs can walk and stand, and the cells of the hex grid on it. */
+export interface WalkArea {
+  /** What the area is ("plaza", "park", "sidewalk", "square"); the scene draws its cells to suit. */
+  name: string;
+  /** Its edge, as a simple (possibly concave) polygon. */
   outline: Point[];
-  /** Where blobs can stand: inside the outline, clear of furniture, nearest the middle first. */
+  /** Where blobs can stand: inside the outline, clear of obstacles, nearest its middle first. */
   spots: Point[];
+}
+
+export interface MapGathering {
+  /** Every area blobs can walk and stand on, the main gathering place first. None overlap. */
+  areas: WalkArea[];
+}
+
+/** Every cell of every area, area by area: the whole grid blobs can stand on. */
+export function gatheringSpots(gathering: MapGathering): Point[] {
+  return gathering.areas.flatMap((area) => area.spots);
 }
 
 export interface MapLayout {
@@ -81,7 +94,7 @@ export const BLOB_RADIUS = 0.6;
 /**
  * How far from its spot any part of a blob can reach while it idles or holds a pose: an elder
  * star shaking in anger, or an elder square slumped forward, tips past its own radius.
- * Obstacles keep this far off, so nobody clips into a bench, a kiosk or the steps; two
+ * Obstacles keep this far off, so nobody clips into a kiosk, a wall or a tree; two
  * neighbours reaching towards each other still leave a gap. blobReach.test.ts measures it.
  */
 export const BLOB_REACH = 0.85;

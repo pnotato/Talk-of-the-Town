@@ -8,6 +8,7 @@ import { CityGround } from "./CityGround.tsx";
 import { CityScreens } from "./CityScreens.tsx";
 import { CityStreetLife } from "./CityStreetLife.tsx";
 import { layoutCity } from "./layoutCity.ts";
+import { gatheringSpots } from "./mapLayout.ts";
 import { MapCamera } from "./MapCamera.tsx";
 import { MapLights } from "./MapLights.tsx";
 import { RenderResolution } from "./RenderResolution.tsx";
@@ -29,15 +30,16 @@ const SKY = "#d4e2ee";
 interface Props {
   homeCount?: number;
   neighbourhoodCount?: number;
-  /** Seeds the placeholder crowd on the plaza (scatterCrowd.ts). */
+  /** Seeds the placeholder crowd on the walkable grid (scatterCrowd.ts). */
   crowdSeed?: number;
-  /** Draw the plaza's standing grid. */
+  /** Draw the walkable grid. */
   showGrid?: boolean;
 }
 
 /**
  * The city: a plaza ringed by news screens, districts of apartments, streets and traffic, and a
- * placeholder crowd standing on the plaza's grid until there is a sim to replay.
+ * placeholder crowd standing on the walkable grid (the plaza, the park and the sidewalks round
+ * them) until there is a sim to replay.
  */
 export default function CityScene({
   homeCount = HOMES,
@@ -50,7 +52,7 @@ export default function CityScene({
     [homeCount, neighbourhoodCount],
   );
   const crowd = useMemo(
-    () => scatterCrowd(crowdSeed, city.gathering.spots, CROWD_SIZE),
+    () => scatterCrowd(crowdSeed, gatheringSpots(city.gathering), CROWD_SIZE),
     [crowdSeed, city],
   );
 
@@ -61,14 +63,14 @@ export default function CityScene({
       dpr={1}
       camera={{ fov: 30, near: 1, far: GROUND_RADIUS * 1.2 }}
       role="img"
-      aria-label={`City map: ${homeCount} homes in ${neighbourhoodCount} districts around a plaza of news screens, where a placeholder crowd of ${crowd.length} blobs stands${showGrid ? " on a grid of hex paving" : ""}. Drag to pan, scroll or pinch to zoom.`}
+      aria-label={`City map: ${homeCount} homes in ${neighbourhoodCount} districts around a plaza of news screens. A placeholder crowd of ${crowd.length} blobs stands on the plaza, the park and the sidewalks${showGrid ? ", on a grid of hex stones" : ""}. Drag to pan, scroll or pinch to zoom.`}
     >
       <RenderResolution />
       <color attach="background" args={[SKY]} />
       <MapLights map={city} />
       <CityGround city={city} />
-      <CityGrid plaza={city.gathering} visible={showGrid} />
-      {/* A new seed is a new crowd: remount it rather than walk everyone across the plaza. */}
+      <CityGrid gathering={city.gathering} visible={showGrid} />
+      {/* A new seed is a new crowd: remount it rather than walk everyone across the city. */}
       <CityCrowd key={crowdSeed} crowd={crowd} />
       <CityBuildings city={city} />
       <CityScreens city={city} />

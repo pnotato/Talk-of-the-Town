@@ -2,9 +2,28 @@
 // Run: node --test web/src/scene/layoutCity.test.ts
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { type CityLayout, layoutCity, VEHICLE_LENGTH, VEHICLE_WIDTH } from "./layoutCity.ts";
+import {
+  type CityLayout,
+  DOOR_WIDTH,
+  DOORSTEP,
+  layoutCity,
+  ROAD,
+  SIDEWALK,
+  VEHICLE_LENGTH,
+  VEHICLE_WIDTH,
+} from "./layoutCity.ts";
 import { TREE_RADIUS } from "./layoutTown.ts";
-import { BLOB_REACH, distanceToObstacle, insidePolygon, type Point } from "./mapLayout.ts";
+import {
+  BLOB_RADIUS,
+  BLOB_REACH,
+  distanceToObstacle,
+  distanceToOutline,
+  gatheringSpots,
+  insidePolygon,
+  type Obstacle,
+  type Point,
+  SPOT_SPACING,
+} from "./mapLayout.ts";
 
 interface Rect {
   minX: number;
@@ -58,6 +77,17 @@ const corners = (r: Rect): Point[] => [
   { x: r.minX, z: r.maxZ },
 ];
 
+function rectOfPoints(points: Point[]): Rect {
+  const xs = points.map((p) => p.x);
+  const zs = points.map((p) => p.z);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minZ: Math.min(...zs),
+    maxZ: Math.max(...zs),
+  };
+}
+
 function parts(city: CityLayout) {
   const buildings = city.buildings.map((b) => rect(b.x, b.z, b.width, b.depth));
   const roads = city.roads.map((r) => rect(r.x, r.z, r.width, r.depth));
@@ -77,6 +107,43 @@ function onSidewalk(p: Point, city: CityLayout, margin = 0): boolean {
   return blocks.some((b) => inside(p, b, margin)) && !buildings.some((b) => inside(p, b, -margin));
 }
 
+// Everything a standing blob must keep its reach from: furniture, lamp posts, tree canopies,
+// building walls, and the step in front of every door.
+function obstaclesOf(city: CityLayout): { what: string; obstacle: Obstacle }[] {
+  const box = (x: number, z: number, width: number, depth: number, rotationY = 0) => ({
+    kind: "box" as const,
+    ...{ x, z, width, depth, rotationY },
+  });
+  return [
+    ...city.furniture.map((f) => ({
+      what: f.kind,
+      obstacle: box(f.x, f.z, f.width, f.depth, f.rotationY),
+    })),
+    ...city.lamps.map((l) => ({
+      what: "lamp",
+      obstacle: { kind: "disc" as const, x: l.x, z: l.z, radius: 0.3 },
+    })),
+    ...city.trees.map((t) => ({
+      what: "tree",
+      obstacle: { kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size },
+    })),
+    ...city.buildings.map((b) => ({
+      what: "building",
+      obstacle: box(b.x, b.z, b.width, b.depth),
+    })),
+    ...city.homes.map((h) => ({
+      what: `door ${h.index}`,
+      obstacle: box(
+        h.door.x + (Math.sin(h.facing) * DOORSTEP) / 2,
+        h.door.z + (Math.cos(h.facing) * DOORSTEP) / 2,
+        DOOR_WIDTH,
+        DOORSTEP,
+        h.facing,
+      ),
+    })),
+  ];
+}
+
 describe("layoutCity", () => {
   test("same input gives the same plain-data city", () => {
     const a = layoutCity(53, 5);
@@ -93,8 +160,64 @@ describe("layoutCity", () => {
   });
 
   test("the plaza holds 100 blobs, a 1.8 hex cell (about 2.8 square units) each", () => {
-    const { gathering } = layoutCity(53, 5);
-    assert.ok(gathering.spots.length >= 100, `${gathering.spots.length} spots`);
+    const [plaza] = layoutCity(53, 5).gathering.areas;
+    assert.ok(plaza.spots.length >= 100, `${plaza.spots.length} spots`);
+  });
+
+  test("the walkable grid: plaza, park and the sidewalks round the plaza's blocks", () => {
+    const city = layoutCity(53, 5);
+    const count = (name: string) =>
+      city.gathering.areas
+        .filter((a) => a.name === name)
+        .reduce((sum, a) => sum + a.spots.length, 0);
+    const names = city.gathering.areas.map((a) => a.name);
+    assert.deepEqual(names.slice(0, 2), ["plaza", "park"]);
+    // Four strips round each of the 8 blocks that face the plaza across a road.
+    assert.equal(names.filter((n) => n === "sidewalk").length, 32);
+    assert.equal(names.length, 34);
+    // Pinned so a change to the grid is a decision, not an accident.
+    assert.deepEqual(
+      { plaza: count("plaza"), park: count("park"), sidewalk: count("sidewalk") },
+      { plaza: 353, park: 120, sidewalk: 279 },
+    );
+  });
+
+  test("the middle of the plaza is open: only kiosks, tucked into its corners", () => {
+    const city = layoutCity(53, 5);
+    const { x, z, width, depth } = city.plaza;
+    assert.equal(city.furniture.length, 2);
+    for (const f of city.furniture) {
+      assert.equal(f.kind, "kiosk");
+      assert.ok(Math.abs(f.x - x) >= width / 2 - 5 && Math.abs(f.z - z) >= depth / 2 - 5);
+    }
+    for (const lamp of city.lamps) {
+      const fromEdge = Math.min(width / 2 - Math.abs(lamp.x - x), depth / 2 - Math.abs(lamp.z - z));
+      assert.ok(fromEdge < 0 || fromEdge <= 1, "a lamp stands in the plaza");
+    }
+    // A full rectangle of paving, no beds.
+    const [plaza] = city.gathering.areas;
+    assert.equal(plaza.outline.length, 4);
+    for (const p of plaza.outline) {
+      assert.equal(Math.abs(p.x - x), width / 2);
+      assert.equal(Math.abs(p.z - z), depth / 2);
+    }
+  });
+
+  test("the park is still a park: a lawn with trees, and open grass among them", () => {
+    const city = layoutCity(53, 5);
+    const [lawn] = city.parks;
+    const park = city.gathering.areas[1];
+    const onLawn = city.trees.filter(
+      (t) => Math.abs(t.x - lawn.x) < lawn.width / 2 && Math.abs(t.z - lawn.z) < lawn.depth / 2,
+    );
+    assert.ok(onLawn.length >= 8, `${onLawn.length} trees`);
+    // Every canopy stays on the lawn.
+    for (const t of onLawn) {
+      const r = TREE_RADIUS * t.size;
+      assert.ok(Math.abs(t.x - lawn.x) + r <= lawn.width / 2);
+      assert.ok(Math.abs(t.z - lawn.z) + r <= lawn.depth / 2);
+    }
+    assert.ok(park.spots.length >= 60, `${park.spots.length} cells on the lawn`);
   });
 
   test("screens face into the plaza, never away from the default camera", () => {
@@ -196,7 +319,7 @@ describe("layoutCity", () => {
       });
 
       test("plaza furniture stands inside the plaza, apart", () => {
-        const { outline } = city.gathering;
+        const { outline } = city.plaza;
         furniture.forEach((f, i) => {
           for (const c of corners(f)) assert.ok(insidePolygon(c, outline), `item ${i} spills out`);
           for (let j = i + 1; j < furniture.length; j++) {
@@ -205,17 +328,71 @@ describe("layoutCity", () => {
         });
       });
 
-      test("everyone fits on the plaza's standing spots, clear of the furniture", () => {
-        const { spots, outline } = city.gathering;
+      test("everyone fits on the plaza's standing spots", () => {
+        const [{ name, spots }] = city.gathering.areas;
+        assert.equal(name, "plaza");
         assert.ok(spots.length >= 2 * homeCount, `${spots.length} spots for ${homeCount} homes`);
         assert.ok(spots.length >= 100, "even a small city's plaza takes 100 blobs");
-        for (const p of spots) {
-          assert.ok(insidePolygon(p, outline));
-          for (const f of city.furniture) {
-            const box = { x: f.x, z: f.z, width: f.width, depth: f.depth, rotationY: f.rotationY };
-            assert.ok(distanceToObstacle(p, { kind: "box", ...box }) >= BLOB_REACH - EPS);
+      });
+
+      test("every cell is on its own area, a blob's radius in from its edge", () => {
+        for (const area of city.gathering.areas) {
+          assert.ok(area.spots.length > 0, `an empty ${area.name}`);
+          for (const p of area.spots) {
+            assert.ok(insidePolygon(p, area.outline), `a ${area.name} cell is off it`);
+            assert.ok(distanceToOutline(p, area.outline) >= BLOB_RADIUS - EPS);
           }
         }
+      });
+
+      test("every cell keeps a blob's reach from furniture, lamps, trees, walls and doors", () => {
+        const obstacles = obstaclesOf(city);
+        for (const p of gatheringSpots(city.gathering)) {
+          for (const { what, obstacle } of obstacles) {
+            const d = distanceToObstacle(p, obstacle);
+            assert.ok(d >= BLOB_REACH - EPS, `a cell is ${d.toFixed(2)} from a ${what}`);
+          }
+        }
+      });
+
+      test("no cell is on a road, and areas never overlap", () => {
+        const spots = gatheringSpots(city.gathering);
+        for (const p of spots) {
+          for (const r of roads) assert.ok(!inside(p, r, -BLOB_RADIUS), "a cell is on a road");
+        }
+        for (let i = 0; i < spots.length; i++) {
+          for (let j = i + 1; j < spots.length; j++) {
+            const d = Math.hypot(spots[i].x - spots[j].x, spots[i].z - spots[j].z);
+            assert.ok(d >= SPOT_SPACING - EPS, `cells ${i} and ${j} are ${d.toFixed(2)} apart`);
+          }
+        }
+        const { areas } = city.gathering;
+        areas.forEach((a, i) =>
+          areas.forEach((b, j) => {
+            if (i === j) return;
+            for (const p of a.spots) {
+              assert.ok(!insidePolygon(p, b.outline), `a ${a.name} cell is on a ${b.name}`);
+            }
+          }),
+        );
+      });
+
+      test("sidewalk areas are strips of the plaza's blocks' sidewalks", () => {
+        // The blocks just across a road from the plaza, corners included.
+        const near = blocks.filter((b) => gap(b, plaza) <= ROAD + EPS);
+        for (const area of city.gathering.areas.filter((a) => a.name === "sidewalk")) {
+          const box = rectOfPoints(area.outline);
+          assert.ok(
+            near.some((b) => contains(b, box)),
+            "a sidewalk strip is off the plaza's blocks",
+          );
+          const across = Math.min(box.maxX - box.minX, box.maxZ - box.minZ);
+          assert.ok(Math.abs(across - SIDEWALK) < EPS, "a strip is not one sidewalk wide");
+          for (const b of buildings)
+            assert.ok(gap(box, b) >= -EPS, "a strip runs under a building");
+        }
+        const park = city.gathering.areas.find((a) => a.name === "park");
+        assert.equal(Boolean(park), city.parks.length > 0);
       });
 
       test("parked vehicles sit on the roadway, out of junctions and apart", () => {
@@ -244,7 +421,7 @@ describe("layoutCity", () => {
 
       test("street lamps stand on sidewalks, clear of doors", () => {
         for (const lamp of city.lamps) {
-          const onPlaza = insidePolygon(lamp, city.gathering.outline);
+          const onPlaza = insidePolygon(lamp, city.plaza.outline);
           assert.ok(onPlaza || onSidewalk(lamp, city, 0.2), "lamp is off the sidewalk");
           for (const h of city.homes) {
             assert.ok(
@@ -261,7 +438,7 @@ describe("layoutCity", () => {
           const canopy = rect(t.x, t.z, 2 * r, 2 * r);
           for (const b of buildings) assert.ok(gap(canopy, b) >= 0, `tree ${i} hits a building`);
           for (const road of roads) assert.ok(gap(canopy, road) >= 0, `tree ${i} is on a road`);
-          assert.ok(!insidePolygon(t, city.gathering.outline), `tree ${i} is on the plaza`);
+          assert.ok(!insidePolygon(t, city.plaza.outline), `tree ${i} is on the plaza`);
           for (let j = i + 1; j < city.trees.length; j++) {
             const u = city.trees[j];
             const d = Math.hypot(t.x - u.x, t.z - u.z);
@@ -329,7 +506,7 @@ describe("layoutCity", () => {
         for (const r of all) assert.ok(contains(b, r), "something spills out of the bounds");
         for (const h of city.homes) assert.ok(inside(h.door, b));
         for (const lamp of city.lamps) assert.ok(inside(lamp, b));
-        for (const p of city.gathering.outline) assert.ok(inside(p, b));
+        for (const p of city.plaza.outline) assert.ok(inside(p, b));
       });
     });
   }

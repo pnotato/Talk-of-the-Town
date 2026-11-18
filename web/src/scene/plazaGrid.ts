@@ -1,5 +1,5 @@
-// The plaza's standing grid drawn as hex paving: one tile round each standing spot, cut to fit
-// the paving. Pure maths, so the scene and the tests share it.
+// The walkable grid drawn as hex stones: one tile round each standing spot, cut to fit the area
+// it is on. Pure maths, so the scene and the tests share it.
 import { ShapeUtils, Vector2 } from "three";
 import { type Point, SPOT_SPACING } from "./mapLayout.ts";
 
@@ -76,9 +76,9 @@ function clipToConvex(subject: Point[], clip: Point[]): Point[] {
 }
 
 /**
- * Each spot's tile: its hex, cut back to half a joint inside the paving's outline, so no tile
- * runs onto the beds or off the kerb. Anticlockwise from above; tiles clear of the edge stay
- * whole hexes.
+ * Each spot's tile: its hex, cut back to half a joint inside its area's outline, so no tile
+ * runs off the kerb, under a wall or onto the next area. Anticlockwise from above; tiles clear
+ * of the edge stay whole hexes.
  */
 export function tileOutlines(spots: readonly Point[], outline: Point[]): Point[][] {
   const paving = insetPolygon(outline, GROUT / 2);
