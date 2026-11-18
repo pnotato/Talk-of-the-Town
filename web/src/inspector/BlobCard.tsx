@@ -110,7 +110,7 @@ function Tags({
 }) {
   if (children.length === 0) return null;
   return (
-    <ul className={`tags tag-row-${kind}`} aria-label={label}>
+    <ul className={`tags tag-row-${kind}`} aria-label={label} role="list">
       {children}
     </ul>
   );
@@ -118,7 +118,7 @@ function Tags({
 
 /**
  * The selected blob's profile: a wide, low panel with the blob's portrait overlapping its left
- * edge. Top to bottom: name, age and family, special tags, the two meters, personality tags, and
+ * edge. Top to bottom: name, age and family, the two meters, grouped trait lists, and
  * the current action with whoever the blob is talking with. The portrait and every named blob are
  * buttons that take the camera to that blob.
  *
@@ -194,30 +194,24 @@ export default function BlobCard({
       </div>
 
       <div className="inspector-surface card-panel">
-        <header className="card-head">
-          <h2 ref={heading} tabIndex={-1}>
-            {profile.name}
-          </h2>
-        </header>
+        <div className="card-identity">
+          <header className="card-head">
+            <h2 ref={heading} tabIndex={-1}>
+              {profile.name}
+            </h2>
+          </header>
 
-        <div className="card-meta">
-          <p>
-            Age {profile.age} · {capitalise(ageGroup(profile.age))} · {capitalise(profile.shape)}
-          </p>
-          {(profile.parentIds.length > 0 || profile.childIds.length > 0) && (
-            <div className="family">
-              <Family profile={profile} fallback={heading} />
-            </div>
-          )}
+          <div className="card-meta">
+            <p>
+              Age {profile.age} · {capitalise(ageGroup(profile.age))} · {capitalise(profile.shape)}
+            </p>
+            {(profile.parentIds.length > 0 || profile.childIds.length > 0) && (
+              <div className="family">
+                <Family profile={profile} fallback={heading} />
+              </div>
+            )}
+          </div>
         </div>
-
-        <Tags kind="special" label="Special tags">
-          {special.map((tag) => (
-            <li key={tag.kind} className={`tag tag-special tag-${tag.kind}`} title={tag.meaning}>
-              {tag.label}
-            </li>
-          ))}
-        </Tags>
 
         <div className="meters">
           <Meter
@@ -234,20 +228,36 @@ export default function BlobCard({
           />
         </div>
 
-        <Tags kind="personality" label="Personality">
-          {personality.map((tag) => (
-            <li
-              key={tag.trait}
-              className={`tag tag-personality tag-${tag.category}`}
-              title={tag.meaning}
-            >
-              {tag.trait}
-            </li>
-          ))}
-        </Tags>
+        {(special.length > 0 || personality.length > 0) && (
+          <div className="card-traits">
+            <span className="traits-label">Traits:</span>
+            <Tags kind="special" label="Special tags">
+              {special.map((tag) => (
+                <li
+                  key={tag.kind}
+                  className={`tag tag-special tag-${tag.kind}`}
+                  title={tag.meaning}
+                >
+                  {tag.label}
+                </li>
+              ))}
+            </Tags>
+            <Tags kind="personality" label="Personality">
+              {personality.map((tag) => (
+                <li
+                  key={tag.trait}
+                  className={`tag tag-personality tag-${tag.category}`}
+                  title={tag.meaning}
+                >
+                  {tag.trait}
+                </li>
+              ))}
+            </Tags>
+          </div>
+        )}
 
         <div className="action">
-          <h3 className="inspector-eyebrow">Current action</h3>
+          <h3 className="inspector-eyebrow">Current action:</h3>
           <div className="action-line">
             <span>{action.text}</span>
             {action.partnerId !== undefined && (
