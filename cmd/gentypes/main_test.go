@@ -12,15 +12,16 @@ type inner struct {
 }
 
 type sample struct {
-	ID     int     `json:"id"`
-	Name   string  `json:"name"`
-	Color  color   `json:"color"`
-	Colors []color `json:"colors"`
-	Items  []inner `json:"items"`
-	Ok     bool    `json:"ok"`
-	Score  float64 `json:"score"`
-	Skip   string  `json:"-"`
-	hidden int     //nolint:unused
+	ID     int          `json:"id"`
+	Name   string       `json:"name"`
+	Color  color        `json:"color"`
+	Colors []color      `json:"colors"`
+	Items  []inner      `json:"items"`
+	Ok     bool         `json:"ok"`
+	Score  float64      `json:"score"`
+	Points [][2]float64 `json:"points"`
+	Skip   string       `json:"-"`
+	hidden int          //nolint:unused
 	Plain  int
 }
 
@@ -43,6 +44,7 @@ export interface sample {
   items: inner[];
   ok: boolean;
   score: number;
+  points: number[][];
   Plain: number;
 }
 
