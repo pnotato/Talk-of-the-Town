@@ -43,7 +43,7 @@ export function focusDistance(
 /** Screen space (CSS pixels) the HUD takes from the top and bottom of the canvas. */
 export type Inset = { top: number; bottom: number };
 
-// The shell (SIMULATED badge, status, navigation) hangs over the top left of the page.
+// The stage's own top edge, used only when the page doesn't report a measured inset.
 const SHELL = 64;
 
 /**
@@ -94,7 +94,7 @@ export function clearBand(height: number, inset: Inset) {
 /**
  * How far (CSS pixels) to shift the picture up so that what is at the centre of the camera lands in
  * the middle of the clear band between the HUD's insets, so the aim is never behind the HUD. Never
- * shifts down: the shell at the top is small and sits to the side.
+ * shifts down: the stage's top edge already frames the scene.
  */
 export function viewShift(height: number, inset: Inset) {
   const { top, bottom } = safeInset(height, inset);

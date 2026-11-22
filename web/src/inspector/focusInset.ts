@@ -5,27 +5,40 @@
 export type FocusInset = { top: number; bottom: number };
 
 /**
- * The top inset: the app shell (SIMULATED badge, status and nav) down to just below it. A little
- * less than the inspector dock's own 128px clearance, which has breathing room the camera doesn't
- * need.
+ * The top inset: breathing room below the stage's top edge, so a focused blob never crowds the
+ * rounded frame. The app header now lives outside the stage, so this is only visual clearance.
  */
-export const FOCUS_INSET_TOP = 112;
+export const FOCUS_INSET_TOP = 64;
+
+/**
+ * The top clearance for a stage of the given height. Short landscape stages trade some of the fixed
+ * 64px breathing room for usable scene space; the value never drops below 16px.
+ */
+export function focusInsetTop(stageHeight: number) {
+  if (!Number.isFinite(stageHeight) || stageHeight <= 0) return FOCUS_INSET_TOP;
+  return Math.round(Math.min(FOCUS_INSET_TOP, Math.max(16, stageHeight * 0.12)));
+}
 
 /**
  * The inset for the inspector as it is drawn now. `barTop` is the top of the always-present bar,
  * `panelHeight` the height of the card or list above it (null when there is neither), and `gap`
- * the space between them. All of `parentBottom` and `barTop` are in the same coordinates (page
- * pixels). The bottom inset is how far the topmost thing, the panel or else the bar, rises above the
- * bottom of the parent the scene fills.
+ * the space between them. `parentBottom` and `barTop` are in the same coordinates (page pixels).
+ * The bottom inset is how far the topmost thing, the panel or else the bar, rises above the bottom
+ * of the parent. `parentHeight` is the stage's height, used to shrink the top clearance on short
+ * screens; omit it to use the fixed generous default.
  */
 export function focusInset(
   parentBottom: number,
   barTop: number,
   panelHeight: number | null,
   gap: number,
+  parentHeight?: number,
 ): FocusInset {
   const top = panelHeight === null ? barTop : barTop - gap - panelHeight;
-  return { top: FOCUS_INSET_TOP, bottom: Math.max(0, Math.round(parentBottom - top)) };
+  return {
+    top: focusInsetTop(parentHeight ?? 0),
+    bottom: Math.max(0, Math.round(parentBottom - top)),
+  };
 }
 
 export function sameInset(a: FocusInset, b: FocusInset): boolean {

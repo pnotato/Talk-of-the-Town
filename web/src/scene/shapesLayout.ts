@@ -15,7 +15,14 @@ export const FOV = 26;
 export const LIGHT_POSITION = new Vector3(5, 10, 6);
 
 /** A label pinned to a point in the scene: centred on it, or sitting on top of it if `above`. */
-export type Label = { at: Vector3; title: string; detail?: string; above?: boolean };
+export type LabelKind = "column" | "group" | "section" | "item";
+export type Label = {
+  at: Vector3;
+  title: string;
+  detail?: string;
+  above?: boolean;
+  kind: LabelKind;
+};
 
 type Layout = {
   /** Where each shapesFixture blob stands, by index. */
@@ -75,19 +82,33 @@ const WIDE: Layout = (() => {
     moods: MOODS.map((_, i) => [moodX(i), 0, moodsZ]),
     actions: SCENARIOS.map((_, i) => [actionX[i], 0, actionsZ]),
     labels: [
-      ...SHAPES.map((shape, i) => ({ at: new Vector3(x(i), 0, z.child + 0.95), title: shape })),
-      ...AGE_GROUPS.map((g) => ({ at: new Vector3(sideX, 0.3, z[g]), ...ageLabel(g) })),
-      { at: new Vector3(moodX(0) - 1.3, 0.3, moodsZ), ...MOODS_LABEL },
+      ...SHAPES.map((shape, i) => ({
+        at: new Vector3(x(i), 0, z.child + 0.95),
+        title: shape,
+        kind: "column" as const,
+      })),
+      ...AGE_GROUPS.map((g) => ({
+        at: new Vector3(sideX, 0.3, z[g]),
+        ...ageLabel(g),
+        kind: "group" as const,
+      })),
+      { at: new Vector3(moodX(0) - 1.3, 0.3, moodsZ), ...MOODS_LABEL, kind: "section" },
       // Above the back row's heads, clear of a happy hop, where nothing behind can be covered.
       ...MOODS.map((m, i) => ({
         at: new Vector3(moodX(i), 1.35, moodsZ),
         above: true,
         ...moodLabel(m),
+        kind: "item" as const,
       })),
-      { at: new Vector3(actionX[0] - ACTION_WIDTHS[0] / 2 - 0.7, 0.3, actionsZ), ...ACTIONS_LABEL },
+      {
+        at: new Vector3(actionX[0] - ACTION_WIDTHS[0] / 2 - 0.7, 0.3, actionsZ),
+        ...ACTIONS_LABEL,
+        kind: "section",
+      },
       ...SCENARIOS.map((s, i) => ({
         at: new Vector3(actionX[i], 0, actionsZ + 1.2),
         ...actionLabel(s),
+        kind: "item" as const,
       })),
     ],
   };
@@ -117,21 +138,28 @@ const TALL: Layout = (() => {
     moods: MOODS.map((_, i) => moodSpot(i)),
     actions: SCENARIOS.map((_, i) => actionSpot(i)),
     labels: [
-      ...SHAPES.map((shape, i) => ({ at: new Vector3(x("child") - 1.5, 0.3, z(i)), title: shape })),
+      ...SHAPES.map((shape, i) => ({
+        at: new Vector3(x("child") - 1.5, 0.3, z(i)),
+        title: shape,
+        kind: "column" as const,
+      })),
       ...AGE_GROUPS.map((g) => ({
         at: new Vector3(x(g), 0, z(SHAPES.length - 1) + 1.1),
         ...ageLabel(g),
+        kind: "group" as const,
       })),
-      { at: new Vector3(0, 0, moodsZ - 1.4), ...MOODS_LABEL },
+      { at: new Vector3(0, 0, moodsZ - 1.4), ...MOODS_LABEL, kind: "section" },
       // Names only: a phone has no room for the meanings; faces and colours still carry them.
       ...MOODS.map((m, i) => ({
         at: new Vector3(...moodSpot(i)).setZ(moodSpot(i)[2] + 0.75),
         title: m,
+        kind: "item" as const,
       })),
-      { at: new Vector3(0, 0, actionsZ - 1.9), ...ACTIONS_LABEL },
+      { at: new Vector3(0, 0, actionsZ - 1.9), ...ACTIONS_LABEL, kind: "section" },
       ...SCENARIOS.map((s, i) => ({
         at: new Vector3(...actionSpot(i)).setZ(actionSpot(i)[2] + 1),
         ...actionLabel(s),
+        kind: "item" as const,
       })),
     ],
   };

@@ -66,7 +66,10 @@ export default function BlobPicker({
   return (
     <section id={id} className="inspector-surface inspector-picker" aria-label="Browse blobs">
       <header className="picker-head">
-        <h2 className="inspector-eyebrow">Browse blobs</h2>
+        <div className="picker-heading">
+          <h2>Blob directory</h2>
+          <p className="picker-subtitle">Every resident in the sandbox</p>
+        </div>
         <button type="button" className="inspector-button picker-done" onClick={onClose}>
           Done
         </button>
@@ -74,7 +77,7 @@ export default function BlobPicker({
       <div ref={list} className="picker-scroll" onKeyDown={moveFocus}>
         {GROUPS.map((group) => (
           <section key={group} aria-labelledby={`${id}-${group}`}>
-            <h3 id={`${id}-${group}`} className="inspector-eyebrow">
+            <h3 id={`${id}-${group}`} className="picker-group-title">
               {GROUP_TITLES[group]}
             </h3>
             <ul>
