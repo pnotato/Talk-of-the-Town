@@ -482,7 +482,8 @@ func TestCheckGraphPasses(t *testing.T) {
 }
 
 // navFixture is a small walk graph for planner tests. Every one passes
-// CheckGraph.
+// CheckGraph. Agent counts are 30-40% of the goal nodes, three or four times
+// the city's density (100 blobs on ~1,000 nodes), so agents meet often.
 type navFixture struct {
 	name   string
 	nodes  []Point
@@ -521,7 +522,7 @@ func hexHolesFixture() navFixture {
 	}
 	nodes := hexLattice(14, 12, 0, 0, false, drop)
 	nodes, kinds, edges := pruneSharp(nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
-	return navFixture{"hex with holes", nodes, kinds, edges, 24}
+	return navFixture{"hex with holes", nodes, kinds, edges, 45}
 }
 
 // ringFixture is a 1-wide loop, where nobody can overtake.
@@ -535,7 +536,7 @@ func ringFixture() navFixture {
 		nodes[i] = pnt(r*math.Cos(a), r*math.Sin(a))
 		edges[i] = [2]int{i, (i + 1) % n}
 	}
-	return navFixture{"1-wide ring", nodes, allStand(n), edges, 6}
+	return navFixture{"1-wide ring", nodes, allStand(n), edges, 9}
 }
 
 // roomsFixture is two hex rooms joined by a straight 1-wide corridor whose
@@ -551,7 +552,7 @@ func roomsFixture() navFixture {
 	// Flip the shifted rows so the right room's middle row reaches west.
 	nodes = append(nodes, hexLattice(5, 7, door+(corridor+1)*corridorStep, 0, true, nil)...)
 	nodes, kinds, edges := pruneSharp(nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
-	return navFixture{"two rooms and a corridor", nodes, kinds, edges, 12}
+	return navFixture{"two rooms and a corridor", nodes, kinds, edges, 21}
 }
 
 // blocksFixture is two 1-wide sidewalk rings round city blocks, joined by two
@@ -587,7 +588,7 @@ func blocksFixture() navFixture {
 	for i := stand; i < len(kinds); i++ {
 		kinds[i] = Crossing
 	}
-	return navFixture{"sidewalk rings and crosswalks", nodes, kinds, linkWithin(nodes, fixtureLink), 8}
+	return navFixture{"sidewalk rings and crosswalks", nodes, kinds, linkWithin(nodes, fixtureLink), 12}
 }
 
 // spursFixture is a ring with three dead-end spurs of standing spots. Spur
@@ -613,5 +614,5 @@ func spursFixture() navFixture {
 			prev = len(nodes) - 1
 		}
 	}
-	return navFixture{"ring with dead-end spurs", nodes, allStand(len(nodes)), edges, 6}
+	return navFixture{"ring with dead-end spurs", nodes, allStand(len(nodes)), edges, 9}
 }
