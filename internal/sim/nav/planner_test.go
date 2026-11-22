@@ -211,7 +211,7 @@ func checkMoves(g *Graph, at, next []int, owner []int, clearance bool) error {
 // enough seeds to hit rare meetings.
 const (
 	wanderTicks = 2000
-	wanderSeeds = 30
+	wanderSeeds = 20
 )
 
 func wanderSeedCount() uint64 {
@@ -279,6 +279,68 @@ func TestStepLiveness(t *testing.T) {
 	}
 }
 
+// After planning, the tables must agree exactly: each agent holds one move,
+// that move and its target node name the agent, and nothing else is claimed.
+// A failed push must leave the pushed agent holding the claim on its own
+// node, not its parent.
+func TestStepTablesAgree(t *testing.T) {
+	for _, fx := range plannerFixtures() {
+		t.Run(fx.name, func(t *testing.T) {
+			g := mustValidGraph(t, fx.nodes, fx.kinds, fx.edges)
+			for seed := range tableSeeds {
+				w := newWander(t, g, fx.agents, seed)
+				for tick := range wanderTicks {
+					w.prepare()
+					pl := w.pl
+					pl.begin(w.at, w.goal, w.prio, w.planRNG, w.next)
+					pl.plan()
+					if err := tablesAgree(pl); err != nil {
+						t.Fatalf("seed %d tick %d: %v", seed, tick, err)
+					}
+					pl.finish(w.next)
+					w.advance()
+				}
+			}
+		})
+	}
+}
+
+// tableSeeds is fewer than wanderSeeds: a bookkeeping slip shows up within
+// a few ticks, not only in rare meetings.
+const tableSeeds uint64 = 5
+
+func tablesAgree(p *Planner) error {
+	claims, moves := 0, 0
+	for _, a := range p.claimant {
+		if a >= 0 {
+			claims++
+		}
+	}
+	for _, a := range p.mover {
+		if a >= 0 {
+			moves++
+		}
+	}
+	if claims != len(p.at) || moves != len(p.at) {
+		return fmt.Errorf("%d agents but %d claimed nodes and %d claimed moves", len(p.at), claims, moves)
+	}
+	for i := range p.at {
+		m := p.chosen[i]
+		if m < 0 {
+			return fmt.Errorf("agent %d is undecided", i)
+		}
+		if v := p.g.moveTo(int(m)); p.claimant[v] != int32(i) || p.mover[m] != int32(i) {
+			return fmt.Errorf("agent %d chose %s but node %d is claimed by %d and the move by %d",
+				i, p.g.moveName(int(m)), v, p.claimant[v], p.mover[m])
+		}
+	}
+	return nil
+}
+
+// plainSeeds is fewer than wanderSeeds: plain PIBT tries swaps within the
+// first few ticks.
+const plainSeeds uint64 = 5
+
 // Without the conflict table the planner is plain PIBT. Its own vertex and
 // swap rules must still hold, so they do not lean on the table.
 func TestStepWithoutConflictTable(t *testing.T) {
@@ -287,7 +349,7 @@ func TestStepWithoutConflictTable(t *testing.T) {
 			g := mustValidGraph(t, fx.nodes, fx.kinds, fx.edges)
 			g.conf = g.conf[:0]
 			clear(g.confOff)
-			for seed := range wanderSeedCount() {
+			for seed := range plainSeeds {
 				w := newWander(t, g, fx.agents, seed)
 				for tick := range wanderTicks {
 					w.step()

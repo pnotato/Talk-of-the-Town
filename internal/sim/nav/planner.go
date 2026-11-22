@@ -65,6 +65,14 @@ func NewPlanner(g *Graph, agents int) *Planner {
 // the tick. rng only breaks ties between equally short candidates, drawn in
 // planning order, so the same inputs and rng state give the same result.
 func (p *Planner) Step(at, goal []int, prio []uint64, rng *rand.Rand, next []int) {
+	p.begin(at, goal, prio, rng, next)
+	p.plan()
+	p.finish(next)
+}
+
+// begin checks Step's inputs, records who stands where and orders the
+// agents by priority.
+func (p *Planner) begin(at, goal []int, prio []uint64, rng *rand.Rand, next []int) {
 	na := len(at)
 	if na > len(p.chosen) || len(goal) != na || len(prio) != na || len(next) != na {
 		panic(fmt.Sprintf("nav: Step with %d agents, %d goals, %d priorities, %d outputs; planner holds %d",
@@ -91,15 +99,22 @@ func (p *Planner) Step(at, goal []int, prio []uint64, rng *rand.Rand, next []int
 	slices.SortFunc(order, func(a, b int32) int {
 		return cmp.Or(cmp.Compare(prio[b], prio[a]), cmp.Compare(a, b))
 	})
-	for _, i := range order {
+}
+
+// plan runs PIBT from each undecided agent, highest priority first.
+func (p *Planner) plan() {
+	for _, i := range p.order[:len(p.at)] {
 		if p.chosen[i] < 0 {
 			p.pibt(i, -1)
 		}
 	}
+}
 
-	// Every agent now holds exactly one claimed move. Write the result and
-	// reset only the scratch entries this Step touched.
-	for i, u := range at {
+// finish writes each agent's claimed node to next, then resets only the
+// scratch entries this Step touched. After plan, every agent holds exactly
+// one claimed move.
+func (p *Planner) finish(next []int) {
+	for i, u := range p.at {
 		m := int(p.chosen[i])
 		v := p.g.moveTo(m)
 		next[i] = v
@@ -157,10 +172,9 @@ func (p *Planner) pibt(i, parent int32) bool {
 		if p.pibt(k, i) {
 			return true
 		}
-		// k found nowhere to go, so it stays on c and now holds the claim
-		// on c. Drop our move and try the next candidate.
-		p.mover[m] = -1
-		p.chosen[i] = -1
+		// k found nowhere to go, so it stays on c and has taken over the
+		// claim on c. Drop our move and try the next candidate.
+		p.release(i, m, c)
 	}
 	u := p.at[i]
 	p.claim(i, int32(u), u) // stay
@@ -172,6 +186,17 @@ func (p *Planner) claim(i, m int32, c int) {
 	p.claimant[c] = i
 	p.mover[m] = i
 	p.chosen[i] = m
+}
+
+// release undoes agent i's claim of move m to node c. The claim on c is
+// dropped only if i still holds it; a pushed agent that stays there has
+// already taken it over.
+func (p *Planner) release(i, m int32, c int) {
+	if p.claimant[c] == i {
+		p.claimant[c] = -1
+	}
+	p.mover[m] = -1
+	p.chosen[i] = -1
 }
 
 // blocked reports whether move m conflicts with any move claimed so far.
