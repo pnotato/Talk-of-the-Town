@@ -31,6 +31,7 @@ const GROUND: Record<TownBlockKind, string> = {
 };
 
 const DASH = { length: 1.6, gap: 1.6, width: 0.16 };
+const DASH_CLEAR = 2.8; // the line stops this far short of a junction, clear of its crossings
 const STRIPE = { width: 0.45, gap: 0.45, length: 1.6 };
 const TRIM_WIDTH = 0.6;
 // The square's middle: in from its sides past the rows of trees, and from the flower beds to
@@ -70,7 +71,7 @@ function centreLine(town: TownLayout): Patch[] {
   for (const s of town.streets) {
     // Junctions are no wider than a side street; the line breaks across them.
     if (!s.main || s.width <= MAIN_STREET) continue;
-    const count = Math.floor((s.width - DASH.gap) / pitch);
+    const count = Math.floor((s.width - 2 * DASH_CLEAR + DASH.gap) / pitch);
     const from = s.x - (count * pitch - DASH.gap) / 2;
     for (let d = 0; d < count; d++) {
       const x = from + d * pitch + DASH.length / 2;
