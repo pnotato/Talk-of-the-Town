@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Vector3Tuple } from "three";
+import type { RunLog } from "../generated/types.ts";
 import Blob from "./Blob.tsx";
 import { useReducedMotion } from "./blobMedia.ts";
 import { SURFACE } from "./CityGround.tsx";
@@ -12,7 +13,6 @@ import {
   roundsDone,
   runTicks,
   TICK_SECONDS,
-  type WalkRun,
 } from "./replay.ts";
 
 // Before the blobs' own frames (priority 0), so they read this frame's positions. A negative
@@ -20,7 +20,7 @@ import {
 const BEFORE_BLOBS = -1;
 
 interface Props {
-  run: WalkRun;
+  run: RunLog;
   playing: boolean;
   /** How many times faster than TICK_SECONDS the ticks play. */
   speed: number;

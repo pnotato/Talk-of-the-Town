@@ -1,7 +1,7 @@
 import { type CSSProperties, useCallback, useEffect, useState } from "react";
+import type { RunLog } from "../generated/types.ts";
 import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
-import type { WalkRun } from "../scene/replay.ts";
 
 const FIRST_SEED = 1;
 const SPEEDS = [1, 2, 4] as const;
@@ -19,7 +19,7 @@ class RunRefused extends Error {}
  * while the sim stops at an announcement with no choice yet, pick one and ask again. Until the
  * newsroom exists, it always picks the first option.
  */
-async function fetchRun(seed: number, signal: AbortSignal): Promise<WalkRun> {
+async function fetchRun(seed: number, signal: AbortSignal): Promise<RunLog> {
   const choices: string[] = [];
   while (choices.length <= MAX_ANNOUNCEMENTS) {
     const response = await fetch("/api/run", {
@@ -34,7 +34,7 @@ async function fetchRun(seed: number, signal: AbortSignal): Promise<WalkRun> {
       throw new RunRefused(body.error ?? `HTTP ${response.status}`);
     }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const run = (await response.json()) as WalkRun;
+    const run = (await response.json()) as RunLog;
     if (run.next === null) return run;
     choices.push(run.next.options[0].id);
   }
@@ -105,7 +105,7 @@ const speedButton = (chosen: boolean): CSSProperties => ({
   color: "#1f2328",
 });
 
-type Result = { key: string; run: WalkRun } | { key: string; error: string };
+type Result = { key: string; run: RunLog } | { key: string; error: string };
 
 /**
  * The city replaying a simulated run: the town walks the streets as the sim moved it, and moods

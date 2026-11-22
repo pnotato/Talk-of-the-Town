@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import { MathUtils } from "three";
+import type { RunLog } from "../generated/types.ts";
 import { CityBuildings } from "./CityBuildings.tsx";
 import { CityGrid } from "./CityGrid.tsx";
 import { CityGround } from "./CityGround.tsx";
@@ -11,7 +12,6 @@ import { CITY_HOMES, CITY_NEIGHBOURHOODS, layoutCity } from "./layoutCity.ts";
 import { MapCamera } from "./MapCamera.tsx";
 import { MapLights } from "./MapLights.tsx";
 import { RenderResolution } from "./RenderResolution.tsx";
-import type { WalkRun } from "./replay.ts";
 import { GROUND_RADIUS } from "./TownGround.tsx";
 import { TownTrees } from "./TownTrees.tsx";
 
@@ -26,7 +26,7 @@ interface Props {
   homeCount?: number;
   neighbourhoodCount?: number;
   /** The run to replay; null while it loads, and the city stands empty. */
-  run: WalkRun | null;
+  run: RunLog | null;
   playing: boolean;
   /** How many times faster than real time the replay plays. */
   speed: number;

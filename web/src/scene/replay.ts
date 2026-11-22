@@ -7,44 +7,20 @@
 // ends. Between two ticks a blob moves in a straight line at constant speed, exactly as the
 // planner assumed when it kept every pair of blobs 1.2 apart (docs/engine/PIBT.md), so any
 // easing here would break that guarantee on screen.
-import type { Round, RunLog } from "../generated/types.ts";
+import type { Blob, Round, RunLog } from "../generated/types.ts";
 import { type Mood, moodFor } from "./blobMood.ts";
 
 /** Seconds per tick at 1× speed: a 1.8 step at 3 units a second, a full stride in blobMotion. */
 export const TICK_SECONDS = 0.6;
 
-// TODO(walk-replay): the walk fields mirror the Go side's additions to the RunLog
-// (internal/sim). Switch to the generated types in ../generated/types.ts once they land.
-
-/** The city's walk graph, as the RunLog carries it. */
-export interface WalkMap {
-  /** [x, z] world coordinates per node. */
-  nodes: number[][];
-  /** nodes[:stand] are the standing spots. */
-  stand: number;
-  ticksPerRound: number;
-}
-
-/** The parts of a RunLog the replay reads. */
-export interface ReplayRun {
-  town: { blobs: { perception: number; interest: number }[] };
-  map: WalkMap;
-  /** Each blob's node before round 0. */
-  start: number[];
-  rounds: {
-    /** Each blob's scores after the round. */
-    perception: number[];
-    interest: number[];
-    /** paths[b][k] is blob b's node after k ticks of the round's walk; k = 0 is where it starts. */
-    paths: number[][];
-  }[];
-}
-
-/** A RunLog with its walks. */
-export type WalkRun = Omit<RunLog, "rounds"> & {
-  map: WalkMap;
-  start: number[];
-  rounds: (Round & { paths: number[][] })[];
+/**
+ * The parts of a RunLog the replay reads, so tests can build small runs. A blob's index into
+ * town.blobs is its index into `start`, each round's scores and each round's `paths`, where
+ * paths[b][k] is blob b's node after k ticks of the round's walk (k = 0 is where it starts).
+ */
+export type ReplayRun = Pick<RunLog, "map" | "start"> & {
+  town: { blobs: Pick<Blob, "perception" | "interest">[] };
+  rounds: Pick<Round, "perception" | "interest" | "paths">[];
 };
 
 /** Where a point is on the ground. */
