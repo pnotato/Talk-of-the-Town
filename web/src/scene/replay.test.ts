@@ -1,7 +1,9 @@
 /// <reference types="node" />
 // Run: node --test web/src/scene/replay.test.ts (Node strips the types natively).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
+import type { RunLog } from "../generated/types.ts";
 import { moodFor } from "./blobMood.ts";
 import {
   headingAt,
@@ -260,11 +262,48 @@ describe("moodAt", () => {
   });
 });
 
-describe("blobs never touch", () => {
-  // TODO(walk-replay): run this on internal/sim/testdata/golden_run.json, read with node:fs,
-  // once the Go side writes its walks there.
-  test("every pair stays at least 1.2 apart, sampled every 0.05 tick", (t) => {
-    const closest = closestPair(FIXTURE, 0.05);
+// The golden run (internal/sim/testdata), as the server sends it: 100 blobs walking the city for
+// 50 rounds.
+const GOLDEN = JSON.parse(
+  readFileSync(new URL("../../../internal/sim/testdata/golden_run.json", import.meta.url), "utf8"),
+) as RunLog;
+
+describe("the golden run", () => {
+  test("starts every blob on its start node and joins every round to the next", () => {
+    const ticks = GOLDEN.map.ticksPerRound;
+    GOLDEN.start.forEach((node, b) => {
+      assert.deepEqual(at(GOLDEN, b, 0), at({ ...GOLDEN, rounds: [] }, b, 0), `blob ${b}`);
+      assert.equal(GOLDEN.rounds[0].paths[b][0], node);
+    });
+    for (let r = 1; r < GOLDEN.rounds.length; r++) {
+      for (let b = 0; b < GOLDEN.start.length; b++) {
+        assert.equal(GOLDEN.rounds[r].paths[b][0], GOLDEN.rounds[r - 1].paths[b][ticks]);
+        const before = at(GOLDEN, b, r * ticks - 1e-9);
+        const after = at(GOLDEN, b, r * ticks);
+        assert.ok(Math.hypot(before.x - after.x, before.z - after.z) < 1e-6, `b${b} round ${r}`);
+      }
+    }
+  });
+
+  test("keeps the town walking, so the next test has something to check", () => {
+    let steps = 0;
+    let moves = 0;
+    for (const { paths } of GOLDEN.rounds) {
+      for (const path of paths) {
+        for (let k = 0; k + 1 < path.length; k++) {
+          steps++;
+          if (path[k] !== path[k + 1]) moves++;
+        }
+      }
+    }
+    assert.equal(GOLDEN.rounds.length, 50);
+    assert.equal(GOLDEN.start.length, 100);
+    assert.ok(moves > 0.25 * steps, `${moves} of ${steps} steps move`);
+  });
+
+  test("never brings two blobs closer than 1.2, sampled every 0.05 tick", (t) => {
+    // The slack covers the 0.001 rounding of the node coordinates.
+    const closest = closestPair(GOLDEN, 0.05);
     t.diagnostic(
       `closest pair: blobs ${closest.a} and ${closest.b}, ${closest.d.toFixed(4)} apart at tick ${closest.t}`,
     );
