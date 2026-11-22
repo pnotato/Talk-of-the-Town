@@ -559,9 +559,7 @@ func bigHex() navFixture {
 }
 
 func BenchmarkFromEdges(b *testing.B) {
-	fx := bigHex()
-	b.ReportMetric(float64(len(fx.nodes)), "nodes")
-	b.ReportMetric(float64(len(fx.edges)), "edges")
+	fx := bigHex() // 1022 nodes, 2941 edges
 	for b.Loop() {
 		if _, err := FromEdges(fx.nodes, fx.kinds, fx.edges, DefaultParams()); err != nil {
 			b.Fatal(err)
