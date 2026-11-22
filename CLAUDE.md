@@ -54,10 +54,9 @@ The **RunLog JSON** is the contract between Go and TS. Go structs in `internal/s
 
 1. **No API keys in the browser.** Only the Go server reads secrets, from the environment.
 2. **Stub brain by default.** Dev, tests and CI use the deterministic stub provider and cost $0. Real model calls need `BRAIN=anthropic` set explicitly (model `claude-haiku-5-5`).
-3. **Everything generated is fictional and labelled SIMULATED.** No real companies or people.
-4. **The sim is the source of truth; the UI only replays it.** The client sends back only the player's choices.
-5. **Cap spend.** Real runs have a hard config limit on rounds and agents; the server refuses runs past it.
-6. Prefer the standard library. Don't add a dependency without saying why in the PR.
+3. **The sim is the source of truth; the UI only replays it.** The client sends back only the player's choices.
+4. **Cap spend.** Real runs have a hard config limit on rounds and agents; the server refuses runs past it.
+5. Prefer the standard library. Don't add a dependency without saying why in the PR.
 
 ## Git and PR workflow
 
