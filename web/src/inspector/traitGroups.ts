@@ -26,8 +26,8 @@ const CATEGORY_ORDER: PersonalityCategory[] = ["credulity", "socialness", "persu
 
 /**
  * The special tags to show, in a fixed order: Leader, Recluse, Family-oriented, then Parent and
- * Child. Parent and Child come from the profile's authored relationship ids, never from its age,
- * and `family-oriented` comes only from the trait.
+ * Child. Parent and Child come from the profile's relationship ids, never from its age, and
+ * `family-oriented` comes only from the trait.
  */
 export function specialTags(
   profile: Pick<BlobProfile, "traits" | "parentIds" | "childIds">,
@@ -44,14 +44,10 @@ export function specialTags(
     });
   }
   if (profile.childIds.length > 0) {
-    tags.push({
-      kind: "parent",
-      label: "Parent",
-      meaning: "Has a child in the sandbox's families",
-    });
+    tags.push({ kind: "parent", label: "Parent", meaning: "Has a child" });
   }
   if (profile.parentIds.length > 0) {
-    tags.push({ kind: "child", label: "Child", meaning: "Has a parent in the sandbox's families" });
+    tags.push({ kind: "child", label: "Child", meaning: "Has a parent" });
   }
   return tags;
 }
