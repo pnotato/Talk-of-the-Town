@@ -15,6 +15,7 @@ const (
 	WanderMaxHops = 20
 	DwellMinTicks = 2
 	DwellMaxTicks = 12
+	StuckTicks    = 10
 )
 
 // moveStream is the second PCG word of the movement RNG ("move"). Like
@@ -72,6 +73,7 @@ type walker struct {
 	prio, tie      []uint64
 	since          []int // ticks since a walker's goal was set
 	dwell          []int // ticks of dwelling left; 0 while walking
+	still          []int // ticks in a row a walker has not moved
 
 	taken []bool // scratch for newGoal: node -> another blob's goal
 	pick  []int  // scratch for newGoal: the candidate goals
@@ -100,6 +102,7 @@ func newWalker(g *nav.Graph, n int, rng *rand.Rand) (*walker, error) {
 		tie:   make([]uint64, n),
 		since: make([]int, n),
 		dwell: make([]int, n),
+		still: make([]int, n),
 		taken: make([]bool, g.Len()),
 		pick:  make([]int, 0, len(goals)),
 	}
@@ -147,11 +150,18 @@ func (w *walker) update() {
 		case w.dwell[i] > 0:
 			// Counts down even when pushed off: the dwell is time, not place.
 			w.dwell[i]--
-			if w.dwell[i] == 0 {
-				w.newGoal(i)
+			if w.dwell[i] == 0 && !w.newGoal(i) {
+				w.dwell[i] = 1 // nothing free in reach: try again next tick
 			}
 		case w.at[i] == w.goal[i]:
 			w.dwell[i] = DwellMinTicks + w.rng.IntN(DwellMaxTicks-DwellMinTicks+1)
+		case w.still[i] >= StuckTicks:
+			// Wedged behind a blob it can never push out of the way (see
+			// MODEL.md#each-tick). A new goal drops its priority to the
+			// bottom, so the blobs round it can clear the way.
+			if !w.newGoal(i) {
+				w.since[i]++
+			}
 		default:
 			w.since[i]++
 		}
@@ -169,13 +179,20 @@ func (w *walker) update() {
 // it heads back there if it was pushed off.
 func (w *walker) move() {
 	w.pl.Step(w.at, w.goal, w.prio, w.rng, w.next)
+	for i := range w.at {
+		if w.dwell[i] == 0 && w.next[i] == w.at[i] {
+			w.still[i]++
+		} else {
+			w.still[i] = 0
+		}
+	}
 	w.at, w.next = w.next, w.at
 }
 
 // newGoal gives blob i a goal WanderMinHops..WanderMaxHops hops from where
-// it stands that no other blob holds, uniformly; if there is none, it dwells
-// one more tick.
-func (w *walker) newGoal(i int) {
+// it stands that no other blob holds, uniformly, and reports whether there
+// was one. If not, blob i is left as it was.
+func (w *walker) newGoal(i int) bool {
 	for j, v := range w.goal {
 		if j != i {
 			w.taken[v] = true
@@ -191,9 +208,9 @@ func (w *walker) newGoal(i int) {
 		w.taken[v] = false
 	}
 	if len(w.pick) == 0 {
-		w.dwell[i] = 1
-		return
+		return false
 	}
 	w.goal[i] = w.pick[w.rng.IntN(len(w.pick))]
-	w.since[i] = 0
+	w.since[i], w.still[i] = 0, 0
+	return true
 }
