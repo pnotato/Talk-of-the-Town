@@ -95,7 +95,7 @@ func (b *builder) landing(kerb Point, axis Axis, side float64) ([]Point, int32) 
 		}
 		return -1
 	}
-	path, id := b.route(kerb, window, free, goal)
+	path, id := b.route(kerb, window, nil, math.MaxInt32, free, goal)
 	if id < 0 {
 		return nil, -1
 	}
@@ -146,6 +146,12 @@ func (b *builder) bridges() {
 			if !b.alive[pr.i] || !b.alive[pr.j] {
 				continue
 			}
+			// A gap has walkable ground straight across it (a lamp or a
+			// building corner in the way); two chains either side of a road
+			// junction are just far apart.
+			if !b.walk.containsSeg(b.pts[pr.i], b.pts[pr.j]) {
+				continue
+			}
 			limit := int(math.Ceil(pr.d/b.m.Spacing)) + hopSlack
 			if b.hops(pr.i, pr.j, limit) >= 0 {
 				continue
@@ -167,18 +173,23 @@ func (b *builder) bridge(i, j int32, limit int) bool {
 	line := b.bridgeRoute(i, j)
 	if line != nil {
 		if b.tryChain(line, i, j, limit, nil) {
+			b.stats.routed++
 			return true
 		}
 		if kill := b.fillsNear(line, i, j); len(kill) > 0 && b.tryChain(line, i, j, limit, kill) {
+			b.stats.routedCleared++
+			b.stats.cleared += len(kill)
 			return true
 		}
 	}
 	if b.brute(i, j, limit, nil) {
 		return true
 	}
-	if kill := b.fillsIn(b.window(i, j, brutePad), i, j); len(kill) > 0 {
-		return b.brute(i, j, limit, kill)
+	if kill := b.fillsIn(b.window(i, j, brutePad), i, j); len(kill) > 0 && b.brute(i, j, limit, kill) {
+		b.stats.cleared += len(kill)
+		return true
 	}
+	b.stats.failed++
 	return false
 }
 
@@ -190,7 +201,10 @@ func (b *builder) window(i, j int32, pad float64) Rect {
 // bridgeRoute routes from i to j with Radius+Margin clearance and pulls the
 // path straight, or returns nil if the only way is a long detour.
 func (b *builder) bridgeRoute(i, j int32) []Point {
-	window := b.window(i, j, routePad)
+	// A path at most maxDetour times d long stays inside an ellipse round
+	// the pair whose half-width is d*sqrt(maxDetour^2-1)/2.
+	d := dist(b.pts[i], b.pts[j])
+	window := b.window(i, j, min(routePad, d*math.Sqrt(maxDetour*maxDetour-1)/2+b.p.Grid*snapCells))
 	obs := b.obs.near(window, b.p.Radius+b.p.Margin)
 	free := func(q Point) bool {
 		return b.walk.contains(q) && obs.dist(q) >= b.p.Radius+b.p.Margin
@@ -203,7 +217,10 @@ func (b *builder) bridgeRoute(i, j int32) []Point {
 		}
 		return -1
 	}
-	path, id := b.route(b.pts[i], window, free, goal)
+	// A grid path is at most ~8% longer than the straight path it pulls to,
+	// and costs 10 per cell of length; past this it can't be short enough.
+	maxCost := int32(math.Ceil(maxDetour * dist(b.pts[i], to) / b.p.Grid * 10 * 1.1))
+	path, id := b.route(b.pts[i], window, &to, maxCost, free, goal)
 	if id < 0 {
 		return nil
 	}
@@ -282,6 +299,13 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 		cleared = b.apply(nil, Fill, kill)
 	}
 	pi, pj := b.pts[i], b.pts[j]
+	if dist(pi, pj) > 3*b.p.MaxEdge {
+		// Two points make three steps at most.
+		if cleared != nil {
+			b.undo(cleared)
+		}
+		return false
+	}
 	window := b.window(i, j, brutePad)
 	obs := b.obs.near(window, b.p.MaxEdge)
 	step := b.p.Grid / 2
@@ -309,11 +333,15 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 	for k := int(math.Ceil(window.MinZ / step)); float64(k)*step <= window.MaxZ; k++ {
 		for l := int(math.Ceil(window.MinX / step)); float64(l)*step <= window.MaxX; l++ {
 			q := Point{quantise(float64(l) * step), quantise(float64(k) * step)}
-			if !b.walk.contains(q) {
+			// Cheapest and most selective tests first.
+			if dist(q, pi) > b.p.MaxEdge && dist(q, pj) > b.p.MaxEdge {
 				continue
 			}
-			s := min(obs.dist(q)-b.p.Radius, b.nearestDist(q, 2*b.p.BridgeGap)-b.p.BridgeGap)
-			if s < 0 {
+			s := b.nearestDist(q, 2*b.p.BridgeGap) - b.p.BridgeGap
+			if s < 0 || !b.walk.contains(q) {
+				continue
+			}
+			if s = min(s, obs.dist(q)-b.p.Radius); s < 0 {
 				continue
 			}
 			for e, end := range [2]int32{i, j} {
@@ -371,6 +399,11 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 	for _, o := range opts[:min(len(opts), bruteTries)] {
 		ch := b.apply(o.pts, Bridge, nil)
 		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(ch) && (cleared == nil || b.keeps(cleared)) {
+			if len(o.pts) == 1 {
+				b.stats.brute1++
+			} else {
+				b.stats.brute2++
+			}
 			return true
 		}
 		b.undo(ch)
@@ -410,9 +443,11 @@ func (b *builder) prune() {
 	}
 }
 
-// trim fixes the corners no node can be added to: a node whose only two
-// edges turn too sharply for a queue to walk through drops one of them and
-// becomes a dead end, where a blob steps in and back out. An edge is only
+// trim fixes the corridor corners no node can be added to (the park's
+// south-east corner, where the sidewalk row and the lawn's grid meet 1.5
+// apart): a corridor node whose two edges turn too sharply for a queue to
+// walk through drops one of them and becomes a dead end, where a blob steps
+// in and back out. An edge is only
 // dropped if the graph stays in one piece and its other end still passes;
 // the busier neighbour loses its edge first, to keep the most cycles.
 // Dropped edges are final, so trim runs after the last relink.
@@ -429,6 +464,7 @@ func (b *builder) trim() error {
 			b.unlink(int32(v), x)
 			if b.passes(x) && b.components() == pieces {
 				ok = true
+				b.stats.trimmed++
 				break
 			}
 			b.link(int32(v), x)

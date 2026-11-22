@@ -9,6 +9,15 @@ import (
 // guard is the margin Build keeps inside every limit CheckGraph tests.
 const guard = 1e-7
 
+// buildStats counts what the stages did, for tests and the docs.
+type buildStats struct {
+	routed, routedCleared int // bridges placed along a routed path, without and with clearing fills
+	brute1, brute2        int // bridges of one or two hand-placed points
+	failed                int // gap pairs no bridge could join
+	cleared               int // Fill nodes removed to make room for bridges
+	trimmed               int // corridor corners cut to dead ends
+}
+
 // builder holds the graph while Build grows it. Edges are never stored as
 // choices: they follow from the nodes by one rule (linkable), and adj caches
 // that rule's result for every live node.
@@ -22,6 +31,9 @@ type builder struct {
 	alive []bool
 	ix    *nodeIndex
 	adj   [][]int32
+
+	stats   buildStats
+	scratch routeScratch
 
 	// Scratch for breadth-first searches, reset by bumping stamp.
 	seen  []uint32
@@ -151,11 +163,7 @@ func (b *builder) revive(id int32) {
 
 // nearestDist is how far p is from the closest live node, up to limit.
 func (b *builder) nearestDist(p Point, limit float64) float64 {
-	d := limit
-	for _, id := range b.ix.within(p, limit, b.pts, nil) {
-		d = min(d, dist(p, b.pts[id]))
-	}
-	return d
+	return b.ix.nearest(p, limit, b.pts)
 }
 
 // Stage 1: the standing spots, in order, are nodes 0..n-1.
@@ -265,11 +273,16 @@ func (b *builder) touched(at []Point) []int32 {
 	return slices.Compact(ids)
 }
 
-// passes reports whether a node with two neighbours lets one blob step in
-// while another steps out the other side, so a queue can walk through it.
+// passes reports whether a corridor node (exactly two neighbours, not linked
+// to each other) lets one blob step in while another steps out the other
+// side, so a queue can walk through it. A pocket corner, whose neighbours
+// are linked, is no corridor: a blob going past cuts across it.
 func (b *builder) passes(v int32) bool {
 	n := b.adj[v]
 	if len(n) != 2 {
+		return true
+	}
+	if _, linked := slices.BinarySearch(b.adj[n[0]], n[1]); linked {
 		return true
 	}
 	a, c, q := b.pts[n[0]], b.pts[n[1]], b.pts[v]

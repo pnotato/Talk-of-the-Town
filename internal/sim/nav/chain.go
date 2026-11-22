@@ -26,18 +26,18 @@ const (
 	nodeCost = 10.0
 )
 
-// gridCell is one cell of a routing grid.
+// gridCell is a routing grid cell on the open list: its priority (cost so
+// far plus the heuristic), its cost so far, and its index.
 type gridCell struct {
-	cost int32
-	idx  int32
+	prio, cost, idx int32
 }
 
 type cellHeap []gridCell
 
 func (h cellHeap) Len() int { return len(h) }
 func (h cellHeap) Less(i, j int) bool {
-	if h[i].cost != h[j].cost {
-		return h[i].cost < h[j].cost
+	if h[i].prio != h[j].prio {
+		return h[i].prio < h[j].prio
 	}
 	return h[i].idx < h[j].idx
 }
@@ -50,12 +50,31 @@ func (h *cellHeap) Pop() any {
 	return c
 }
 
+// Routing cell states.
+const (
+	cellUnknown uint8 = iota
+	cellOpen
+	cellBlocked
+	cellDone
+)
+
+// routeScratch is reused across routes so a build allocates it once.
+type routeScratch struct {
+	state []uint8
+	cost  []int32
+	from  []int32
+	heap  cellHeap
+}
+
 // route finds a cheapest 8-connected path on a grid of step Grid through
 // start, inside window, over cells free() accepts (start always is). Orthogonal
 // steps cost 10 and diagonal ones 14; ties go to the lower cell index. It
 // stops at the first settled cell for which goal returns a node id >= 0 and
-// returns the cells from start to there, and that id.
-func (b *builder) route(start Point, window Rect, free func(Point) bool, goal func(Point) int32) ([]Point, int32) {
+// returns the cells from start to there, and that id. With a target it is
+// A*, aiming there (the goal must lie within snapCells of it); without, it
+// is Dijkstra, for goals anywhere. It gives up once no path can cost less
+// than maxCost.
+func (b *builder) route(start Point, window Rect, target *Point, maxCost int32, free func(Point) bool, goal func(Point) int32) ([]Point, int32) {
 	g := b.p.Grid
 	i0 := int(math.Floor((window.MinX - start.X) / g))
 	i1 := int(math.Ceil((window.MaxX - start.X) / g))
@@ -66,29 +85,41 @@ func (b *builder) route(start Point, window Rect, free func(Point) bool, goal fu
 		i, j := int(idx)%w+i0, int(idx)/w+j0
 		return Point{start.X + float64(float64(i)*g), start.Z + float64(float64(j)*g)}
 	}
-	const (
-		unknown = iota
-		open
-		blocked
-	)
-	state := make([]uint8, w*h)
-	cost := make([]int32, w*h)
-	from := make([]int32, w*h)
-	done := make([]bool, w*h)
-	for k := range cost {
-		cost[k] = math.MaxInt32
+	// The octile distance to the target's cell, less the snap, so it never
+	// overestimates; 0 for Dijkstra.
+	heur := func(int32) int32 { return 0 }
+	if target != nil {
+		ti := int(math.Round((target.X-start.X)/g)) - i0
+		tj := int(math.Round((target.Z-start.Z)/g)) - j0
+		slack := int32(math.Ceil(snapCells)) * 14
+		heur = func(idx int32) int32 {
+			di, dj := int32(abs(int(idx)%w-ti)), int32(abs(int(idx)/w-tj))
+			return max(10*max(di, dj)+4*min(di, dj)-slack, 0)
+		}
 	}
+
+	sc := &b.scratch
+	n := w * h
+	if cap(sc.state) < n {
+		sc.state, sc.cost, sc.from = make([]uint8, n), make([]int32, n), make([]int32, n)
+	}
+	state, cost, from := sc.state[:n], sc.cost[:n], sc.from[:n]
+	clear(state)
 	s := int32((-j0)*w + (-i0))
-	state[s] = open
+	state[s] = cellOpen
 	cost[s] = 0
 	from[s] = -1
-	pq := &cellHeap{{0, s}}
+	pq := &sc.heap
+	*pq = append((*pq)[:0], gridCell{heur(s), 0, s})
 	for pq.Len() > 0 {
 		c := heap.Pop(pq).(gridCell)
-		if done[c.idx] || c.cost != cost[c.idx] {
+		if c.prio > maxCost {
+			break
+		}
+		if state[c.idx] == cellDone || c.cost != cost[c.idx] {
 			continue
 		}
-		done[c.idx] = true
+		state[c.idx] = cellDone
 		if id := goal(at(c.idx)); id >= 0 {
 			var path []Point
 			for k := c.idx; k >= 0; k = from[k] {
@@ -104,32 +135,41 @@ func (b *builder) route(start Point, window Rect, free func(Point) bool, goal fu
 				if (di == 0 && dj == 0) || ni < 0 || nj < 0 || ni >= w || nj >= h {
 					continue
 				}
-				n := int32(nj*w + ni)
-				if done[n] {
-					continue
-				}
-				if state[n] == unknown {
-					state[n] = blocked
-					if free(at(n)) {
-						state[n] = open
+				nx := int32(nj*w + ni)
+				switch state[nx] {
+				case cellUnknown:
+					state[nx] = cellBlocked
+					if free(at(nx)) {
+						state[nx] = cellOpen
+						cost[nx] = math.MaxInt32
 					}
-				}
-				if state[n] != open {
+					if state[nx] != cellOpen {
+						continue
+					}
+				case cellOpen:
+				default:
 					continue
 				}
 				step := int32(10)
 				if di != 0 && dj != 0 {
 					step = 14
 				}
-				if nc := c.cost + step; nc < cost[n] {
-					cost[n] = nc
-					from[n] = c.idx
-					heap.Push(pq, gridCell{nc, n})
+				if nc := c.cost + step; nc < cost[nx] {
+					cost[nx] = nc
+					from[nx] = c.idx
+					heap.Push(pq, gridCell{nc + heur(nx), nc, nx})
 				}
 			}
 		}
 	}
 	return nil, -1
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // pull straightens a path: from each corner it jumps to the farthest later
@@ -382,11 +422,18 @@ func (b *builder) undo(ch *change) {
 	}
 }
 
-// keeps reports whether a change left every node it touched passable.
+// keeps reports whether a change left every node it touched passable. A
+// node's neighbours count as touched too: whether a corner is a corridor
+// depends on the edge between its neighbours.
 func (b *builder) keeps(ch *change) bool {
 	for _, id := range ch.changed {
 		if !b.passes(id) {
 			return false
+		}
+		for _, n := range b.adj[id] {
+			if !b.passes(n) {
+				return false
+			}
 		}
 	}
 	return true

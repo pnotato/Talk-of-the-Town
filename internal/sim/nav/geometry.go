@@ -202,6 +202,12 @@ func (u *union) edgeDist(p Point) float64 {
 // containsSeg reports whether every point of ab is walkable: the parts of ab
 // inside each rect must cover it end to end.
 func (u *union) containsSeg(a, b Point) bool {
+	// Most segments lie in one rect, which is convex.
+	for _, r := range u.rects {
+		if inRect(r, a) && inRect(r, b) {
+			return true
+		}
+	}
 	var spans [][2]float64
 	for _, r := range u.rects {
 		if t0, t1, ok := clipSeg(a, b, r); ok {
@@ -317,4 +323,20 @@ func (ix *nodeIndex) within(p Point, r float64, pts []Point, out []int32) []int3
 	}
 	slices.Sort(out[start:])
 	return out
+}
+
+// nearest is the distance from p to the closest indexed node, capped at r.
+// Unlike within it allocates nothing, for the hot loops that only need that.
+func (ix *nodeIndex) nearest(p Point, r float64, pts []Point) float64 {
+	d := r
+	i0, j0 := ix.coord(Point{p.X - r, p.Z - r})
+	i1, j1 := ix.coord(Point{p.X + r, p.Z + r})
+	for j := j0; j <= j1; j++ {
+		for i := i0; i <= i1; i++ {
+			for _, id := range ix.buckets[j*ix.nx+i] {
+				d = min(d, dist(p, pts[id]))
+			}
+		}
+	}
+	return d
 }
