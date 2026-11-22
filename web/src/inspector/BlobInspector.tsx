@@ -7,6 +7,31 @@ import { type FocusInset, focusInset, sameInset } from "./focusInset.ts";
 import { stepSelection } from "./inspectorModel.ts";
 import "./inspector.css";
 
+function BrowseIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <rect x="1.4" y="1.4" width="5.4" height="5.4" rx="1.7" fill="currentColor" />
+      <rect x="9.2" y="1.4" width="5.4" height="5.4" rx="1.7" fill="currentColor" opacity="0.55" />
+      <rect x="1.4" y="9.2" width="5.4" height="5.4" rx="1.7" fill="currentColor" opacity="0.55" />
+      <rect x="9.2" y="9.2" width="5.4" height="5.4" rx="1.7" fill="currentColor" />
+    </svg>
+  );
+}
+
+function StepIcon({ direction }: { direction: "previous" | "next" }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+      <path
+        d={direction === "previous" ? "m9.8 3.2-4.6 4.8 4.6 4.8" : "m6.2 3.2 4.6 4.8-4.6 4.8"}
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * The bottom-left inspector: a bar that is always there (browse, step, hint) with either the
  * selected blob's card or, while browsing, the list of blobs in the card's place (picking from it
@@ -17,9 +42,9 @@ import "./inspector.css";
  * The bar comes first in the DOM (and is drawn at the bottom) so Tab goes from Browse straight into
  * whatever it opened.
  *
- * `onFocusInsetChange` reports how much of the view the inspector covers (the shell at the top, the
- * card, list or bar at the bottom), measured from what is actually drawn, whenever it changes. The
- * scene uses it to keep a focused blob clear of the inspector.
+ * `onFocusInsetChange` reports how much of the view the inspector covers (the top edge of the
+ * stage, the card, list or bar at the bottom), measured from what is actually drawn, whenever it
+ * changes. The scene uses it to keep a focused blob clear of the inspector.
  */
 export default function BlobInspector({
   onFocusInsetChange,
@@ -69,6 +94,7 @@ export default function BlobInspector({
         bar.getBoundingClientRect().top,
         panel ? panel.offsetHeight : null,
         gap,
+        parent.getBoundingClientRect().height,
       );
       if (lastInset.current && sameInset(lastInset.current, inset)) return;
       lastInset.current = inset;
@@ -158,11 +184,12 @@ export default function BlobInspector({
         <button
           ref={browse}
           type="button"
-          className="inspector-button"
+          className="inspector-button inspector-primary"
           aria-expanded={pickerOpen}
           aria-controls={pickerOpen ? pickerId : undefined}
           onClick={toggleBrowse}
         >
+          <BrowseIcon />
           Browse blobs
         </button>
         <button
@@ -171,7 +198,7 @@ export default function BlobInspector({
           aria-label="Previous blob"
           onClick={() => step(-1)}
         >
-          ‹
+          <StepIcon direction="previous" />
         </button>
         <button
           type="button"
@@ -179,7 +206,7 @@ export default function BlobInspector({
           aria-label="Next blob"
           onClick={() => step(1)}
         >
-          ›
+          <StepIcon direction="next" />
         </button>
         {!profile && !pickerOpen && <span className="bar-hint">Click a blob to inspect it</span>}
       </div>

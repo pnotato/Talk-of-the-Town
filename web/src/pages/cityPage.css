@@ -1,0 +1,110 @@
+/* The City sandbox's crowd controls, matching the inspector's warm surface and accents. */
+
+.city-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 32px);
+  padding: 5px;
+  border: 1px solid #e0d4c0;
+  border-radius: 15px;
+  background: linear-gradient(180deg, #fffdf8, #fff9ee);
+  box-shadow:
+    0 8px 24px -10px rgb(73 54 25 / 0.22),
+    0 1px 2px rgb(73 54 25 / 0.06);
+  color: #4b453a;
+  font-size: 12px;
+}
+
+.city-controls :focus-visible {
+  outline: 2px solid #63518c;
+  outline-offset: 2px;
+}
+
+.city-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 33px;
+  padding: 0 13px;
+  border: 1px solid #9e4117;
+  border-radius: 10px;
+  background: #b95323;
+  color: #fffaf0;
+  font: inherit;
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow:
+    0 2px 5px rgb(112 41 12 / 0.24),
+    inset 0 1px 0 rgb(255 255 255 / 0.16);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.city-button:hover {
+  background: #a7471b;
+}
+
+.city-button:active {
+  background: #973e16;
+}
+
+.city-seed {
+  padding: 0 4px;
+  color: #756d5e;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.city-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 33px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: #5d5649;
+  cursor: pointer;
+}
+
+.city-toggle:hover {
+  background: #f5edde;
+}
+
+.city-toggle input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #178f86;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .city-controls {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    max-width: none;
+    justify-content: space-between;
+  }
+}
+
+@media (pointer: coarse) {
+  .city-button,
+  .city-toggle {
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .city-button {
+    transition: none;
+  }
+}
