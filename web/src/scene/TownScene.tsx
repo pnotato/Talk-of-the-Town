@@ -4,6 +4,7 @@ import { layoutTown } from "./layoutTown.ts";
 import { MapCamera } from "./MapCamera.tsx";
 import { MapLights } from "./MapLights.tsx";
 import { RenderResolution } from "./RenderResolution.tsx";
+import { TownDowntown } from "./TownDowntown.tsx";
 import { GROUND_RADIUS, TownGround } from "./TownGround.tsx";
 import { TownHomes } from "./TownHomes.tsx";
 import { townMap } from "./townMap.ts";
@@ -25,8 +26,8 @@ interface Props {
 }
 
 /**
- * The empty town: a square with a news screen, neighbourhoods of homes on a grid of streets,
- * and fields and trees beyond.
+ * The empty town: a square with a news screen, the town hall and Main Street's shops round it,
+ * neighbourhoods of homes on a grid of streets, and fields and trees beyond.
  */
 export default function TownScene({
   homeCount = HOMES,
@@ -48,13 +49,14 @@ export default function TownScene({
       dpr={1}
       camera={{ fov: 30, near: 1, far: GROUND_RADIUS * 1.2 }}
       role="img"
-      aria-label={`Town map: ${homeCount} homes in ${neighbourhoodCount} neighbourhoods round a town square with a news screen. Drag to pan, scroll or pinch to zoom.`}
+      aria-label={`Town map: ${homeCount} homes in ${neighbourhoodCount} neighbourhoods round a town square with a news screen, the town hall and Main Street. Drag to pan, scroll or pinch to zoom.`}
     >
       <RenderResolution />
       <color attach="background" args={[SKY]} />
       <MapLights map={map} />
       <TownGround town={town} />
       <TownSquare town={town} />
+      <TownDowntown buildings={town.buildings} />
       <TownHomes homes={town.homes} />
       <TownTrees trees={town.trees} />
       <MapCamera map={map} minDistance={MIN_DISTANCE} fogColor={SKY} />
