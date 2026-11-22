@@ -584,11 +584,12 @@ func TestStepPanicsOnSharedNode(t *testing.T) {
 // bigHex is a ~1000-node hex plaza, about the size of the city graph.
 func bigHex() navFixture {
 	nodes := hexLattice(32, 32, 0, 0, false, nil)
-	return navFixture{"big hex", nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink), 100}
+	kinds := allStand(len(nodes))
+	return navFixture{"big hex", nodes, kinds, untrapped(nodes, kinds, linkWithin(nodes, fixtureLink)), 100}
 }
 
 func BenchmarkFromEdges(b *testing.B) {
-	fx := bigHex() // 1024 nodes, 2945 edges
+	fx := bigHex() // 1024 nodes, about 2,900 edges
 	for b.Loop() {
 		if _, err := FromEdges(fx.nodes, fx.kinds, fx.edges, DefaultParams()); err != nil {
 			b.Fatal(err)
