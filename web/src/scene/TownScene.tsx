@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import { MathUtils } from "three";
 import type { RunLog } from "../generated/types.ts";
+import type { BlobActivity } from "../inspector/inspectorModel.ts";
 import { CityGrid } from "./CityGrid.tsx";
 import { SURFACE } from "./CityGround.tsx";
 import { CityReplay } from "./CityReplay.tsx";
@@ -40,6 +41,12 @@ interface Props {
   onRound?: (round: number) => void;
   /** Called once when the replay reaches the end of the run while playing. */
   onEnd?: () => void;
+  /** The blob to ring, if the page has a selection. */
+  selectedId?: number | null;
+  /** Makes every blob clickable; called with the clicked blob's id. */
+  onSelect?: (id: number) => void;
+  /** Called when the round or the completed-round count changes, with everyone's activity. */
+  onActivities?: (updates: Record<number, BlobActivity>) => void;
 }
 
 /**
@@ -56,6 +63,9 @@ export default function TownScene({
   showGrid = false,
   onRound,
   onEnd,
+  selectedId = null,
+  onSelect,
+  onActivities,
 }: Props) {
   const town = useMemo(
     () => layoutTown(homeCount, neighbourhoodCount),
@@ -97,6 +107,9 @@ export default function TownScene({
             speed={speed}
             onRound={onRound}
             onEnd={onEnd}
+            selectedId={selectedId}
+            onSelect={onSelect}
+            onActivities={onActivities}
           />
         )}
       </group>

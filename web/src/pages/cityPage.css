@@ -2,9 +2,10 @@
 
 .city-hud {
   position: absolute;
+  top: 16px;
   right: 16px;
-  bottom: 16px;
-  z-index: 2;
+  /* Above the canvas, below the inspector's card and directory. */
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -173,8 +174,8 @@
 
 @media (max-width: 600px) {
   .city-hud {
+    top: 12px;
     right: 12px;
-    bottom: 12px;
     left: 12px;
     max-width: none;
     align-items: stretch;

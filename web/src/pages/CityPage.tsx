@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RunLog } from "../generated/types.ts";
+import BlobInspector from "../inspector/BlobInspector.tsx";
+import { BlobSelectionProvider, useBlobSelection } from "../inspector/BlobSelection.tsx";
+import { cityCatalog, EMPTY_CITY_CATALOG } from "../inspector/cityProfiles.ts";
 import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
 import TownScene from "../scene/TownScene.tsx";
@@ -50,6 +53,42 @@ async function fetchRun(seed: number, map: MapName, signal: AbortSignal): Promis
 }
 
 type Result = { key: string; run: RunLog } | { key: string; error: string };
+
+/**
+ * A map replaying the run, inside the selection provider: it rings the selected blob, makes every
+ * blob clickable, and reports what they are doing for the inspector. The city and the town share it.
+ */
+function MapStage({
+  map,
+  run,
+  playing,
+  speed,
+  showGrid,
+  onRound,
+  onEnd,
+}: {
+  map: MapName;
+  run: RunLog | null;
+  playing: boolean;
+  speed: number;
+  showGrid: boolean;
+  onRound: (round: number) => void;
+  onEnd: () => void;
+}) {
+  const { selectedId, selectBlob, updateActivities } = useBlobSelection();
+  const props = {
+    run,
+    playing,
+    speed,
+    showGrid,
+    onRound,
+    onEnd,
+    selectedId,
+    onSelect: selectBlob,
+    onActivities: updateActivities,
+  };
+  return map === "town" ? <TownScene {...props} /> : <CityScene {...props} />;
+}
 
 /**
  * The city replaying a simulated run: the town walks the streets as the sim moved it, and moods
@@ -112,14 +151,17 @@ export default function CityPage() {
   };
 
   const headline = run?.moments.findLast((m) => m.round <= round)?.headline;
+  // The inspector's blob directory for this run; empty until the run arrives.
+  const catalog = useMemo(() => (run ? cityCatalog(run) : EMPTY_CITY_CATALOG), [run]);
 
   return (
     <section
       aria-label={map === "town" ? "Town replay" : "City replay"}
       style={{ position: "relative", height: "100%" }}
     >
-      {map === "town" ? (
-        <TownScene
+      <BlobSelectionProvider catalog={catalog}>
+        <MapStage
+          map={map}
           run={run}
           playing={playing}
           speed={speed}
@@ -127,16 +169,8 @@ export default function CityPage() {
           onRound={setRound}
           onEnd={handleEnd}
         />
-      ) : (
-        <CityScene
-          run={run}
-          playing={playing}
-          speed={speed}
-          showGrid={grid}
-          onRound={setRound}
-          onEnd={handleEnd}
-        />
-      )}
+        <BlobInspector />
+      </BlobSelectionProvider>
       {!current && (
         <p role="status" className="city-notice">
           Simulating…

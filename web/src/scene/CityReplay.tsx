@@ -2,8 +2,10 @@ import { useFrame } from "@react-three/fiber";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Vector3Tuple } from "three";
 import type { RunLog } from "../generated/types.ts";
+import type { BlobActivity } from "../inspector/inspectorModel.ts";
 import Blob, { type BlobDrive } from "./Blob.tsx";
 import { useReducedMotion } from "./blobMedia.ts";
+import { cityActivities } from "./cityActivity.ts";
 import { SURFACE } from "./CityGround.tsx";
 import { CATCH_UP_FRACTION, MEET_FRACTION, stageRun } from "./conversations.ts";
 import {
@@ -37,6 +39,12 @@ interface Props {
   onRound?: (round: number) => void;
   /** Called once when the replay reaches the end of the run while playing. */
   onEnd?: () => void;
+  /** The blob to ring, if the page has a selection. */
+  selectedId?: number | null;
+  /** Makes every blob clickable; called with the clicked blob's id. */
+  onSelect?: (id: number) => void;
+  /** Called when the round or the completed-round count changes, with everyone's activity. */
+  onActivities?: (updates: Record<number, BlobActivity>) => void;
 }
 
 /**
@@ -52,11 +60,21 @@ interface Props {
  * Playing again after the end starts from the beginning. Reduced motion steps from tick to tick
  * instead of walking.
  */
-export const CityReplay = memo(function CityReplay({ run, playing, speed, onRound, onEnd }: Props) {
+export const CityReplay = memo(function CityReplay({
+  run,
+  playing,
+  speed,
+  onRound,
+  onEnd,
+  selectedId = null,
+  onSelect,
+  onActivities,
+}: Props) {
   const reduceMotion = useReducedMotion();
   const playhead = useRef(0);
   // What the last frame reported, so callbacks and state change only when these do.
   const reported = useRef({ round: -1, done: 0, ended: false });
+  const reportedActivities = useRef({ round: -1, done: -1 });
   const [done, setDone] = useState(0);
 
   // One drive per blob, made once per run and handed to its Blob once; frames mutate it.
@@ -157,6 +175,12 @@ export const CityReplay = memo(function CityReplay({ run, playing, speed, onRoun
       seen.done = nowDone;
       setDone(nowDone);
     }
+    const shown = reportedActivities.current;
+    if (round !== shown.round || nowDone !== shown.done) {
+      shown.round = round;
+      shown.done = nowDone;
+      onActivities?.(cityActivities(run, round, nowDone));
+    }
     if (playing && !seen.ended && t >= end) {
       seen.ended = true;
       onEnd?.();
@@ -174,6 +198,8 @@ export const CityReplay = memo(function CityReplay({ run, playing, speed, onRoun
           mood={moods[b]}
           idle
           talking={speakers.has(b)}
+          selected={selectedId === blob.id}
+          onSelect={onSelect}
           position={positions[b]}
           drive={drives[b]}
         />

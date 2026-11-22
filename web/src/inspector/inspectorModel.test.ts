@@ -63,6 +63,14 @@ describe("activities", () => {
     assert.ok(!sameActivity({ ...a, mood: "flat" }, a));
     assert.ok(sameActivity({ state: "idle", mood: "smile" }, { state: "idle", mood: "smile" }));
   });
+
+  test("counts a score change as a new activity, and ignores scores when neither has them", () => {
+    const a = { state: "idle", mood: "flat", perception: 50, interest: 20 } as const;
+    assert.ok(sameActivity({ ...a }, a));
+    assert.ok(!sameActivity({ ...a, perception: 51 }, a));
+    assert.ok(!sameActivity({ ...a, interest: 21 }, a));
+    assert.ok(sameActivity({ state: "idle", mood: "flat" }, { state: "idle", mood: "flat" }));
+  });
 });
 
 describe("describeAction", () => {
