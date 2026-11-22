@@ -1,0 +1,669 @@
+/* Self-hosted Fredoka variable, SIL OFL 1.1; license alongside the font in public/fonts. */
+@font-face {
+  font-family: "Fredoka";
+  src: url("/fonts/Fredoka-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 300 700;
+  font-stretch: 75% 125%;
+  font-display: swap;
+}
+
+/*
+ * The dock fills the page from just below the app shell (SIMULATED badge, status, nav: about 100px
+ * tall at the top left) down to the bottom margin, and its panels share that height. The bar is
+ * first in the DOM so Tab reaches Browse before what it opens, and column-reverse draws it at the
+ * bottom, with the card or list above it. The card or list shrinks and scrolls when short of room;
+ * the bar never does.
+ */
+.inspector-dock {
+  --shell-clearance: 128px;
+  position: absolute;
+  top: var(--shell-clearance);
+  left: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 2;
+  box-sizing: border-box;
+  width: min(672px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 6px;
+  color: #35332f;
+  font:
+    12.5px/1.3 "Fredoka",
+    ui-rounded,
+    system-ui,
+    sans-serif;
+  /* Only the panels take the pointer, so the scene stays draggable around them. */
+  pointer-events: none;
+}
+
+.inspector-dock > * {
+  pointer-events: auto;
+}
+
+.inspector-surface {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #d9d0c0;
+  border-radius: 12px;
+  background: #fffaf0;
+  box-shadow: 0 3px 8px rgb(57 46 29 / 0.12);
+}
+
+.inspector-dock button {
+  font: inherit;
+  color: inherit;
+}
+
+.inspector-dock :focus-visible {
+  outline: 2px solid #63518c;
+  outline-offset: 2px;
+}
+
+.inspector-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.inspector-eyebrow {
+  margin: 0;
+  color: #696358;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Bottom bar: always there, so there is always a keyboard way in. */
+
+.inspector-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  max-width: 100%;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.inspector-button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid #ddd3c1;
+  border-radius: 999px;
+  background: #f3ecdf;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inspector-button:hover {
+  background: #e9dfcd;
+}
+
+.inspector-button[aria-expanded="true"] {
+  background: #e4d9c4;
+}
+
+.inspector-step {
+  min-width: 28px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bar-hint {
+  padding: 0 10px 0 6px;
+  color: #696358;
+}
+
+/* Selected blob: a wide, low panel with the blob's portrait overlapping its left edge. */
+
+/*
+ * One grid cell holds the portrait and the panel, so the portrait overlaps the panel's edge and
+ * both scroll together when the dock is short. The wrapper has no background of its own; it only
+ * pads out the panel's shadow so scrolling doesn't clip the top and sides.
+ */
+.inspector-card {
+  --portrait: 184px;
+  --card-ink: #35332f;
+  --card-muted: #696358;
+  --card-rule: #ded7c9;
+  color: var(--card-ink);
+  font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.3;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--portrait) minmax(0, 1fr);
+  width: calc(100% + 16px);
+  margin: -8px -8px 0;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: inspector-in 180ms ease-out;
+}
+
+@keyframes inspector-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.card-panel {
+  grid-area: 1 / 1 / 2 / -1;
+  width: auto;
+  min-width: 0;
+  box-sizing: border-box;
+  align-self: center;
+  min-height: 176px;
+  margin-left: calc(var(--portrait) * 0.45);
+  padding: 8px 16px 8px calc(var(--portrait) * 0.55 + 16px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #d9d0c0;
+  border-radius: 20px;
+  background: #fffaf0;
+  box-shadow: 0 3px 8px rgb(57 46 29 / 0.12);
+  backdrop-filter: none;
+}
+
+.inspector-card :focus-visible {
+  outline-color: #63518c;
+}
+
+.card-portrait {
+  position: relative;
+  grid-area: 1 / 1;
+  z-index: 2;
+  align-self: center;
+  width: var(--portrait);
+  height: var(--portrait);
+}
+
+.portrait {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1.5px solid;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 30%, #fffaf0, #e9dfcd);
+  box-shadow:
+    0 0 0 3px #fffaf0,
+    0 3px 8px rgb(57 46 29 / 0.16);
+  pointer-events: none;
+  transition:
+    border-color 300ms,
+    transform 150ms;
+}
+
+/* The native button over the portrait (and over a chip): invisible, with the click and focus. */
+.portrait-hit,
+.chip-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.portrait-hit {
+  border-radius: 50%;
+}
+
+.chip-hit {
+  border-radius: 4px;
+}
+
+.card-portrait .portrait-hit:focus-visible {
+  outline-offset: 3px;
+}
+
+.portrait-hit:hover + .portrait {
+  transform: scale(1.02);
+}
+
+/* Sticks to the top of the scrolling card, so closing is always in reach. */
+.card-close-anchor {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  grid-area: 1 / 1 / 2 / -1;
+  align-self: start;
+  height: 0;
+}
+
+.inspector-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.inspector-close:hover {
+  background: #eee6d8;
+}
+
+/* Name, metadata and inline family links share the meters' left edge. */
+
+.card-identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  padding: 0 24px 4px 0;
+  border-bottom: 1px solid var(--card-rule);
+}
+
+.card-head h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 550;
+  line-height: 1.2;
+  /* A long name wraps rather than running into the close button. */
+  overflow-wrap: anywhere;
+}
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  color: var(--card-muted);
+  font-size: 12px;
+}
+
+.card-meta p {
+  margin: 0;
+}
+
+.family {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 10px;
+}
+
+.family-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 4px;
+}
+
+.family-label {
+  color: var(--card-muted);
+}
+
+/* A named blob: its portrait and name, with a button over all of it. */
+
+.blob-chip {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 4px;
+  font-size: inherit;
+  font-weight: 450;
+  color: var(--card-ink);
+}
+
+.chip-visual {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0 2px;
+}
+
+.chip-name {
+  overflow-wrap: anywhere;
+}
+
+.blob-chip:hover {
+  background: #eee6d8;
+}
+
+.chip-portrait {
+  box-sizing: border-box;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  overflow: hidden;
+  border: 1px solid;
+  border-radius: 50%;
+  background: #f1e8d8;
+  pointer-events: none;
+}
+
+/* Visually one row; the two labelled lists retain their distinct semantics. */
+
+.traits-label {
+  color: var(--card-muted);
+  line-height: 18px;
+}
+
+.card-traits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* Sunny special tags and brighter pastel personality highlights retain dark, readable text. */
+.tag-special {
+  background: #ffe3a0;
+  color: #6c4b16;
+  font-weight: 400;
+}
+
+/* Personality tags: tinted by category, always with the word, so colour is never the only cue. */
+.tag-personality {
+  background: var(--tag-tint);
+  color: var(--tag-ink);
+}
+
+.tag-credulity {
+  --tag-tint: #c9edf9;
+  --tag-ink: #245c73;
+}
+
+.tag-socialness {
+  --tag-tint: #ffdbb5;
+  --tag-ink: #78431c;
+}
+
+.tag-persuasiveness {
+  --tag-tint: #e3d3ff;
+  --tag-ink: #60428b;
+}
+
+/* Meters show only their labels; values and score words remain on the accessible meter. */
+
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.meter-track {
+  grid-area: 1 / 1;
+  height: 16px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #ece7dd;
+  box-shadow: inset 0 0 0 1px rgb(81 68 45 / 0.08);
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 300ms ease-out;
+}
+
+.meter-perception .meter-fill {
+  background: #148e84;
+}
+
+.meter-interest .meter-fill {
+  background: #cb651b;
+}
+
+.meter-label {
+  grid-area: 1 / 2;
+  color: var(--card-muted);
+}
+
+/* A single compact action row, including the linked partner when present. */
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 5px;
+  min-height: 24px;
+  padding-top: 5px;
+  border-top: 1px solid var(--card-rule);
+}
+
+.action h3 {
+  flex: none;
+  color: var(--card-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.action-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  gap: 2px 4px;
+  font-size: 13.5px;
+}
+
+/* Picker. */
+
+.inspector-picker {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.picker-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px 16px;
+}
+
+.picker-head h2 {
+  font-size: 12px;
+}
+
+.picker-done {
+  min-height: 32px;
+}
+
+.picker-scroll {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.picker-scroll section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.picker-scroll ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 2px 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-item:hover {
+  background: #f3ecdf;
+}
+
+.picker-item[aria-pressed="true"] {
+  border-color: #aa9675;
+  background: #eee4d2;
+}
+
+.picker-swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgb(255 255 255 / 0.85);
+  border-radius: 50%;
+}
+
+.picker-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.picker-detail {
+  color: #696358;
+  font-size: 12px;
+}
+
+/* Only narrow viewports shrink the portrait; wide landscape retains the desktop proportions. */
+@media (max-width: 600px) {
+  .inspector-dock {
+    left: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: calc(100% - 24px);
+  }
+
+  .inspector-card {
+    --portrait: 68px;
+  }
+
+  .card-panel {
+    min-height: 0;
+    margin-left: 16px;
+    padding: 12px;
+    gap: 10px;
+    border-radius: 18px;
+  }
+
+  .card-portrait {
+    align-self: start;
+    margin: 12px 0 0;
+  }
+
+  /* Only identity sits beside the portrait; all following rows have the full panel width. */
+  .card-identity {
+    min-height: var(--portrait);
+    margin-left: calc(var(--portrait) - 8px);
+    gap: 5px;
+  }
+
+  .card-meta {
+    gap: 2px 8px;
+  }
+
+  .card-head {
+    padding-right: 20px;
+  }
+
+  .card-traits,
+  .tags {
+    gap: 5px;
+  }
+
+  .picker-scroll ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector-card {
+    animation: none;
+  }
+
+  .meter-fill,
+  .portrait {
+    transition: none;
+  }
+
+  .portrait-hit:hover + .portrait {
+    transform: none;
+  }
+}

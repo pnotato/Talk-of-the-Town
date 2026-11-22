@@ -59,11 +59,14 @@ Three categories. Each has a low tag and a high tag. No tag = average.
 - `chatty` is rare. A small minority does most of the sharing [13], [14].
 - Tag names are drafts *(design)*.
 
-## Special traits
+## Special tags
+
+The inspector separates these roles and statuses from the six personality tags above. Show them near the blob's name, alongside age, shape and family relationships *(design)*. This is a presentation grouping, not a new simulation field: `leader`, `recluse` and `family-oriented` remain existing trait tags. Parent / Child labels come from explicit family relationships, never age alone. Family and conversation portraits select the linked blob and move the camera to its current position.
 
 - **Parent / Child:** belongs to a family. A family has at least 1 adult and 1 child. Single parents are common [15].
   - Families share a shape. Tags are rolled per blob: personality is only ~40% inherited [16].
   - Children trust their parents most [4], [5].
+- **Family-oriented:** the existing `family-oriented` tag is shown with special tags, not personality tags. A family link supplies the more specific Parent / Child role.
 - **Recluse:** stays home. No in-person talking; social media only. Not more skeptical: loneliness links to *more* conspiracy belief [17].
 - **Leader:** 1 per shape. Stays a leader. `charismatic`. Shares news from outlets with their shape. Real opinion leaders are local and several, not one for the whole town [18].
 
