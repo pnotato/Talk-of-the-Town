@@ -35,6 +35,12 @@ type builder struct {
 	stats   buildStats
 	scratch routeScratch
 
+	// version counts accepted changes; roomAt caches hasRoom per node,
+	// valid while roomVer matches it.
+	version int
+	roomAt  []bool
+	roomVer []int
+
 	// Scratch for breadth-first searches, reset by bumping stamp.
 	seen  []uint32
 	depth []int32
@@ -238,6 +244,20 @@ func (b *builder) segmentOK(a, c Point, skipA, skipB int32) bool {
 		}
 	}
 	return true
+}
+
+// segmentRoom is how far a step stays inside its limits: the least of its
+// clearance from obstacles beyond Radius and from other nodes beyond MinSep.
+func (b *builder) segmentRoom(a, c Point, skipA, skipB int32) float64 {
+	room := b.obs.segDist(a, c) - b.p.Radius
+	mid := lerp(a, c, 0.5)
+	reach := dist(a, c)/2 + b.p.MinSep + room
+	for _, k := range b.ix.within(mid, reach, b.pts, nil) {
+		if k != skipA && k != skipB {
+			room = min(room, segPointDist(b.pts[k], a, c)-b.p.MinSep)
+		}
+	}
+	return room
 }
 
 // relink recomputes the neighbours of node i.

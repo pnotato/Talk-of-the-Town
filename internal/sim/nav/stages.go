@@ -48,7 +48,10 @@ func (b *builder) crossings() error {
 		}
 		slices.Reverse(lb)
 		line := append(la, lb...)
-		chain, ok := b.placeChain(line, na, nb)
+		chain, ok := b.placeChain(line, na, nb, b.p.Margin)
+		if !ok {
+			chain, ok = b.placeChain(line, na, nb, 0)
+		}
 		if !ok {
 			return fmt.Errorf("nav: crosswalk %d at %+v: no chain fits", ci, r)
 		}
@@ -153,7 +156,7 @@ func (b *builder) bridges() {
 				continue
 			}
 			limit := int(math.Ceil(pr.d/b.m.Spacing)) + hopSlack
-			if b.hops(pr.i, pr.j, limit) >= 0 {
+			if b.hops(pr.i, pr.j, limit) >= 0 || !b.hasRoom(pr.i) || !b.hasRoom(pr.j) {
 				continue
 			}
 			if b.bridge(pr.i, pr.j, limit) {
@@ -166,30 +169,92 @@ func (b *builder) bridges() {
 	}
 }
 
+// hasRoom reports whether a new node could go within one step of node i at
+// all: somewhere on walkable ground, Radius from obstacles and BridgeGap from
+// every node but Fill ones, which a bridge may clear. Every bridge method
+// adds a node in such a place next to one end of its pair (or links a
+// waypoint, whose own pair is tried too), so a pair is skipped unless both
+// ends have room. Cached per node until the graph next changes.
+func (b *builder) hasRoom(i int32) bool {
+	if n := len(b.pts); len(b.roomAt) < n {
+		b.roomAt = append(b.roomAt, make([]bool, n-len(b.roomAt))...)
+		b.roomVer = append(b.roomVer, slices.Repeat([]int{-1}, n-len(b.roomVer))...)
+	}
+	if b.roomVer[i] == b.version {
+		return b.roomAt[i]
+	}
+	b.roomVer[i] = b.version
+	b.roomAt[i] = false
+	c, r, step := b.pts[i], b.p.MaxEdge, b.p.Grid/2
+	for k := int(math.Ceil((c.Z - r) / step)); float64(k)*step <= c.Z+r; k++ {
+		for l := int(math.Ceil((c.X - r) / step)); float64(l)*step <= c.X+r; l++ {
+			q := Point{quantise(float64(l) * step), quantise(float64(k) * step)}
+			if dist(q, c) > r || b.nearestSolid(q, b.p.BridgeGap) < b.p.BridgeGap {
+				continue
+			}
+			if b.walk.contains(q) && b.obs.dist(q) >= b.p.Radius {
+				b.roomAt[i] = true
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// nearestSolid is nearestDist ignoring Fill nodes.
+func (b *builder) nearestSolid(p Point, limit float64) float64 {
+	d := limit
+	for _, id := range b.ix.within(p, limit, b.pts, nil) {
+		if b.kinds[id] != Fill {
+			d = min(d, dist(p, b.pts[id]))
+		}
+	}
+	return d
+}
+
 // bridge tries, in order: a routed chain; the same after clearing Fill nodes
 // off its path; one or two hand-placed points; the same after clearing the
 // pair's window of Fill nodes. Stand nodes are never removed.
 func (b *builder) bridge(i, j int32, limit int) bool {
 	line := b.bridgeRoute(i, j)
+	var kill []int32
 	if line != nil {
-		if b.tryChain(line, i, j, limit, nil) {
-			b.stats.routed++
-			return true
-		}
-		if kill := b.fillsNear(line, i, j); len(kill) > 0 && b.tryChain(line, i, j, limit, kill) {
-			b.stats.routedCleared++
-			b.stats.cleared += len(kill)
+		kill = b.fillsNear(line, i, j)
+		if b.routedBridge(line, i, j, limit, kill, b.p.Margin) {
+			b.version++
 			return true
 		}
 	}
 	if b.brute(i, j, limit, nil) {
+		b.version++
 		return true
 	}
-	if kill := b.fillsIn(b.window(i, j, brutePad), i, j); len(kill) > 0 && b.brute(i, j, limit, kill) {
-		b.stats.cleared += len(kill)
+	if k := b.fillsIn(b.window(i, j, brutePad), i, j); len(k) > 0 && b.brute(i, j, limit, k) {
+		b.stats.cleared += len(k)
+		b.version++
+		return true
+	}
+	// Last, a routed chain that may sit right at the limits.
+	if line != nil && b.routedBridge(line, i, j, limit, kill, 0) {
+		b.version++
 		return true
 	}
 	b.stats.failed++
+	return false
+}
+
+// routedBridge places a chain along a routed line, first as it is, then
+// after clearing the Fill nodes in kill off it.
+func (b *builder) routedBridge(line []Point, i, j int32, limit int, kill []int32, margin float64) bool {
+	if b.tryChain(line, i, j, limit, nil, margin) {
+		b.stats.routed++
+		return true
+	}
+	if len(kill) > 0 && b.tryChain(line, i, j, limit, kill, margin) {
+		b.stats.routedCleared++
+		b.stats.cleared += len(kill)
+		return true
+	}
 	return false
 }
 
@@ -235,13 +300,13 @@ func (b *builder) bridgeRoute(i, j int32) []Point {
 // tryChain places a chain along line, optionally after killing some Fill
 // nodes, and keeps it only if it links the pair, joins pieces rather than
 // splitting them, and leaves every touched node passable.
-func (b *builder) tryChain(line []Point, i, j int32, limit int, kill []int32) bool {
+func (b *builder) tryChain(line []Point, i, j int32, limit int, kill []int32, margin float64) bool {
 	before := b.components()
 	var cleared *change
 	if len(kill) > 0 {
 		cleared = b.apply(nil, Fill, kill)
 	}
-	chain, ok := b.placeChain(line, i, j)
+	chain, ok := b.placeChain(line, i, j, margin)
 	if ok {
 		ch := b.apply(chain, Bridge, nil)
 		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(ch) && (cleared == nil || b.keeps(cleared)) {
@@ -354,18 +419,33 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 		}
 	}
 
+	// The best bruteTries options, most slack first; ties keep the order
+	// found, so the pick is deterministic without sorting every option.
 	type option struct {
 		pts   []Point
 		slack float64
 	}
 	var opts []option
+	offer := func(s float64, pts ...Point) {
+		if len(opts) == bruteTries && s <= opts[len(opts)-1].slack {
+			return
+		}
+		k := len(opts)
+		for k > 0 && opts[k-1].slack < s {
+			k--
+		}
+		opts = slices.Insert(opts, k, option{pts, s})
+		if len(opts) > bruteTries {
+			opts = opts[:bruteTries]
+		}
+	}
 	for _, c := range ends[0] {
 		if dist(c.p, pj) > b.p.MaxEdge {
 			continue
 		}
 		if es := segSlack(c.p, pj, -1, j); es >= 0 {
 			if s := min(c.slack, es, passSlack(pi, c.p, pj)); s >= 0 {
-				opts = append(opts, option{[]Point{c.p}, s})
+				offer(s, c.p)
 			}
 		}
 	}
@@ -381,6 +461,9 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 					continue
 				}
 				s := min(p.slack, q.slack, d-b.p.BridgeGap)
+				if len(opts) == bruteTries && s <= opts[len(opts)-1].slack {
+					continue // can't make the list
+				}
 				if s = min(s, passSlack(pi, p.p, q.p), passSlack(p.p, q.p, pj)); s < 0 {
 					continue
 				}
@@ -390,13 +473,12 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 					continue
 				}
 				if ps := segSlack(p.p, q.p, -1, -1); ps >= 0 {
-					opts = append(opts, option{[]Point{p.p, q.p}, min(s, ps)})
+					offer(min(s, ps), p.p, q.p)
 				}
 			}
 		}
 	}
-	slices.SortStableFunc(opts, func(x, y option) int { return cmpFloat(y.slack, x.slack) })
-	for _, o := range opts[:min(len(opts), bruteTries)] {
+	for _, o := range opts {
 		ch := b.apply(o.pts, Bridge, nil)
 		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(ch) && (cleared == nil || b.keeps(cleared)) {
 			if len(o.pts) == 1 {

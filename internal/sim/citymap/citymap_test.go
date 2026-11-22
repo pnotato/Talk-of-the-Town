@@ -12,7 +12,10 @@ import (
 // cityFingerprint pins the real city's walk graph. It changes whenever the
 // city (make citymap) or the build changes; update it deliberately, after
 // looking at the new graph (TestSVG), and say why in the commit.
-const cityFingerprint = 0xdcd05acfc02273c2
+//
+// Last changed: chains try Params.Margin first, so the outer block corners
+// get roomier two-point bridges.
+const cityFingerprint = 0x34ba2bfb0e4cfd59
 
 func TestLoad(t *testing.T) {
 	m, err := Load()

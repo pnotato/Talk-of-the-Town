@@ -214,8 +214,10 @@ type chainCand struct {
 // and as close to ChainStep as it can, new nodes at least BridgeGap from any
 // other, every step passing the edge rule, and every new node letting a
 // queue walk through it. Existing nodes near the line may be used on the
-// way. It returns the new points in order, or false.
-func (b *builder) placeChain(line []Point, from, to int32) ([]Point, bool) {
+// way. Every limit a new node or its steps meet is raised by margin, so a
+// first try with Params.Margin keeps chains off the limits where there is
+// room. It returns the new points in order, or false.
+func (b *builder) placeChain(line []Point, from, to int32, margin float64) ([]Point, bool) {
 	cum := make([]float64, len(line))
 	for k := 1; k < len(line); k++ {
 		cum[k] = cum[k-1] + dist(line[k-1], line[k])
@@ -265,7 +267,7 @@ func (b *builder) placeChain(line []Point, from, to int32) ([]Point, bool) {
 			break
 		}
 		q := quantisePoint(pointAt(s))
-		if b.walk.contains(q) && b.obs.dist(q) >= b.p.Radius && b.nearestDist(q, b.p.BridgeGap) >= b.p.BridgeGap {
+		if b.walk.contains(q) && b.obs.dist(q) >= b.p.Radius+margin && b.nearestDist(q, b.p.BridgeGap) >= b.p.BridgeGap {
 			cands = append(cands, chainCand{q, s, -1})
 		}
 	}
@@ -285,12 +287,17 @@ func (b *builder) placeChain(line []Point, from, to int32) ([]Point, bool) {
 			if d > b.p.MaxEdge || d < b.p.MinSep {
 				continue
 			}
-			if (cands[i].id < 0 || cands[j].id < 0) && d < b.p.BridgeGap {
+			fresh := cands[i].id < 0 || cands[j].id < 0
+			if fresh && d < b.p.BridgeGap {
 				continue
 			}
-			if b.segmentOK(cands[i].p, cands[j].p, cands[i].id, cands[j].id) {
-				succ[i] = append(succ[i], j)
+			if !b.segmentOK(cands[i].p, cands[j].p, cands[i].id, cands[j].id) {
+				continue
 			}
+			if fresh && margin > 0 && b.segmentRoom(cands[i].p, cands[j].p, cands[i].id, cands[j].id) < margin {
+				continue
+			}
+			succ[i] = append(succ[i], j)
 		}
 	}
 
@@ -317,7 +324,7 @@ func (b *builder) placeChain(line []Point, from, to int32) ([]Point, bool) {
 				nc := cands[nx]
 				if c.id < 0 && st.prev >= 0 {
 					pp := cands[st.prev].p
-					if Swept(pp, c.p, c.p, nc.p) < b.p.MinSep || Swept(nc.p, c.p, c.p, pp) < b.p.MinSep {
+					if min(Swept(pp, c.p, c.p, nc.p), Swept(nc.p, c.p, c.p, pp)) < b.p.MinSep+margin {
 						continue
 					}
 				}
