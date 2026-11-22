@@ -26,6 +26,10 @@ import {
   type WalkArea,
 } from "./mapLayout.ts";
 
+// docs/MODEL.md: 53 homes dealt round-robin into 5 neighbourhoods.
+export const CITY_HOMES = 53;
+export const CITY_NEIGHBOURHOODS = 5;
+
 export const ROAD = 7; // two 3.5 lanes
 export const SIDEWALK = 2.5; // the paved edge of every block, inside its rectangle
 export const VEHICLE_LENGTH = 4.2;

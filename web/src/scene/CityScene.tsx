@@ -7,7 +7,7 @@ import { CityGrid } from "./CityGrid.tsx";
 import { CityGround } from "./CityGround.tsx";
 import { CityScreens } from "./CityScreens.tsx";
 import { CityStreetLife } from "./CityStreetLife.tsx";
-import { layoutCity } from "./layoutCity.ts";
+import { CITY_HOMES, CITY_NEIGHBOURHOODS, layoutCity } from "./layoutCity.ts";
 import { gatheringSpots } from "./mapLayout.ts";
 import { MapCamera } from "./MapCamera.tsx";
 import { MapLights } from "./MapLights.tsx";
@@ -15,10 +15,6 @@ import { RenderResolution } from "./RenderResolution.tsx";
 import { CROWD_SIZE, DEFAULT_CROWD_SEED, scatterCrowd } from "./scatterCrowd.ts";
 import { GROUND_RADIUS } from "./TownGround.tsx";
 import { TownTrees } from "./TownTrees.tsx";
-
-// docs/MODEL.md: 53 homes dealt round-robin into 5 neighbourhoods.
-const HOMES = 53;
-const NEIGHBOURHOODS = 5;
 
 const CLOSEST = 12;
 const LOWEST_TILT = MathUtils.degToRad(95); // a touch past level, to look up at the screens
@@ -42,8 +38,8 @@ interface Props {
  * them) until there is a sim to replay.
  */
 export default function CityScene({
-  homeCount = HOMES,
-  neighbourhoodCount = NEIGHBOURHOODS,
+  homeCount = CITY_HOMES,
+  neighbourhoodCount = CITY_NEIGHBOURHOODS,
   crowdSeed = DEFAULT_CROWD_SEED,
   showGrid = true,
 }: Props) {
