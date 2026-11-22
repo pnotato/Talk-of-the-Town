@@ -71,7 +71,12 @@ const (
 )
 
 // MODEL.md#social-media
-const PostReaders = 8
+const (
+	PostReaders = 8
+	// ScrollChance is each blob's chance per round to scroll social media when it does not talk
+	// or post. MODEL.md#scrolling: about 8% of the town reads a post.
+	ScrollChance = 0.08
+)
 
 // MODEL.md#decay
 const (
@@ -93,6 +98,14 @@ type blobState struct {
 	sources map[int]bool
 }
 
+// feedPost is one story as it appeared on social media this story cycle: who posted it, the
+// claim their readers get, and the tone that claim carries.
+type feedPost struct {
+	from  int
+	claim float64
+	tone  float64
+}
+
 // State is a run in progress. Scores are float64 per MODEL.md#interactions.
 type State struct {
 	Town        Town
@@ -102,6 +115,7 @@ type State struct {
 	brain       Brain
 	blobs       []blobState
 	parentOf    map[[2]int]bool // {parent, child}; lookups only
+	feed        []feedPost      // posts this story cycle, oldest first; MODEL.md#scrolling
 }
 
 // NewState starts a run on town. The town is not modified.
@@ -129,6 +143,9 @@ func (s *State) announce(claimed float64, rng *rand.Rand) {
 		s.blobs[i].hasHeard, s.blobs[i].heard = false, 0
 		s.blobs[i].sources = map[int]bool{}
 	}
+	// Old stories live on only in perception, interest and credibility, so their posts leave the
+	// feed at the same moment their claims leave the blobs' heads.
+	s.feed = s.feed[:0]
 	tone := 50 + claimed/2
 	for i, b := range s.Town.Blobs {
 		if hasTrait(b, TraitLeader) || rng.Float64() < DirectReach {
@@ -325,15 +342,16 @@ func (s *State) readers(sp int, rng *rand.Rand) []int {
 	return pool[:n]
 }
 
-// RunEvent is one talk (one listener) or post (several readers). JSON keys are
-// short because the whole log goes to the browser.
+// RunEvent is one talk (one listener), one post (several readers) or one scroll (one reader of
+// an older post). JSON keys are short because the whole log goes to the browser.
 type RunEvent struct {
-	From  int       `json:"f"`
-	To    []int     `json:"to"`
-	Post  bool      `json:"p"`
-	Claim float64   `json:"c"`  // strength told, 0–100
-	DP    []float64 `json:"dp"` // perception change per To, same order
-	DI    []float64 `json:"di"` // interest change per To, same order
+	From   int       `json:"f"`
+	To     []int     `json:"to"`
+	Post   bool      `json:"p"`
+	Scroll bool      `json:"s,omitempty"` // true for a scroll: From read To[0]'s post
+	Claim  float64   `json:"c"`           // strength told, 0–100
+	DP     []float64 `json:"dp"`          // perception change per To, same order
+	DI     []float64 `json:"di"`          // interest change per To, same order
 }
 
 // Round is one played round. Perception/Interest are indexed by blob id,
@@ -375,39 +393,11 @@ func round1(x float64) float64 { return math.Round(x*10) / 10 }
 func (s *State) Step(rng *rand.Rand) Round {
 	r := Round{Index: s.Round, Events: []RunEvent{}, Paths: [][]int{}}
 	for i, B := range s.Town.Blobs {
-		b := s.blobs[i]
-		if !b.hasHeard || rng.Float64() >= s.pActive(i) {
-			continue
+		acted := s.act(i, B, &r, rng)
+		// A blob that did nothing this round may scroll social media instead. MODEL.md#scrolling.
+		if !acted && rng.Float64() < ScrollChance {
+			s.scroll(i, &r, rng)
 		}
-		post := hasTrait(B, TraitRecluse)
-		if !post && B.Age >= NoPostAge {
-			post = rng.Float64() < pPost(B.Age)
-		}
-		ch, to := ChannelTalk, []int{}
-		if post {
-			ch, to = ChannelPost, s.readers(i, rng)
-		} else {
-			p := s.partner(i, rng)
-			if p < 0 {
-				// Nobody to talk to (only self and recluses): idle. Draws already made stay made.
-				continue
-			}
-			to = []int{p}
-		}
-		listener := NoListener
-		if !post {
-			listener = to[0]
-		}
-		c := s.brain.Retell(Retelling{Teller: i, Listener: listener, TellerPerception: b.perception, Heard: b.heard, Channel: ch}).Strength
-		tone := retellTone(b.perception, c)
-		e := RunEvent{From: i, To: to, Post: post, Claim: round1(c), DP: []float64{}, DI: []float64{}}
-		for _, l := range to {
-			p0, i0 := s.blobs[l].perception, s.blobs[l].interest
-			s.hear(l, i, c, tone, ch)
-			e.DP = append(e.DP, round1(s.blobs[l].perception-p0))
-			e.DI = append(e.DI, round1(s.blobs[l].interest-i0))
-		}
-		r.Events = append(r.Events, e)
 	}
 	n := float64(len(s.blobs))
 	for i := range s.blobs {
@@ -421,4 +411,82 @@ func (s *State) Step(rng *rand.Rand) Round {
 	r.AvgPerception, r.AvgInterest = round1(r.AvgPerception), round1(r.AvgInterest)
 	s.Round++
 	return r
+}
+
+// act gives blob i its turn and reports whether it talked or posted. A blob that has heard
+// nothing, or that draws idle, or that finds nobody to talk to, does not act and may scroll.
+func (s *State) act(i int, B Blob, r *Round, rng *rand.Rand) bool {
+	b := s.blobs[i]
+	if !b.hasHeard || rng.Float64() >= s.pActive(i) {
+		return false
+	}
+	posting := hasTrait(B, TraitRecluse)
+	if !posting && B.Age >= NoPostAge {
+		posting = rng.Float64() < pPost(B.Age)
+	}
+	ch, to := ChannelTalk, []int{}
+	if posting {
+		ch, to = ChannelPost, s.readers(i, rng)
+	} else {
+		p := s.partner(i, rng)
+		if p < 0 {
+			// Nobody to talk to (only self and recluses): idle. Draws already made stay made.
+			return false
+		}
+		to = []int{p}
+	}
+	listener := NoListener
+	if !posting {
+		listener = to[0]
+	}
+	c := s.brain.Retell(Retelling{Teller: i, Listener: listener, TellerPerception: b.perception, Heard: b.heard, Channel: ch}).Strength
+	tone := retellTone(b.perception, c)
+	e := RunEvent{From: i, To: to, Post: posting, Claim: round1(c), DP: []float64{}, DI: []float64{}}
+	for _, l := range to {
+		p0, i0 := s.blobs[l].perception, s.blobs[l].interest
+		s.hear(l, i, c, tone, ch)
+		e.DP = append(e.DP, round1(s.blobs[l].perception-p0))
+		e.DI = append(e.DI, round1(s.blobs[l].interest-i0))
+	}
+	r.Events = append(r.Events, e)
+	if posting {
+		s.feed = append(s.feed, feedPost{from: i, claim: c, tone: tone})
+	}
+	return true
+}
+
+// scroll has blob i read one post from this story's feed, drawn uniformly among those by other
+// blobs. It does nothing when the feed has no such post. MODEL.md#scrolling.
+func (s *State) scroll(i int, r *Round, rng *rand.Rand) {
+	eligible := 0
+	for _, p := range s.feed {
+		if p.from != i {
+			eligible++
+		}
+	}
+	if eligible == 0 {
+		return
+	}
+	k := rng.IntN(eligible)
+	var chosen feedPost
+	for _, p := range s.feed {
+		if p.from == i {
+			continue
+		}
+		if k == 0 {
+			chosen = p
+			break
+		}
+		k--
+	}
+	p0, i0 := s.blobs[i].perception, s.blobs[i].interest
+	s.hear(i, chosen.from, chosen.claim, chosen.tone, ChannelPost)
+	r.Events = append(r.Events, RunEvent{
+		From:   i,
+		To:     []int{chosen.from},
+		Scroll: true,
+		Claim:  round1(chosen.claim),
+		DP:     []float64{round1(s.blobs[i].perception - p0)},
+		DI:     []float64{round1(s.blobs[i].interest - i0)},
+	})
 }

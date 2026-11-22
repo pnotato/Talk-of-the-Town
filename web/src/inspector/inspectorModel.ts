@@ -6,7 +6,7 @@ import type { Mood } from "../scene/blobMood.ts";
 
 /** What a blob is doing right now, as reported by the scene. */
 export type BlobActivity = {
-  state: "idle" | "talking" | "listening" | "posting" | "walking";
+  state: "idle" | "talking" | "listening" | "posting" | "scrolling" | "walking";
   mood: Mood;
   partnerId?: number;
   /** The blob's live scores, when the scene knows them (the city run does). */
@@ -53,6 +53,7 @@ const ACTIVITY_TEXT: Record<BlobActivity["state"], string> = {
   talking: "Talking",
   listening: "Listening",
   posting: "Posting to social media",
+  scrolling: "Scrolling social media",
   walking: "Walking",
 };
 
