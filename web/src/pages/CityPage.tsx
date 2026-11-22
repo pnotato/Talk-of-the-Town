@@ -1,26 +1,169 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { RunLog } from "../generated/types.ts";
+import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
-import { DEFAULT_CROWD_SEED } from "../scene/scatterCrowd.ts";
 import "./cityPage.css";
 
+const FIRST_SEED = 1;
+const SPEEDS = [1, 2, 4] as const;
+// A run asks for one announcement every 10 rounds, so a server still asking after this many is
+// broken; stop rather than ask forever.
+const MAX_ANNOUNCEMENTS = 50;
+
+const UNREACHABLE = "Can't reach the sim server. Start it with make dev.";
+
+/** The server answered, but refused the run; the message says why. */
+class RunRefused extends Error {}
+
+/**
+ * Plays the run for `seed` to the end, the way the newsroom will: POST the choices so far, and
+ * while the sim stops at an announcement with no choice yet, pick one and ask again. Until the
+ * newsroom exists, it always picks the first option.
+ */
+async function fetchRun(seed: number, signal: AbortSignal): Promise<RunLog> {
+  const choices: string[] = [];
+  while (choices.length <= MAX_ANNOUNCEMENTS) {
+    const response = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seed, choices }),
+      signal,
+    });
+    // The Vite proxy answers 5xx when the Go server is down.
+    if (response.status >= 400 && response.status < 500) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new RunRefused(body.error ?? `HTTP ${response.status}`);
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const run = (await response.json()) as RunLog;
+    if (run.next === null) return run;
+    choices.push(run.next.options[0].id);
+  }
+  throw new RunRefused("the sim kept asking for announcements");
+}
+
+type Result = { key: string; run: RunLog } | { key: string; error: string };
+
+/**
+ * The city replaying a simulated run: the town walks the streets as the sim moved it, and moods
+ * change as each round's talk lands. Fetches the run for the seed, then plays it.
+ */
 export default function CityPage() {
-  const [seed, setSeed] = useState(DEFAULT_CROWD_SEED);
+  const reduceMotion = useReducedMotion();
+  const [seed, setSeed] = useState(FIRST_SEED);
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<Result | null>(null);
+  const [playing, setPlaying] = useState(!reduceMotion);
+  const [ended, setEnded] = useState(false);
+  const [speed, setSpeed] = useState<number>(1);
+  const [round, setRound] = useState(0);
   const [grid, setGrid] = useState(true);
+
+  useEffect(() => {
+    const key = `${seed}/${attempt}`;
+    const controller = new AbortController();
+    fetchRun(seed, controller.signal).then(
+      (run) => {
+        if (!controller.signal.aborted) setResult({ key, run });
+      },
+      (error: unknown) => {
+        if (controller.signal.aborted) return;
+        const message =
+          error instanceof RunRefused ? `The sim server refused the run: ${error.message}` : null;
+        setResult({ key, error: message ?? UNREACHABLE });
+      },
+    );
+    return () => controller.abort();
+  }, [seed, attempt]);
+
+  // Until the result for this seed and attempt arrives, the page is loading.
+  const current = result?.key === `${seed}/${attempt}` ? result : null;
+  const run = current && "run" in current ? current.run : null;
+  const error = current && "error" in current ? current.error : null;
+
+  const handleEnd = useCallback(() => {
+    setPlaying(false);
+    setEnded(true);
+  }, []);
+  const togglePlay = () => {
+    setEnded(false);
+    setPlaying((p) => ended || !p);
+  };
+  const newSeed = () => {
+    setSeed((s) => s + 1);
+    setRound(0);
+    setEnded(false);
+    setPlaying(!reduceMotion);
+  };
+
+  const headline = run?.moments.findLast((m) => m.round <= round)?.headline;
 
   return (
     <section aria-label="City" style={{ position: "relative", height: "100%" }}>
-      <CityScene crowdSeed={seed} showGrid={grid} />
-      <div className="city-controls" role="group" aria-label="Placeholder crowd">
-        <button type="button" className="city-button" onClick={() => setSeed((s) => s + 1)}>
-          Shuffle crowd
-        </button>
-        <span className="city-seed" aria-live="polite">
-          Seed {seed}
-        </span>
-        <label className="city-toggle">
-          <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} />
-          Grid
-        </label>
+      <CityScene
+        run={run}
+        playing={playing}
+        speed={speed}
+        showGrid={grid}
+        onRound={setRound}
+        onEnd={handleEnd}
+      />
+      {!current && (
+        <p role="status" className="city-notice">
+          Simulating…
+        </p>
+      )}
+      {error && (
+        <div role="alert" className="city-notice">
+          <span>{error}</span>
+          <button type="button" className="city-button" onClick={() => setAttempt((a) => a + 1)}>
+            Retry
+          </button>
+        </div>
+      )}
+      <div className="city-hud">
+        {run && (
+          <p className="city-news">
+            {headline && (
+              <>
+                <strong>News:</strong> {headline}
+                <br />
+              </>
+            )}
+            <span className="city-news-note">
+              Announcements are auto-picked (the first option) until the newsroom exists.
+            </span>
+          </p>
+        )}
+        <div className="city-controls" role="group" aria-label="Replay">
+          <button type="button" className="city-button" disabled={!run} onClick={togglePlay}>
+            {ended ? "Replay" : playing ? "Pause" : "Play"}
+          </button>
+          <span className="city-seed" aria-live="polite">
+            {run ? `Round ${round + 1} / ${run.rounds.length}` : ""}
+          </span>
+          <span className="city-speeds" role="group" aria-label="Speed">
+            {SPEEDS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className="city-speed"
+                aria-pressed={speed === s}
+                onClick={() => setSpeed(s)}
+              >
+                {s}×
+              </button>
+            ))}
+          </span>
+          <button type="button" className="city-button" onClick={newSeed}>
+            New seed
+          </button>
+          <span className="city-seed">Seed {seed}</span>
+          <label className="city-toggle">
+            <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} />
+            Grid
+          </label>
+        </div>
       </div>
     </section>
   );

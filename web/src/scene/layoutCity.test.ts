@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  CROSSWALK,
   type CityLayout,
   DOOR_WIDTH,
   DOORSTEP,
@@ -11,6 +12,7 @@ import {
   SIDEWALK,
   VEHICLE_LENGTH,
   VEHICLE_WIDTH,
+  walkingObstacles,
 } from "./layoutCity.ts";
 import { TREE_RADIUS } from "./layoutTown.ts";
 import {
@@ -238,6 +240,42 @@ describe("layoutCity", () => {
     }
   });
 
+  test("53 homes in 5 districts: 24 crosswalks over the roads either side of the plaza", () => {
+    // [minX, maxX, minZ, maxZ, axis]: road by road, along each road from its near end.
+    const alongZ = [
+      [-36.4, -34],
+      [-22, -19.6],
+      [-11.4, -9],
+      [9, 11.4],
+      [19.6, 22],
+      [34, 36.4],
+    ];
+    const alongX = [
+      [-53.4, -51],
+      [-33, -30.6],
+      [-22.4, -20],
+      [20, 22.4],
+      [30.6, 33],
+      [51, 53.4],
+    ];
+    const expected: { rect: number[]; axis: string }[] = [
+      ...alongZ.map(([minZ, maxZ]) => ({ rect: [-30, -23, minZ, maxZ], axis: "x" })),
+      ...alongX.map(([minX, maxX]) => ({ rect: [minX, maxX, -19, -12], axis: "z" })),
+      ...alongZ.map(([minZ, maxZ]) => ({ rect: [23, 30, minZ, maxZ], axis: "x" })),
+      ...alongX.map(([minX, maxX]) => ({ rect: [minX, maxX, 12, 19], axis: "z" })),
+    ];
+    const { crosswalks } = layoutCity(53, 5);
+    assert.equal(crosswalks.length, 24);
+    crosswalks.forEach((c, i) => {
+      const r = rect(c.x, c.z, c.width, c.depth);
+      assert.equal(c.axis, expected[i].axis, `crosswalk ${i} axis`);
+      [r.minX, r.maxX, r.minZ, r.maxZ].forEach((got, k) => {
+        const want = expected[i].rect[k];
+        assert.ok(Math.abs(got - want) < EPS, `crosswalk ${i}: ${got} != ${want}`);
+      });
+    });
+  });
+
   test("rejects counts that are not whole numbers or have no neighbourhood", () => {
     assert.throws(() => layoutCity(-1, 5), RangeError);
     assert.throws(() => layoutCity(10.5, 5), RangeError);
@@ -355,6 +393,19 @@ describe("layoutCity", () => {
         }
       });
 
+      test("a walking blob goes round lamps, trees, buildings and kiosks, not doorsteps", () => {
+        const walking = walkingObstacles(city);
+        // The standing obstacles bar the doorsteps: lamps, trees, buildings, then furniture.
+        const expected = ["lamp", "tree", "building", "kiosk"].flatMap((what) =>
+          obstaclesOf(city).filter((o) => o.what === what),
+        );
+        assert.equal(
+          walking.length,
+          city.lamps.length + city.trees.length + buildings.length + furniture.length,
+        );
+        assert.deepEqual(walking, expected);
+      });
+
       test("no cell is on a road, and areas never overlap", () => {
         const spots = gatheringSpots(city.gathering);
         for (const p of spots) {
@@ -415,6 +466,35 @@ describe("layoutCity", () => {
           for (const j of junctions) assert.ok(gap(v, j) >= 1, `vehicle ${i} blocks a junction`);
           for (let k = i + 1; k < vehicles.length; k++) {
             assert.ok(gap(v, vehicles[k]) >= 0.5, `vehicles ${i} and ${k} touch`);
+          }
+        });
+      });
+
+      test("crosswalks cross inner roads kerb to kerb, clear of every vehicle", () => {
+        const b = city.bounds;
+        for (const c of city.crosswalks) {
+          const r = rect(c.x, c.z, c.width, c.depth);
+          const road = roads.find((road) => contains(road, r));
+          assert.ok(road, "a crosswalk is off the roads");
+          if (c.axis === "x") {
+            assert.ok(road.maxZ - road.minZ > road.maxX - road.minX, "crossed along its length");
+            assert.equal(r.minX, road.minX);
+            assert.equal(r.maxX, road.maxX);
+            assert.ok(Math.abs(r.maxZ - r.minZ - CROSSWALK) < EPS);
+            assert.ok(road.minX > b.minX && road.maxX < b.maxX, "a crosswalk on the ring road");
+          } else {
+            assert.ok(road.maxX - road.minX > road.maxZ - road.minZ, "crossed along its length");
+            assert.equal(r.minZ, road.minZ);
+            assert.equal(r.maxZ, road.maxZ);
+            assert.ok(Math.abs(r.maxX - r.minX - CROSSWALK) < EPS);
+            assert.ok(road.minZ > b.minZ && road.maxZ < b.maxZ, "a crosswalk on the ring road");
+          }
+        }
+        // Parked cars keep PARK_CLEAR off a junction and the queue stops short of the crossing.
+        vehicles.forEach((v, i) => {
+          for (const c of city.crosswalks) {
+            const g = gap(v, rect(c.x, c.z, c.width, c.depth));
+            assert.ok(g >= 0.5 - EPS, `vehicle ${i} is ${g.toFixed(2)} from a crosswalk`);
           }
         });
       });

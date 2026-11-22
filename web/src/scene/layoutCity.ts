@@ -2,10 +2,11 @@
 // No three.js, DOM, Math.random or clock, so the same counts always give the same city.
 //
 // A grid of blocks with a plaza island in the middle cell, every block ringed by a sidewalk
-// and every gap a road. The plaza is an open square of paving, a kiosk in each of its north
-// corners. Districts (neighbourhoods) take whole blocks of apartment buildings, one door per
-// home onto the sidewalk; the other blocks are offices and shops. Big screens on the buildings
-// round the plaza face into it and towards the default camera, which looks north from the south.
+// and every gap a road, crossed by a zebra where it leaves a junction. The plaza is an open
+// square of paving, a kiosk in each of its north corners. Districts (neighbourhoods) take whole
+// blocks of apartment buildings, one door per home onto the sidewalk; the other blocks are
+// offices and shops. Big screens on the buildings round the plaza face into it and towards the
+// default camera, which looks north from the south.
 //
 // Blobs can walk and stand on the plaza, the park south of it, and the sidewalks of every block
 // across a road from it (the gathering's areas), never on a road.
@@ -25,6 +26,10 @@ import {
   type WalkArea,
 } from "./mapLayout.ts";
 
+// docs/MODEL.md: 53 homes dealt round-robin into 5 neighbourhoods.
+export const CITY_HOMES = 53;
+export const CITY_NEIGHBOURHOODS = 5;
+
 export const ROAD = 7; // two 3.5 lanes
 export const SIDEWALK = 2.5; // the paved edge of every block, inside its rectangle
 export const VEHICLE_LENGTH = 4.2;
@@ -33,6 +38,10 @@ export const SETBACK = 1.5; // how far a tall building's upper floors step in
 export const DOOR_WIDTH = 1.1;
 /** Blobs keep their reach from a doorstep this deep in front of every door, so none blocks it. */
 export const DOORSTEP = 1;
+/** Depth of a zebra crossing along its road. */
+export const CROSSWALK = 2.4;
+/** A zebra crossing starts this far out from the junction it leaves. */
+export const CROSSWALK_GAP = 0.6;
 
 const BLOCK_X = 24;
 const BLOCK_Z = 18;
@@ -108,6 +117,18 @@ export interface CityVehicle extends Point {
   kind: "taxi" | "car" | "van";
 }
 
+/** A zebra crossing: a strip across a road, kerb to kerb, CROSSWALK deep. */
+export interface CityCrosswalk extends CityRect {
+  /** The way a pedestrian walks over it. */
+  axis: "x" | "z";
+}
+
+/** Something a blob walking the city must go round, and what it is. */
+export interface CityObstacle {
+  what: "lamp" | "tree" | "building" | FurnitureKind;
+  obstacle: Obstacle;
+}
+
 export interface CityPlaza extends CityRect {
   /** The paving: the whole island, as a rectangle. */
   outline: Point[];
@@ -121,6 +142,8 @@ export interface CityLayout extends MapLayout {
   buildings: CityBuilding[];
   /** Axis-aligned strips of roadway; they overlap at junctions. */
   roads: CityRect[];
+  /** Road by road, and along each road from its near end. */
+  crosswalks: CityCrosswalk[];
   screens: ScreenPanel[];
   tickers: TickerStrip[];
   furniture: CityFurniture[];
@@ -329,27 +352,23 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     maxZ: cellRect([0, rings]).maxZ + ROAD,
   };
   const roads = layoutRoads(rings, cellRect, extent);
+  const crosswalks = layoutCrosswalks(roads, extent);
   const vehicles = parkVehicles(
     [...blocks.map((rect) => ({ rect, busy: false })), { rect: plaza.island, busy: true }],
     random,
   );
   queueAtCrossings(plaza.island, vehicles, random);
   const trees = [...parkTrees, ...plantTrees(extent, random)];
+  const lampPosts = [...lamps, ...plaza.lamps];
+  const walking = walkingObstacles({
+    lamps: lampPosts,
+    trees,
+    buildings,
+    furniture: plaza.furniture,
+  });
+  // A standing blob also keeps clear of every doorstep, which a walking one may cross.
   const gathering = walkableAreas(plaza, parks, plazaBlocks, [
-    ...plaza.furniture.map(({ x, z, width, depth, rotationY }) => ({
-      kind: "box" as const,
-      ...{ x, z, width, depth, rotationY },
-    })),
-    ...[...lamps, ...plaza.lamps].map((l) => ({
-      kind: "disc" as const,
-      ...l,
-      radius: LAMP_RADIUS,
-    })),
-    ...trees.map((t) => ({ kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
-    ...buildings.map(({ x, z, width, depth }) => ({
-      kind: "box" as const,
-      ...{ x, z, width, depth, rotationY: 0 },
-    })),
+    ...walking.map((o) => o.obstacle),
     ...homes.map((h) => ({
       kind: "box" as const,
       x: h.door.x + (Math.sin(h.facing) * DOORSTEP) / 2,
@@ -453,13 +472,40 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     parks,
     buildings,
     roads,
+    crosswalks,
     screens,
     tickers,
     furniture: plaza.furniture,
-    lamps: [...lamps, ...plaza.lamps],
+    lamps: lampPosts,
     vehicles,
     trees,
   };
+}
+
+/**
+ * What a blob walking the city must go round: lamp posts, tree canopies, building walls and
+ * plaza furniture, in that order. Not doorsteps: a blob may walk past a door, it just never
+ * stands in front of one.
+ */
+export function walkingObstacles(
+  city: Pick<CityLayout, "lamps" | "trees" | "buildings" | "furniture">,
+): CityObstacle[] {
+  const box = ({ x, z, width, depth }: CityRect, rotationY: number): Obstacle => ({
+    kind: "box",
+    ...{ x, z, width, depth, rotationY },
+  });
+  return [
+    ...city.lamps.map(({ x, z }): CityObstacle => ({
+      what: "lamp",
+      obstacle: { kind: "disc", x, z, radius: LAMP_RADIUS },
+    })),
+    ...city.trees.map(({ x, z, size }): CityObstacle => ({
+      what: "tree",
+      obstacle: { kind: "disc", x, z, radius: TREE_RADIUS * size },
+    })),
+    ...city.buildings.map((b): CityObstacle => ({ what: "building", obstacle: box(b, 0) })),
+    ...city.furniture.map((f): CityObstacle => ({ what: f.kind, obstacle: box(f, f.rotationY) })),
+  ];
 }
 
 // A canyon round the plaza, tallest at the news tower; low to the south, where the default
@@ -761,6 +807,40 @@ function layoutRoads(rings: number, cellRect: (cell: Cell) => Rect, extent: Rect
   return roads;
 }
 
+/** The stretches of a road between the junctions along it, as [from, to] along its length. */
+export function roadStretches(road: CityRect, roads: CityRect[]): [number, number][] {
+  const vertical = road.depth > road.width;
+  const along = (r: CityRect): [number, number] =>
+    vertical ? [r.z - r.depth / 2, r.z + r.depth / 2] : [r.x - r.width / 2, r.x + r.width / 2];
+  const junctions = roads
+    .filter((r) => r.depth > r.width !== vertical)
+    .map(along)
+    .sort((a, b) => a[0] - b[0]);
+  return junctions.slice(1).map(([from], k) => [junctions[k][1], from]);
+}
+
+// A zebra crossing across each road where it leaves a junction, but not on the outer ring
+// road, which leads nowhere.
+function layoutCrosswalks(roads: CityRect[], extent: Rect): CityCrosswalk[] {
+  return roads.flatMap((road) => {
+    const vertical = road.depth > road.width;
+    const outer = vertical
+      ? road.x - road.width / 2 <= extent.minX || road.x + road.width / 2 >= extent.maxX
+      : road.z - road.depth / 2 <= extent.minZ || road.z + road.depth / 2 >= extent.maxZ;
+    if (outer) return [];
+    return roadStretches(road, roads).flatMap(([a, b]) =>
+      [
+        [a + CROSSWALK_GAP, a + CROSSWALK_GAP + CROSSWALK],
+        [b - CROSSWALK_GAP - CROSSWALK, b - CROSSWALK_GAP],
+      ].map(([from, to]): CityCrosswalk =>
+        vertical
+          ? { x: road.x, z: (from + to) / 2, width: road.width, depth: to - from, axis: "x" }
+          : { x: (from + to) / 2, z: road.z, width: to - from, depth: road.depth, axis: "z" },
+      ),
+    );
+  });
+}
+
 // Cars along the kerbs: now and then on a quiet street, nose to tail round the plaza and
 // mostly taxis there. All clear of the junctions (and their crossings) and of each other.
 function parkVehicles(
@@ -833,7 +913,7 @@ function vehicleRect(v: CityVehicle): Rect {
 function queueAtCrossings(plaza: CityRect, vehicles: CityVehicle[], random: () => number) {
   const halfX = plaza.width / 2;
   const halfZ = plaza.depth / 2;
-  const stop = 0.6 + 2.4 + 0.6 + VEHICLE_LENGTH / 2; // past the junction's crossing
+  const stop = CROSSWALK_GAP + CROSSWALK + 0.6 + VEHICLE_LENGTH / 2; // past the junction's crossing
   const lane = ROAD * 0.75;
   const waiting: CityVehicle[] = [];
   for (const side of [-1, 1]) {
