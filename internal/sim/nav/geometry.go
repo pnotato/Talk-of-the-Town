@@ -318,12 +318,3 @@ func (ix *nodeIndex) within(p Point, r float64, pts []Point, out []int32) []int3
 	slices.Sort(out[start:])
 	return out
 }
-
-// sweptDist is the closest two blobs come when one walks a0->a1 while the
-// other walks b0->b1 over the same tick, both at constant speed.
-func sweptDist(a0, a1, b0, b1 Point) float64 {
-	// Their offset is d0 + t*(d1-d0) for t in [0, 1].
-	d0 := Point{b0.X - a0.X, b0.Z - a0.Z}
-	d1 := Point{b1.X - a1.X, b1.Z - a1.Z}
-	return segPointDist(Point{}, d0, d1)
-}
