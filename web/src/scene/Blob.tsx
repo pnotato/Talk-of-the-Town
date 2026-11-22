@@ -143,6 +143,13 @@ type BlobProps = {
   position: Vector3Tuple;
   /** Which way the blob faces, in radians about y; 0 faces +z. */
   yaw?: number;
+  /**
+   * For a parent that moves the blob itself, such as a replay: it mutates this one object every
+   * frame, before the blob's own frame runs. The blob then stands exactly at (x, z), with no
+   * easing that could lag it into a neighbour, and only turns towards `yaw`. `position` and
+   * `yaw` only place it at first.
+   */
+  drive?: { x: number; z: number; yaw: number };
   /** Draw the selection ring on the ground around the blob. */
   selected?: boolean;
   /**
@@ -168,6 +175,7 @@ export default function Blob({
   idle = false,
   position,
   yaw = 0,
+  drive,
   selected = false,
   onSelect,
 }: BlobProps) {
@@ -219,17 +227,24 @@ export default function Blob({
     if (!root.current || !body.current || !mouth.current || !material.current) return;
     const t = clock.elapsedTime + phaseFor(id);
 
-    // Walk towards the target position and turn towards the target yaw.
+    // Walk towards the target position, or stand where the parent drives it, and turn towards
+    // the target yaw.
     const r = root.current;
-    const g = goal.current;
-    g.x = ease(g.x, position[0], WALK_RATE, delta, reduceMotion);
-    g.z = ease(g.z, position[2], WALK_RATE, delta, reduceMotion);
     const x = r.position.x;
     const z = r.position.z;
-    r.position.x = ease(x, g.x, WALK_RATE, delta, reduceMotion);
-    r.position.z = ease(z, g.z, WALK_RATE, delta, reduceMotion);
+    if (drive) {
+      r.position.x = drive.x;
+      r.position.z = drive.z;
+    } else {
+      const g = goal.current;
+      g.x = ease(g.x, position[0], WALK_RATE, delta, reduceMotion);
+      g.z = ease(g.z, position[2], WALK_RATE, delta, reduceMotion);
+      r.position.x = ease(x, g.x, WALK_RATE, delta, reduceMotion);
+      r.position.z = ease(z, g.z, WALK_RATE, delta, reduceMotion);
+    }
     const speed = delta > 0 ? Math.hypot(r.position.x - x, r.position.z - z) / delta : 0;
-    const turn = Math.atan2(Math.sin(yaw - r.rotation.y), Math.cos(yaw - r.rotation.y));
+    const facing = drive ? drive.yaw : yaw;
+    const turn = Math.atan2(Math.sin(facing - r.rotation.y), Math.cos(facing - r.rotation.y));
     r.rotation.y += turn - ease(turn, 0, WALK_RATE, delta, reduceMotion);
 
     const a = animation.current;
