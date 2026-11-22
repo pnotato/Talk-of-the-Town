@@ -1,5 +1,8 @@
 # Load .env (server-side settings) if present and export to child processes.
 -include .env
+# Where the server writes each finished run's log; .env or the shell can
+# override it, and an empty value writes nothing.
+RUNS_DIR ?= runs/scratch
 export
 
 .PHONY: dev server web build test check fmt types citymap
