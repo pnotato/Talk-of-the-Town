@@ -46,7 +46,7 @@ time, and it decides who gives way by priority.
 
 PIBT needs to know, for any node, how far it is from a blob's goal. We work
 this out once: `FromEdges` runs a breadth-first search from every node and
-stores the hop counts in an `n × n` table of `uint16` (1,022 nodes take about
+stores the hop counts in an `n × n` table of `uint16` (1,024 nodes take about
 2 MB; `65535` means unreachable).
 
 Because the table is exact, "closer to the goal" is always really closer.
@@ -153,7 +153,7 @@ into the follower's path. A blob may follow round any turn up to about 96°
 120° turn, so the table rejects that too (`TestStepRefusesTriangleRotation`).
 
 **The table.** Every possible move gets an integer id: one "stay" per node and
-one per directed edge (6,904 moves on the 1,022-node test graph).
+one per directed edge (6,914 moves on the 1,024-node test graph).
 `FromEdges` computes, once, the sorted list of moves each move conflicts with
 (about 16 each). It only compares moves whose start nodes are within
 `2 × longest edge + MinSep` of each other, using a coarse bucket grid.
@@ -194,33 +194,50 @@ table.
 
 The PIBT papers prove that every agent eventually reaches its goal when
 priorities grow while an agent waits, and when every edge lies on a cycle.
-Our graph has dead ends and 1-wide corridors, so we add two conditions:
+Our graph has dead ends, 1-wide corridors and pocket corners, so we add two
+conditions. Both are enforced in one place: goals must be nodes that
+`Graph.GoalOK` accepts.
 
-1. **Goals are in the 2-core.** The 2-core is what remains after repeatedly
-   removing nodes with at most one neighbour, so dead-end spurs are left
-   out. Two blobs inside a dead end, each wanting the other's spot, can never
-   move: they cannot swap, and there is no room to step aside
-   (`TestStepWedgesOnDeadEndGoals`). Blobs may still be pushed into a spur;
-   they come back out because their goals are elsewhere.
+1. **Goals are in the 2-core, and are not pocket corners.**
+   - The 2-core is what remains after repeatedly removing nodes with at most
+     one neighbour, so dead-end spurs are left out. Two blobs inside a dead
+     end, each wanting the other's spot, can never move: they cannot swap,
+     and there is no room to step aside (`TestStepWedgesOnDeadEndGoals`).
+   - A pocket corner is a node `v` whose only two neighbours `a` and `b` are
+     joined to each other, such as the 60° corner of a hex area. Say X wants
+     `v` and outranks Y, who stands on it. Every tick X claims `v` and pushes
+     Y, but Y's exits are X's node (a swap) or `b`, a 120° turn that clashes
+     with X stepping in. Y fails and stays, and is never planned on its own,
+     so it never gets to step out while X waits. Since X keeps outranking Y,
+     this never ends (`TestStepStallsOnPocketGoals`).
+   - Blobs may still be pushed into a spur or onto a pocket corner, and they
+     leave again because their goals are elsewhere.
 2. **Pass-through rule (`CheckGraph` rule 4).** At a corridor node `v` with
-   exactly two neighbours `a` and `b`, the moves `a → v` and `v → b` must not
-   conflict. Otherwise a blob dwelling at `v` can never be pushed on through,
-   because the pusher entering `v` would clash with it leaving, and the
-   corridor would stay blocked. In practice, a corridor may turn at most
-   about 93–96° at any one node.
+   exactly two neighbours `a` and `b` that are **not** joined to each other,
+   the moves `a → v` and `v → b` must not conflict. Otherwise a blob dwelling
+   at `v` can never be pushed on through, because the pusher entering `v`
+   would clash with it leaving, and the corridor would stay blocked. In
+   practice, a corridor may turn at most about 93–96° at any one node.
+   Pocket corners are exempt: `a → b` is a direct edge, so a pocket is on no
+   shortest path and never blocks anyone's way through. That is why it only
+   has to be kept out of the goals.
 
 Measured with the test harness over 2,000 ticks and 40 seeds (10 for the last
-row). The fixtures run at three to four times the city's density; goal nodes
-are the Stand nodes in the 2-core.
+row). The fixtures run at three to four times the city's density, and every
+hex fixture keeps its pocket corners in the graph. Goal nodes are those
+`GoalOK` accepts.
 
-| Fixture | Blobs / goal nodes | Fewest goals by one blob | Mean | Longest wait |
-|---|---|---|---|---|
-| hex plaza with holes | 45 / 152 | 122 | 136 | 9 ticks |
-| 1-wide ring | 9 / 24 | 96 | 112 | 3 |
-| two rooms + 1-wide corridor | 21 / 70 | 53 | 66 | 17 |
-| sidewalk rings + crosswalks | 12 / 40 | 81 | 96 | 8 |
-| ring with dead-end spurs | 9 / 30 | 84 | 98 | 9 |
-| 1,022-node hex, 100 blobs (city density) | 100 / 1022 | 110 | 120 | 5 |
+| Fixture | Nodes (pockets) | Blobs / goal nodes | Fewest goals by one blob | Mean | Longest wait |
+|---|---|---|---|---|---|
+| hex plaza with holes | 154 (2) | 45 / 152 | 120 | 136 | 9 ticks |
+| 1-wide ring | 24 | 9 / 24 | 96 | 112 | 3 |
+| two rooms + 1-wide corridor | 74 (4) | 21 / 70 | 51 | 67 | 21 |
+| sidewalk rings + crosswalks | 44 | 12 / 40 | 81 | 96 | 8 |
+| ring with dead-end spurs | 39 | 9 / 30 | 84 | 98 | 9 |
+| 1,024-node hex, 100 blobs (city density) | 1,024 (2) | 100 / 1,022 | 110 | 120 | 4 |
+
+If pocket corners are allowed as goals, the same runs stall: some blobs
+reach no goals at all and stand still for nearly the whole run.
 
 The tests require at least 25 goals per blob and no wait over 40 ticks.
 
@@ -234,10 +251,9 @@ The tests require at least 25 goals per blob and no wait over 40 ticks.
 - The pass-through rule only checks neighbours. A queue pushed round a very
   tight bend could still be refused because of two blobs that are not
   neighbours. Graph building should keep corridor bends gentle.
-- `CheckGraph` rule 4 also flags 60° "pocket" nodes, such as the corner of a
-  hex area, whose two neighbours are also joined to each other. These never
-  block a path, but the rule as written rejects them, so graph building must
-  avoid or drop them.
+- Pocket corners (including Stand nodes at hex-area corners) stay in the
+  graph and are walkable, but blobs never choose them as goals. The game's
+  goal picker must use `GoalOK`, not just "is a Stand node".
 - The table forbids some moves plain PIBT would allow (triangle rotations,
   sharp-turn following), so blobs sometimes wait a tick longer.
 - If a goal is unreachable, every candidate ties and the blob wanders at
@@ -247,10 +263,10 @@ The tests require at least 25 goals per blob and no wait over 40 ticks.
 
 ## Cost
 
-| | Complexity | Measured (Apple M1, 1,022 nodes, 2,941 edges) |
+| | Complexity | Measured (Apple M1, 1,024 nodes, 2,945 edges) |
 |---|---|---|
 | `FromEdges` | conflict table about `n × k × d²` (k nearby nodes, d degree); hop matrix `n × (n + E)` time, `2n²` bytes | **13 ms** |
-| `CheckGraph` | brute force: `n² + E·n + M²` (M moves) | 77 ms; for tests and build time, not per tick |
+| `CheckGraph` | brute force: `n² + E·n + M²` (M moves) | 75 ms; for tests and build time, not per tick |
 | `Step`, 100 blobs | `A log A` sort, then each blob planned at most once: `A × (d + 1) × c` (c ≈ 16 conflict entries) | **14 µs**, 0 allocations |
 
 The test graph is denser than the city (about 5.8 neighbours per node against
@@ -266,7 +282,8 @@ never allocates (`TestStepNoAllocs`).
 | `graph.go` | `buildConflicts` | Move ids and per-move conflict lists, via a bucket grid |
 | `graph.go` | `buildHops` | All-pairs hop matrix by BFS from every node |
 | `graph.go` | `buildCore` | 2-core by peeling nodes with at most one neighbour |
-| `graph.go` | `Neighbors`, `Hops`, `Core`, `Conflicts`, `Fingerprint` | Read-only queries |
+| `graph.go` | `buildGoals`, `pinch` | Goal nodes: Stand, in the 2-core, not a pocket corner |
+| `graph.go` | `Neighbors`, `Hops`, `Core`, `GoalOK`, `Conflicts`, `Fingerprint` | Read-only queries |
 | `graph.go` | `CheckGraph` and `rule*` | Brute-force recheck of the five graph rules |
 | `planner.go` | `NewPlanner` | Allocates scratch arrays once |
 | `planner.go` | `Step` = `begin`, `plan`, `finish` | Checks inputs and sorts by priority; runs PIBT; writes `next` and clears scratch |
@@ -280,13 +297,13 @@ never allocates (`TestStepNoAllocs`).
 
 - `graph_test.go`: a `Swept` table (parallel, head-on, follow straight, 60°,
   120°, crossing, identical points), `FromEdges` errors, hops and 2-core on
-  small graphs, fingerprint stability, conflicts, and `CheckGraph` catching
-  each rule on a small broken graph.
+  small graphs, `GoalOK`, fingerprint stability, conflicts, `CheckGraph`
+  catching each rule on a small broken graph, and pocket corners passing.
 - `planner_test.go`: the wander harness on five fixtures (hex with holes,
   1-wide ring, two rooms and a corridor, sidewalk rings with crosswalks, ring
   with spurs). It checks clearance and the bookkeeping on every tick, plus
-  liveness, plain PIBT without the table, hand-checked pushes, determinism,
-  and zero allocations.
+  liveness, plain PIBT without the table, hand-checked pushes, the dead-end
+  and pocket-corner stalls, determinism, and zero allocations.
 - Each of these deliberate bugs makes a test fail: dropping the table check;
   allowing a swap with the parent; removing priority inheritance; staying
   without claiming the node; allowing goals off the 2-core.
