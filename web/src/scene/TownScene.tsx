@@ -1,5 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
+import { MathUtils } from "three";
 import { layoutTown } from "./layoutTown.ts";
 import { MapCamera } from "./MapCamera.tsx";
 import { MapLights } from "./MapLights.tsx";
@@ -16,6 +17,10 @@ const HOMES = 53;
 const NEIGHBOURHOODS = 5;
 // Close enough to see a doorstep; the camera floor keeps it out of the roofs and the tower.
 const MIN_DISTANCE = 10;
+// Tilted right down, the camera looks across the square at the screen from about a crowd's
+// eye level, round a point a little off the ground.
+const LOWEST_TILT = MathUtils.degToRad(88);
+const EYE_HEIGHT = 3;
 
 // Sky and fog share one colour, so the fields fade into the sky with no visible edge.
 const SKY = "#d4e2ee";
@@ -59,7 +64,13 @@ export default function TownScene({
       <TownDowntown buildings={town.buildings} />
       <TownHomes homes={town.homes} />
       <TownTrees trees={town.trees} />
-      <MapCamera map={map} minDistance={MIN_DISTANCE} fogColor={SKY} />
+      <MapCamera
+        map={map}
+        minDistance={MIN_DISTANCE}
+        maxPolar={LOWEST_TILT}
+        targetHeight={EYE_HEIGHT}
+        fogColor={SKY}
+      />
     </Canvas>
   );
 }
