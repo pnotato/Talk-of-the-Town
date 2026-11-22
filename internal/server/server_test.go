@@ -131,8 +131,13 @@ func TestRunCaps(t *testing.T) {
 func TestConfigFromEnv(t *testing.T) {
 	t.Setenv("MAX_ROUNDS", "")
 	t.Setenv("MAX_BLOBS", "")
-	if c, err := ConfigFromEnv(); err != nil || c != (Config{50, 100}) {
+	t.Setenv("RUNS_DIR", "")
+	if c, err := ConfigFromEnv(); err != nil || c != (Config{MaxRounds: 50, MaxBlobs: 100}) {
 		t.Fatalf("defaults: %+v %v", c, err)
+	}
+	t.Setenv("RUNS_DIR", "runs/scratch")
+	if c, _ := ConfigFromEnv(); c.RunsDir != "runs/scratch" {
+		t.Fatalf("RunsDir = %q", c.RunsDir)
 	}
 	t.Setenv("MAX_ROUNDS", "20")
 	if c, _ := ConfigFromEnv(); c.MaxRounds != 20 {
