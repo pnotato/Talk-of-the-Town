@@ -502,10 +502,9 @@ func ruleEdgeLength(g *Graph, p Params) error {
 
 // rulePassThrough skips pockets: a node whose two neighbours are joined to
 // each other, such as the 60° corner of a hex area. A pocket lies on no
-// shortest path between other nodes (a -> b is one direct edge), so a blob
-// stuck on it never blocks anyone's way through. Goals are unique, so only
-// the blob whose goal it is needs it, and that blob waits a few ticks at most
-// for the occupant to leave on its own.
+// shortest path between other nodes (a -> b is one direct edge), and GoalOK
+// keeps it from ever being a goal, so nobody needs to get through one. Goals
+// on pockets would stall (see TestStepStallsOnPocketGoals).
 func rulePassThrough(g *Graph, p Params) error {
 	for v := range g.Nodes {
 		nb := g.adj[g.off[v]:g.off[v+1]]
