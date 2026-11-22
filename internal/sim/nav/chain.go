@@ -21,8 +21,9 @@ const (
 	// snapCells: a routed path reaches a node when it is within this many
 	// grid cells of it.
 	snapCells = 1.5
-	// spacingWeight trades a chain's evenness against its node count: one
-	// node fewer is worth any spacing.
+	// nodeCost is what a chain pays per new node, against the squared
+	// difference of each step from ChainStep: one node fewer is worth any
+	// unevenness.
 	nodeCost = 10.0
 )
 
