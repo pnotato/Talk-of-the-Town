@@ -1,38 +1,95 @@
 // The town as a MapLayout, so the shared camera, shadows and (later) the blob replay treat it
-// like any other map. layoutTown's own output is unchanged.
-import { HOME_DEPTH, TOWN_HEIGHT, TREE_RADIUS, type TownLayout } from "./layoutTown.ts";
-import { type MapLayout, type Point, standingSpots } from "./mapLayout.ts";
+// like any other map.
+import {
+  HOME_TOP,
+  LAMP_HEIGHT,
+  ROOF_PLANT,
+  TREE_HEIGHT,
+  TREE_RADIUS,
+  type TownLayout,
+  type TownTree,
+} from "./layoutTown.ts";
+import {
+  type Box,
+  type Disc,
+  type MapLayout,
+  type Obstacle,
+  type Point,
+  type Solid,
+  standingSpots,
+} from "./mapLayout.ts";
 
-const OUTLINE_SAMPLES = 32; // per circle, for framing
-const SQUARE_SIDES = 64; // the round square as a polygon, for standing spots
+/** A turned box's corners on the ground. */
+export function boxCorners(b: Box): Point[] {
+  const c = Math.cos(b.rotationY);
+  const s = Math.sin(b.rotationY);
+  return [
+    [1, 1],
+    [-1, 1],
+    [-1, -1],
+    [1, -1],
+  ].map(([u, v]) => {
+    const lx = (u * b.width) / 2;
+    const lz = (v * b.depth) / 2;
+    // three.js rotation.y takes local (lx, lz) here.
+    return { x: b.x + c * lx + s * lz, z: b.z - s * lx + c * lz };
+  });
+}
+
+const boxOf = ({ x, z, width, depth, rotationY }: Box): Box => ({ x, z, width, depth, rotationY });
+
+function treeSolid(t: TownTree): Solid {
+  const span = 2 * TREE_RADIUS * t.size;
+  return { x: t.x, z: t.z, width: span, depth: span, rotationY: 0, height: TREE_HEIGHT * t.size };
+}
 
 export function townMap(town: TownLayout): MapLayout {
-  const { square } = town;
-  const circles = [square, ...town.neighbourhoods];
-  const frame = circles.flatMap((d) =>
-    Array.from({ length: OUTLINE_SAMPLES }, (_, i) => {
-      const a = (i / OUTLINE_SAMPLES) * Math.PI * 2;
-      const x = d.x + Math.cos(a) * d.radius;
-      const z = d.z + Math.sin(a) * d.radius;
-      return [
-        { x, y: 0, z },
-        { x, y: TOWN_HEIGHT, z },
-      ];
-    }).flat(),
-  );
+  const { square, screen } = town;
 
-  const outline: Point[] = Array.from({ length: SQUARE_SIDES }, (_, i) => {
-    const a = (i / SQUARE_SIDES) * Math.PI * 2;
-    return { x: square.x + Math.cos(a) * square.radius, z: square.z + Math.sin(a) * square.radius };
-  });
+  // Everything the camera must keep out of, each with the height of its top.
+  const solids: Solid[] = [
+    ...town.homes.map((h) => ({ ...boxOf(h), height: HOME_TOP * h.heightScale })),
+    ...town.buildings.map((b) => ({ ...boxOf(b), height: b.height + ROOF_PLANT })),
+    ...town.buildings.flatMap((b) => (b.tower ? [b.tower] : [])),
+    { ...screen.footprint, height: screen.top },
+    ...town.props
+      .filter((p) => p.kind === "lamp")
+      .map((p) => ({ ...boxOf(p), height: LAMP_HEIGHT })),
+    ...town.trees.map(treeSolid),
+  ];
+
+  // Blobs stand anywhere on the square's paving clear of the screen, the benches, the lamps
+  // and the trees' canopies.
+  const outline = boxCorners({ ...square, rotationY: 0 });
+  const near = Math.max(square.width, square.depth) / 2 + 2 * TREE_RADIUS;
+  const obstacles: Obstacle[] = [
+    { kind: "box", ...screen.footprint },
+    ...town.props.map((p) => ({ kind: "box" as const, ...boxOf(p) })),
+    ...town.trees
+      .filter((t) => Math.abs(t.x - square.x) < near && Math.abs(t.z - square.z) < near)
+      .map((t) => ({ kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
+  ];
+
+  // The default view shows every block to its corners and everything taller than a tree.
+  const frame = [
+    ...town.blocks.flatMap((b) => boxCorners({ ...b, rotationY: 0 }).map((p) => ({ ...p, y: 0 }))),
+    ...solids
+      .filter((s) => s.height > TREE_HEIGHT)
+      .flatMap((s) => boxCorners(s).map((p) => ({ ...p, y: s.height }))),
+  ];
+  const casters: Disc[] = solids.map((s) => ({
+    x: s.x,
+    z: s.z,
+    radius: Math.hypot(s.width, s.depth) / 2,
+  }));
 
   return {
     homes: town.homes.map((h) => ({
       index: h.index,
       neighbourhood: h.neighbourhood,
       door: {
-        x: h.x + Math.sin(h.rotationY) * (HOME_DEPTH / 2),
-        z: h.z + Math.cos(h.rotationY) * (HOME_DEPTH / 2),
+        x: h.x + Math.sin(h.rotationY) * (h.depth / 2),
+        z: h.z + Math.cos(h.rotationY) * (h.depth / 2),
       },
       facing: h.rotationY,
     })),
@@ -42,25 +99,13 @@ export function townMap(town: TownLayout): MapLayout {
       centre: { x: n.x, z: n.z },
     })),
     gathering: {
-      areas: [
-        {
-          name: "square",
-          outline,
-          spots: standingSpots(outline, [
-            { kind: "disc", x: square.x, z: square.z, radius: square.fountainRadius },
-          ]),
-        },
-      ],
+      areas: [{ name: "square", outline, spots: standingSpots(outline, obstacles) }],
     },
     bounds: town.bounds,
-    roam: "ellipse",
+    roam: "box",
     frame,
-    casters: [
-      ...circles,
-      ...town.trees.map((t) => ({ x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
-    ],
-    height: TOWN_HEIGHT,
-    // Every roof and tree is below the camera's lowest point at the town's closest zoom.
-    solids: [],
+    casters,
+    solids,
+    height: town.height,
   };
 }
