@@ -45,6 +45,7 @@ const FIXTURE: ReplayRun = {
   start: [0, 2, 4],
   rounds: [
     {
+      events: [],
       perception: [70, 30, 10],
       interest: [40, 60, 5],
       paths: [
@@ -54,6 +55,7 @@ const FIXTURE: ReplayRun = {
       ],
     },
     {
+      events: [],
       perception: [50, 50, 50],
       interest: [10, 80, 30],
       paths: [

@@ -54,7 +54,7 @@ export default function TownScene({
       dpr={1}
       camera={{ fov: 30, near: 1, far: GROUND_RADIUS * 1.2 }}
       role="img"
-      aria-label={`Town map: ${homeCount} homes in ${neighbourhoodCount} neighbourhoods round a town square with a news screen, the town hall and Main Street. Drag to pan, scroll or pinch to zoom.`}
+      aria-label={`Town map: ${homeCount} homes in ${neighbourhoodCount} neighbourhoods round a town square with a news screen, the town hall and Main Street. Drag or use W, A, S and D to pan, scroll or pinch to zoom.`}
     >
       <RenderResolution />
       <color attach="background" args={[SKY]} />

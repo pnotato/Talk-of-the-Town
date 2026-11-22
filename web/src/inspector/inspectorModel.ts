@@ -9,10 +9,20 @@ export type BlobActivity = {
   state: "idle" | "talking" | "listening" | "posting" | "walking";
   mood: Mood;
   partnerId?: number;
+  /** The blob's live scores, when the scene knows them (the city run does). */
+  perception?: number;
+  interest?: number;
 };
 
 export function sameActivity(a: BlobActivity | undefined, b: BlobActivity): boolean {
-  return a !== undefined && a.state === b.state && a.mood === b.mood && a.partnerId === b.partnerId;
+  return (
+    a !== undefined &&
+    a.state === b.state &&
+    a.mood === b.mood &&
+    a.partnerId === b.partnerId &&
+    a.perception === b.perception &&
+    a.interest === b.interest
+  );
 }
 
 /**

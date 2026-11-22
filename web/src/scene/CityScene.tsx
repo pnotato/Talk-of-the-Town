@@ -67,7 +67,7 @@ export default function CityScene({
       dpr={1}
       camera={{ fov: 30, near: 1, far: GROUND_RADIUS * 1.2 }}
       role="img"
-      aria-label={`City map: ${homeCount} homes in ${neighbourhoodCount} districts around a plaza of news screens. ${crowd}${showGrid ? " The walkable ground is laid with hex stones." : ""} Drag to pan, scroll or pinch to zoom.`}
+      aria-label={`City map: ${homeCount} homes in ${neighbourhoodCount} districts around a plaza of news screens. ${crowd}${showGrid ? " The walkable ground is laid with hex stones." : ""} Drag or use W, A, S and D to pan, scroll or pinch to zoom.`}
     >
       <RenderResolution />
       <color attach="background" args={[SKY]} />

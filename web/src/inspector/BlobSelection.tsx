@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { type BlobCatalog, SANDBOX_CATALOG } from "./blobProfiles.ts";
 import { type BlobActivity, sameActivity } from "./inspectorModel.ts";
 
 export type { BlobActivity };
@@ -21,15 +22,24 @@ type BlobSelection = {
   focusRequest: BlobFocusRequest | null;
   activities: Readonly<Record<number, BlobActivity>>;
   updateActivities: (updates: Record<number, BlobActivity>) => void;
+  /** The blobs this page lets the inspector show. */
+  catalog: BlobCatalog;
 };
 
 const SelectionContext = createContext<BlobSelection | null>(null);
 
 /**
- * Shares the selected blob and what each blob is doing between the scene (which selects and
- * reports) and the inspector UI (which shows). Own one per page so it resets on navigation.
+ * Shares the selected blob, what each blob is doing and the page's blob catalog between the scene
+ * (which selects and reports) and the inspector UI (which shows). Own one per page so it resets on
+ * navigation. `catalog` defaults to the Shapes sandbox's authored profiles.
  */
-export function BlobSelectionProvider({ children }: { children: ReactNode }) {
+export function BlobSelectionProvider({
+  children,
+  catalog = SANDBOX_CATALOG,
+}: {
+  children: ReactNode;
+  catalog?: BlobCatalog;
+}) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [focusRequest, setFocusRequest] = useState<BlobFocusRequest | null>(null);
   const focusSerial = useRef(0);
@@ -61,8 +71,16 @@ export function BlobSelectionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ selectedId, selectBlob, focusBlob, focusRequest, activities, updateActivities }),
-    [selectedId, selectBlob, focusBlob, focusRequest, activities, updateActivities],
+    () => ({
+      selectedId,
+      selectBlob,
+      focusBlob,
+      focusRequest,
+      activities,
+      updateActivities,
+      catalog,
+    }),
+    [selectedId, selectBlob, focusBlob, focusRequest, activities, updateActivities, catalog],
   );
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

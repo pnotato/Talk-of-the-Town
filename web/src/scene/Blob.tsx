@@ -31,6 +31,9 @@ import { gestureFor, setHover } from "./blobPicking.ts";
 import { footprintRadius, ringGeometries } from "./blobSelection.ts";
 import { blobScale } from "./blobSize.ts";
 
+/** What a parent mutates each frame to move and pose a blob itself. */
+export type BlobDrive = { x: number; z: number; yaw: number; talking?: boolean; pose?: Pose };
+
 // Mood colours as three.js colours, for easing a body towards its mood without allocating.
 const MOOD_COLOR3 = Object.fromEntries(MOODS.map((m) => [m, new Color(MOOD_COLOR[m])])) as Record<
   Mood,
@@ -147,9 +150,10 @@ type BlobProps = {
    * For a parent that moves the blob itself, such as a replay: it mutates this one object every
    * frame, before the blob's own frame runs. The blob then stands exactly at (x, z), with no
    * easing that could lag it into a neighbour, and only turns towards `yaw`. `position` and
-   * `yaw` only place it at first.
+   * `yaw` only place it at first. `talking` and `pose` may also change per frame, so a staged
+   * conversation can start and stop mid-round without a React render.
    */
-  drive?: { x: number; z: number; yaw: number };
+  drive?: BlobDrive;
   /** Draw the selection ring on the ground around the blob. */
   selected?: boolean;
   /**
@@ -188,6 +192,7 @@ export default function Blob({
   const root = useRef<Group>(null);
   const body = useRef<Group>(null);
   const mouth = useRef<Mesh>(null);
+  const bubble = useRef<Group>(null);
   const material = useRef<MeshStandardMaterial>(null);
   const goal = useRef({ x: position[0], z: position[2] });
   const animation = useRef(createAnimation(mood));
@@ -248,10 +253,12 @@ export default function Blob({
     r.rotation.y += turn - ease(turn, 0, WALK_RATE, delta, reduceMotion);
 
     const a = animation.current;
+    const poseNow = drive?.pose ?? pose;
+    const talkingNow = drive?.talking ?? talking;
     a.mood = mood;
-    a.pose = pose;
+    a.pose = poseNow;
     a.idle = idle;
-    a.talking = talking;
+    a.talking = talkingNow;
     a.reduceMotion = reduceMotion;
     const m = animate(a, t, delta, speed, BASE_EXTENT[shape], motion.current);
     body.current.position.y = m.y;
@@ -260,6 +267,9 @@ export default function Blob({
 
     const open = mouthOpen(a, t);
     mouth.current.scale.set(1 - 0.2 * open, 1 + open, 1);
+    // A staged conversation mounts the bubble at the start of the round but only shows it once
+    // the pair is standing together and talking.
+    if (bubble.current) bubble.current.visible = talkingNow;
 
     const blend = reduceMotion ? 1 : 1 - Math.exp(-COLOUR_RATE * delta);
     material.current.color.lerp(MOOD_COLOR3[mood], blend);
@@ -288,7 +298,9 @@ export default function Blob({
         </group>
       </group>
       {talking && (
-        <SpeechBubble height={ADULT_HEIGHT[shape] * scale[1] + 0.4} angry={mood === "angry"} />
+        <group ref={bubble} visible={false}>
+          <SpeechBubble height={ADULT_HEIGHT[shape] * scale[1] + 0.4} angry={mood === "angry"} />
+        </group>
       )}
     </group>
   );

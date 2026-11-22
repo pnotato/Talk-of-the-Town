@@ -2,7 +2,7 @@ import { type ReactNode, type RefObject, useCallback, useEffect, useId, useRef }
 import { MOOD_COLOR, MOOD_MEANING } from "../scene/blobMood.ts";
 import { ageGroup } from "../scene/blobSize.ts";
 import BlobPortrait from "../scene/BlobPortrait.tsx";
-import { type BlobProfile, getProfile, PROFILE_NOTE, PROFILE_SOURCE } from "./blobProfiles.ts";
+import type { BlobProfile } from "./blobProfiles.ts";
 import { useBlobSelection } from "./BlobSelection.tsx";
 import { capitalise, describeAction, interestLabel, perceptionLabel } from "./inspectorModel.ts";
 import Meter from "./Meter.tsx";
@@ -49,9 +49,9 @@ function BlobChip({
   thumbnail: boolean;
   fallback: RefObject<HTMLElement | null>;
 }) {
-  const { focusBlob, activities } = useBlobSelection();
+  const { focusBlob, activities, catalog } = useBlobSelection();
   const rescue = useKeyboardFocusRescue(fallback);
-  const profile = getProfile(id);
+  const profile = catalog.get(id);
   if (!profile) return <span>Blob {id}</span>;
   const mood = activities[id]?.mood ?? profile.mood;
   return (
@@ -122,8 +122,8 @@ function Tags({
  * the current action with whoever the blob is talking with. The portrait and every named blob are
  * buttons that take the camera to that blob.
  *
- * Scores and the profile are authored sandbox data; the face, action and partner come from the
- * scene's live activity report.
+ * The profile comes from the page's catalog; the face, action, partner and live scores come from
+ * the scene's activity report, falling back to the profile's resting values.
  */
 export default function BlobCard({
   profile,
@@ -135,7 +135,7 @@ export default function BlobCard({
   /** Asked once when the card appears: true puts keyboard focus on the name (a keyboard pick). */
   takeFocus?: () => boolean;
 }) {
-  const { activities, focusBlob } = useBlobSelection();
+  const { activities, focusBlob, catalog } = useBlobSelection();
   const heading = useRef<HTMLHeadingElement>(null);
   const descriptionId = useId();
   useEffect(() => {
@@ -147,6 +147,8 @@ export default function BlobCard({
   // The face comes from the scene's activity once it reports; until then, the profile's resting
   // face. The scores never depend on it.
   const mood = activity?.mood ?? profile.mood;
+  const perception = activity?.perception ?? profile.perception;
+  const interest = activity?.interest ?? profile.interest;
   const action = describeAction(activity);
   const special = specialTags(profile);
   const personality = personalityTags(profile);
@@ -158,7 +160,7 @@ export default function BlobCard({
       aria-describedby={descriptionId}
     >
       <p id={descriptionId} className="inspector-sr">
-        {PROFILE_SOURCE} · {PROFILE_NOTE} · Scores are demo values; scene activity is live.
+        {catalog.description}
       </p>
       {/* Sticks to the top of the scrolling card, so closing is always in reach. */}
       <div className="card-close-anchor">
@@ -216,14 +218,14 @@ export default function BlobCard({
         <div className="meters">
           <Meter
             label="Interest"
-            score={profile.interest}
-            words={interestLabel(profile.interest)}
+            score={interest}
+            words={interestLabel(interest)}
             tone="interest"
           />
           <Meter
             label="Perception"
-            score={profile.perception}
-            words={perceptionLabel(profile.perception)}
+            score={perception}
+            words={perceptionLabel(perception)}
             tone="perception"
           />
         </div>

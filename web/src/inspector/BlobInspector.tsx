@@ -1,7 +1,6 @@
 import { type MouseEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import BlobCard from "./BlobCard.tsx";
 import BlobPicker from "./BlobPicker.tsx";
-import { getProfile, PROFILE_ORDER } from "./blobProfiles.ts";
 import { useBlobSelection } from "./BlobSelection.tsx";
 import { type FocusInset, focusInset, sameInset } from "./focusInset.ts";
 import { stepSelection } from "./inspectorModel.ts";
@@ -51,8 +50,8 @@ export default function BlobInspector({
 }: {
   onFocusInsetChange?: (inset: FocusInset) => void;
 }) {
-  const { selectedId, selectBlob, focusBlob } = useBlobSelection();
-  const profile = selectedId === null ? undefined : getProfile(selectedId);
+  const { selectedId, selectBlob, focusBlob, catalog } = useBlobSelection();
+  const profile = selectedId === null ? undefined : catalog.get(selectedId);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Whether the list was opened from the keyboard, and so should take focus when it appears.
   const [pickerFromKeyboard, setPickerFromKeyboard] = useState(false);
@@ -124,7 +123,7 @@ export default function BlobInspector({
 
   // Stepping, like picking a blob, takes the camera along with the selection.
   function step(direction: 1 | -1) {
-    const id = stepSelection(PROFILE_ORDER, selectedId, direction);
+    const id = stepSelection(catalog.order, selectedId, direction);
     if (id !== null) focusBlob(id);
   }
 

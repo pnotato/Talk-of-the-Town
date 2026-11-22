@@ -20,7 +20,7 @@ export const TICK_SECONDS = 0.6;
  */
 export type ReplayRun = Pick<RunLog, "map" | "start"> & {
   town: { blobs: Pick<Blob, "perception" | "interest">[] };
-  rounds: Pick<Round, "perception" | "interest" | "paths">[];
+  rounds: Pick<Round, "events" | "perception" | "interest" | "paths">[];
 };
 
 /** Where a point is on the ground. */

@@ -1,7 +1,14 @@
 import { MapControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { type ComponentRef, useLayoutEffect, useMemo, useRef } from "react";
+import { type ComponentRef, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { type Camera, MathUtils, PerspectiveCamera, Vector3 } from "three";
+import {
+  isMovementKey,
+  isTextEntry,
+  keyboardPanStep,
+  type PanIntent,
+  panIntent,
+} from "./mapKeyboard.ts";
 import { cameraFloor, type MapLayout, type Solid } from "./mapLayout.ts";
 
 // Default look-down angle above the horizon. Portrait screens are width-bound, so a
@@ -12,6 +19,8 @@ const MIN_POLAR = MathUtils.degToRad(10); // nearly straight down
 const LOWEST_TILT = MathUtils.degToRad(64); // default: low, but the map never turns edge-on
 const ZOOM_OUT_ROOM = 1.35; // how far past the default framing the player may zoom out
 const FRAME_FILL = 0.92; // share of the view the town fills by default
+// A background tab hands a frame a huge delta; cap it so a held key never makes the view leap.
+const MAX_KEY_STEP = 0.1; // seconds
 
 interface Framing {
   position: Vector3;
@@ -123,6 +132,37 @@ export function MapCamera({
   // Pan speed follows the controlled camera's field of view, so the rig shares the real one's.
   const rig = useMemo(() => new PerspectiveCamera(fov), [fov]);
 
+  // Held movement keys, and the scratch values the keyboard pan reuses every frame.
+  const keys = useRef(new Set<string>());
+  const intent = useMemo<PanIntent>(() => ({ forward: 0, right: 0 }), []);
+  const panScratch = useMemo(() => ({ forward: new Vector3(), right: new Vector3() }), []);
+  const panStep = useMemo(() => new Vector3(), []);
+
+  // W, A, S and D move the camera as long as they're held, whatever has focus. Typing in a field
+  // and browser shortcuts (Cmd-W, Ctrl-W) are left alone.
+  useEffect(() => {
+    const held = keys.current;
+    const down = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !isMovementKey(event.code)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || isTextEntry(event.target)) return;
+      held.add(event.code);
+      event.preventDefault();
+    };
+    const up = (event: KeyboardEvent) => held.delete(event.code);
+    const release = () => held.clear();
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", release);
+    document.addEventListener("visibilitychange", release);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", release);
+      held.clear();
+    };
+  }, []);
+
   // Frame the whole map once; resizing later keeps the player's view.
   const aspectAtMount = useRef(aspect);
   useLayoutEffect(() => {
@@ -136,9 +176,16 @@ export function MapCamera({
 
   // Every frame, just after the controls update: clamp (their "change" event stays silent
   // for the last of the damping), then put the real camera at the rig and lift it.
-  useFrame(({ camera: view }) => {
+  useFrame(({ camera: view }, delta) => {
     const c = controls.current;
     if (!c) return;
+    if (panIntent(keys.current, intent)) {
+      const seconds = Math.min(delta, MAX_KEY_STEP);
+      if (keyboardPanStep(intent, c.object.position, c.target, fov, seconds, panStep, panScratch)) {
+        c.object.position.add(panStep);
+        c.target.add(panStep);
+      }
+    }
     clampTarget(c.target, c.object);
     c.object.updateMatrixWorld();
     view.position.copy(c.object.position);

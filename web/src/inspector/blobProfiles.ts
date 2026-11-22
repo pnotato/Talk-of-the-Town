@@ -41,7 +41,38 @@ export const TRAIT_MEANING: Record<Trait, string> = {
   leader: "The shape's opinion leader",
 };
 
-export type ProfileGroup = "shapes" | "moods" | "scenes";
+export type ProfileGroup = "shapes" | "moods" | "scenes" | "city";
+
+/** One section of the blob directory. */
+export type CatalogGroup = {
+  key: ProfileGroup;
+  title: string;
+  profiles: readonly BlobProfile[];
+  /** Show each blob's `place` after its shape and age (the sandbox's scenes do). */
+  showPlace?: boolean;
+};
+
+/**
+ * A page's set of inspectable blobs. The Shapes sandbox uses the authored profiles below; the city
+ * builds one from its RunLog. The inspector itself only reads a catalog, so the same card, picker
+ * and activity wiring serve both.
+ */
+export type BlobCatalog = {
+  /** Look up a blob by id, or undefined when the catalog has none. */
+  get: (id: number) => BlobProfile | undefined;
+  /** Every blob, in picker and stepping order. */
+  order: readonly number[];
+  /** The directory's sections, in order. */
+  groups: readonly CatalogGroup[];
+  /** Where the profiles come from, shown to assistive tech. */
+  source: string;
+  /** A short qualifier for `source`, shown to assistive tech. */
+  note: string;
+  /** The whole description of the data, read by the card's screen reader. */
+  description: string;
+  /** The directory's subtitle. */
+  subtitle: string;
+};
 
 export type BlobProfile = {
   id: number;
@@ -225,4 +256,21 @@ export const GROUP_TITLES: Record<ProfileGroup, string> = {
   shapes: "Shapes grid",
   moods: "Mood row",
   scenes: "Scenes",
+  city: "City residents",
+};
+
+/** The Shapes sandbox's authored profiles, as the inspector's catalog. */
+export const SANDBOX_CATALOG: BlobCatalog = {
+  get: getProfile,
+  order: PROFILE_ORDER,
+  groups: (["shapes", "moods", "scenes"] as const).map((group) => ({
+    key: group,
+    title: GROUP_TITLES[group],
+    profiles: PROFILES.filter((p) => p.group === group),
+    showPlace: group === "scenes",
+  })),
+  source: PROFILE_SOURCE,
+  note: PROFILE_NOTE,
+  description: `${PROFILE_SOURCE} · ${PROFILE_NOTE} · Scores are demo values; scene activity is live.`,
+  subtitle: "Every resident in the sandbox",
 };
