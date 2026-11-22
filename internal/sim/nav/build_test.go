@@ -88,6 +88,38 @@ func TestBuildOneRectIsHexGrid(t *testing.T) {
 	}
 }
 
+// A two-row strip has a 60 degree pocket at each end of its first row:
+// two neighbours joined to each other. Pockets are no corridor, so Build
+// keeps every hex edge; they just aren't goals.
+func TestBuildKeepsPocketCorners(t *testing.T) {
+	row := lattice * math.Sqrt(3) / 2
+	m := Map{Spacing: lattice}
+	m.Areas = []Area{area("strip", Rect{MinX: 0, MaxX: 6.6, MinZ: 0, MaxZ: 1.2 + row}, Point{0.6, 0.6}, &m)}
+	g := mustBuild(t, m)
+	if g.Len() != 7 {
+		t.Fatalf("%d nodes, want the 7 spots", g.Len())
+	}
+	pockets := 0
+	for u := range g.Len() {
+		nb := g.Neighbors(u)
+		for v := range g.Len() {
+			linked := slices.Contains(nb, int32(v))
+			if spaced := v != u && math.Abs(dist(g.Nodes[u], g.Nodes[v])-lattice) < 1e-9; linked != spaced {
+				t.Errorf("edge %d-%d present %v, want %v", u, v, linked, spaced)
+			}
+		}
+		if len(nb) == 2 && slices.Contains(g.Neighbors(int(nb[0])), nb[1]) {
+			pockets++
+			if g.GoalOK(u) {
+				t.Errorf("pocket %d at %v is a goal", u, g.Nodes[u])
+			}
+		}
+	}
+	if pockets != 2 {
+		t.Errorf("%d pockets, want 2", pockets)
+	}
+}
+
 // crosswalkMap is two sidewalks either side of a 7-wide road with one zebra
 // crossing between them.
 func crosswalkMap() Map {
