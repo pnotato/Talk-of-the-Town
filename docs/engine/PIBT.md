@@ -267,7 +267,7 @@ never allocates (`TestStepNoAllocs`).
 | `graph.go` | `buildHops` | All-pairs hop matrix by BFS from every node |
 | `graph.go` | `buildCore` | 2-core by peeling nodes with at most one neighbour |
 | `graph.go` | `Neighbors`, `Hops`, `Core`, `Conflicts`, `Fingerprint` | Read-only queries |
-| `graph.go` | `CheckGraph` and `check*` | Brute-force recheck of the five graph rules |
+| `graph.go` | `CheckGraph` and `rule*` | Brute-force recheck of the five graph rules |
 | `planner.go` | `NewPlanner` | Allocates scratch arrays once |
 | `planner.go` | `Step` = `begin`, `plan`, `finish` | Checks inputs and sorts by priority; runs PIBT; writes `next` and clears scratch |
 | `planner.go` | `pibt` | The recursion above, with the invariant argument |

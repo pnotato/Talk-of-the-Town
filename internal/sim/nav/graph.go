@@ -8,22 +8,22 @@ import (
 	"slices"
 )
 
-// maxNodes caps the graph so the hop matrix (n*n uint16) stays under
+// maxGraphNodes caps the graph so the hop matrix (n*n uint16) stays under
 // 128 MiB. The city has about 1,000 nodes.
-const maxNodes = 1 << 13
+const maxGraphNodes = 1 << 13
 
-// noPath marks an unreachable pair in the hop matrix. maxNodes keeps every
-// real hop count below it.
+// noPath marks an unreachable pair in the hop matrix. maxGraphNodes keeps
+// every real hop count below it.
 const noPath = math.MaxUint16
 
 // reachSlack widens the spatial filter in buildConflicts a little, so
 // rounding can never drop a pair that Swept would flag.
 const reachSlack = 1.001
 
-// geomEps is the absolute slack CheckGraph allows when it skips a pair by
+// boxSlack is the absolute slack CheckGraph allows when it skips a pair by
 // bounding boxes, for the same reason. World coordinates are below ~1e3, so
 // float error is far smaller.
-const geomEps = 1e-9
+const boxSlack = 1e-9
 
 // fingerprintScale quantises coordinates to a millionth of a unit before
 // hashing, so the fingerprint ignores float noise below that.
@@ -62,8 +62,8 @@ func FromEdges(nodes []Point, kinds []Kind, edges [][2]int, p Params) (*Graph, e
 	if len(kinds) != n {
 		return nil, fmt.Errorf("nav: %d kinds for %d nodes", len(kinds), n)
 	}
-	if n > maxNodes {
-		return nil, fmt.Errorf("nav: %d nodes, at most %d", n, maxNodes)
+	if n > maxGraphNodes {
+		return nil, fmt.Errorf("nav: %d nodes, at most %d", n, maxGraphNodes)
 	}
 	if !(p.MinSep > 0) {
 		return nil, fmt.Errorf("nav: MinSep %v must be positive", p.MinSep)
@@ -415,7 +415,7 @@ func (g *Graph) buildCore() {
 //     moves.
 func CheckGraph(g *Graph, p Params) error {
 	for _, check := range []func(*Graph, Params) error{
-		checkSpacing, checkClearance, checkEdgeLength, checkPassThrough, checkConflictTable,
+		ruleNodeSpacing, ruleEdgeClearance, ruleEdgeLength, rulePassThrough, ruleConflictTable,
 	} {
 		if err := check(g, p); err != nil {
 			return err
@@ -424,7 +424,7 @@ func CheckGraph(g *Graph, p Params) error {
 	return nil
 }
 
-func checkSpacing(g *Graph, p Params) error {
+func ruleNodeSpacing(g *Graph, p Params) error {
 	for u, a := range g.Nodes {
 		for v := u + 1; v < len(g.Nodes); v++ {
 			b := g.Nodes[v]
@@ -436,7 +436,7 @@ func checkSpacing(g *Graph, p Params) error {
 	return nil
 }
 
-func checkClearance(g *Graph, p Params) error {
+func ruleEdgeClearance(g *Graph, p Params) error {
 	for u := range g.Nodes {
 		for _, v := range g.adj[g.off[u]:g.off[u+1]] {
 			if int(v) < u {
@@ -457,7 +457,7 @@ func checkClearance(g *Graph, p Params) error {
 	return nil
 }
 
-func checkEdgeLength(g *Graph, p Params) error {
+func ruleEdgeLength(g *Graph, p Params) error {
 	for u := range g.Nodes {
 		for _, v := range g.adj[g.off[u]:g.off[u+1]] {
 			a, b := g.Nodes[u], g.Nodes[v]
@@ -469,7 +469,7 @@ func checkEdgeLength(g *Graph, p Params) error {
 	return nil
 }
 
-func checkPassThrough(g *Graph, p Params) error {
+func rulePassThrough(g *Graph, p Params) error {
 	for v := range g.Nodes {
 		nb := g.adj[g.off[v]:g.off[v+1]]
 		if len(nb) != 2 {
@@ -487,10 +487,10 @@ func checkPassThrough(g *Graph, p Params) error {
 	return nil
 }
 
-// checkConflictTable compares the table with every pair of moves. Pairs
+// ruleConflictTable compares the table with every pair of moves. Pairs
 // whose bounding boxes are clearly more than p.MinSep apart are skipped
 // cheaply; the rest go through Swept.
-func checkConflictTable(g *Graph, p Params) error {
+func ruleConflictTable(g *Graph, p Params) error {
 	numMoves := g.numMoves()
 	if len(g.confOff) != numMoves+1 {
 		return fmt.Errorf("nav: conflict table has %d offsets for %d moves", len(g.confOff), numMoves)
@@ -501,7 +501,7 @@ func checkConflictTable(g *Graph, p Params) error {
 		a, b := g.Nodes[g.moveFrom(m)], g.Nodes[g.moveTo(m)]
 		boxes[m] = box{min(a.X, b.X), max(a.X, b.X), min(a.Z, b.Z), max(a.Z, b.Z)}
 	}
-	cut := p.MinSep + geomEps
+	cut := p.MinSep + boxSlack
 	for m1 := range numMoves {
 		list := g.moveConflicts(m1)
 		for k, x := range list {

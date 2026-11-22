@@ -143,10 +143,11 @@ func (p *Planner) clearOccupants(at []int) {
 //     unclaimed, it was not onto the parent, and its conflict list held no
 //     registered move. Of any two final moves, the later one was checked
 //     against the earlier, because a final move is never unregistered.
-//   - A fallback stay needs no check. Its node is unclaimed (anyone else who
-//     claimed it would have had to push i, and only the parent does, which
-//     gives the node up), and on a graph that passes CheckGraph a stay only
-//     conflicts with moves that start or end on its node (rules 1 and 2).
+//   - A fallback stay needs no check. Nobody but the parent can hold a claim
+//     on i's node (anyone else claiming it would have pushed i first), and
+//     the stay takes that claim over. On a graph that passes CheckGraph, a
+//     stay only conflicts with moves that start or end on its node (rules 1
+//     and 2), and those are i's own or the parent's.
 //   - A move is unregistered only when the agent it pushed failed. Success
 //     returns straight up the path, so every agent in a failed subtree
 //     failed and stays, and stays do not depend on what else is registered.

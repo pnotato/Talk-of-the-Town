@@ -379,7 +379,7 @@ func TestConflictTableWithLongEdge(t *testing.T) {
 	if !g.Conflicts(0, 1, 2, 2) {
 		t.Error("standing 0.5 from the middle of a long move is not a conflict")
 	}
-	if err := checkConflictTable(g, DefaultParams()); err != nil {
+	if err := ruleConflictTable(g, DefaultParams()); err != nil {
 		t.Error(err)
 	}
 }
