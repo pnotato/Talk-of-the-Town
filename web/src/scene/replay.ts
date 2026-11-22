@@ -5,8 +5,8 @@
 // The playhead `t` counts ticks from the start of round 0. Round r's walk plays from r·T to
 // (r+1)·T, where T is the map's ticksPerRound, and the round's social step lands as its walk
 // ends. Between two ticks a blob moves in a straight line at constant speed, exactly as the
-// planner assumed when it kept every pair of blobs 1.2 apart (docs/engine/PIBT.md), so any
-// easing here would break that guarantee on screen.
+// planner assumed when it kept every pair of blobs 1.2 apart (docs/engine/PIBT.md). Easing one
+// blob differently from another breaks that guarantee on screen: the tests catch it.
 import type { Blob, Round, RunLog } from "../generated/types.ts";
 import { type Mood, moodFor } from "./blobMood.ts";
 
