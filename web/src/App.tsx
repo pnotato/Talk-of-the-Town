@@ -69,15 +69,7 @@ function TownIcon() {
 function ShapesIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
-      <rect
-        x="1.5"
-        y="8.1"
-        width="6"
-        height="6"
-        rx="1.6"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
+      <rect x="1.5" y="8.1" width="6" height="6" rx="1.6" stroke="currentColor" strokeWidth="1.3" />
       <circle cx="11.7" cy="11.1" r="3" stroke="currentColor" strokeWidth="1.3" />
       <path
         d="M8 2 11.2 7.1H4.8L8 2Z"
