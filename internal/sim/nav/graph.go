@@ -48,8 +48,9 @@ type Graph struct {
 	confOff []int32
 	conf    []int32
 	// hops[u*n+v] is the hop count from u to v, or noPath.
-	hops []uint16
-	core []bool
+	hops   []uint16
+	core   []bool
+	goalOK []bool
 }
 
 // FromEdges builds a Graph from nodes and undirected edges and precomputes
@@ -129,6 +130,7 @@ func FromEdges(nodes []Point, kinds []Kind, edges [][2]int, p Params) (*Graph, e
 	g.buildConflicts(p.MinSep)
 	g.buildHops()
 	g.buildCore()
+	g.buildGoals(p.MinSep)
 	return g, nil
 }
 
@@ -177,6 +179,14 @@ func (g *Graph) Hops(u, v int) int {
 // repeatedly removing nodes with at most one neighbour. Dead-end spurs are
 // outside it; rings and the paths between them are inside.
 func (g *Graph) Core(u int) bool { return g.core[u] }
+
+// GoalOK reports whether v may be a goal: a Stand node in the 2-core that is
+// not a pinch. A pinch has two neighbours, and a blob cannot be pushed
+// through it because one blob entering as another leaves would clash. After
+// CheckGraph, the only pinches left are pockets such as a hex area's 60°
+// corner. Blobs may still be pushed onto a pinch and leave it; they just
+// never head for one (see TestStepStallsOnPocketGoals).
+func (g *Graph) GoalOK(v int) bool { return g.goalOK[v] }
 
 // Conflicts reports whether two simultaneous moves u1 -> v1 and u2 -> v2
 // (u == v for a stay) clash: they come closer than Params.MinSep or end on
@@ -401,6 +411,26 @@ func (g *Graph) buildCore() {
 	}
 }
 
+// buildGoals marks the nodes GoalOK accepts.
+func (g *Graph) buildGoals(minSep float64) {
+	g.goalOK = make([]bool, len(g.Nodes))
+	for v := range g.NumStand {
+		g.goalOK[v] = g.core[v] && !g.pinch(v, minSep)
+	}
+}
+
+// pinch reports whether v has exactly two neighbours and a blob entering v
+// from one would clash with a blob leaving v for the other.
+func (g *Graph) pinch(v int, minSep float64) bool {
+	nb := g.adj[g.off[v]:g.off[v+1]]
+	if len(nb) != 2 {
+		return false
+	}
+	q := g.Nodes
+	a, b := q[nb[0]], q[nb[1]]
+	return Swept(a, q[v], q[v], b) < minSep || Swept(b, q[v], q[v], a) < minSep
+}
+
 // CheckGraph rechecks, by brute force from coordinates, the rules the
 // planner relies on, and returns the first one broken:
 //
@@ -408,9 +438,10 @@ func (g *Graph) buildCore() {
 //  2. every edge passes at least p.MinSep from every node not on it, so a
 //     blob standing still is safe from any move;
 //  3. every edge is at most p.MaxEdge long;
-//  4. at every node v with exactly two neighbours a and b, the moves a -> v
-//     and v -> b do not conflict (nor b -> v and v -> a), so a blob dwelling
-//     in a corridor can always be pushed on through it;
+//  4. at every corridor node v (exactly two neighbours a and b, which are not
+//     joined to each other), the moves a -> v and v -> b do not conflict (nor
+//     b -> v and v -> a), so a blob dwelling in a corridor can always be
+//     pushed on through it;
 //  5. the conflict table matches Swept and shared targets for every pair of
 //     moves.
 func CheckGraph(g *Graph, p Params) error {
@@ -469,10 +500,16 @@ func ruleEdgeLength(g *Graph, p Params) error {
 	return nil
 }
 
+// rulePassThrough skips pockets: a node whose two neighbours are joined to
+// each other, such as the 60° corner of a hex area. A pocket lies on no
+// shortest path between other nodes (a -> b is one direct edge), so a blob
+// stuck on it never blocks anyone's way through. Goals are unique, so only
+// the blob whose goal it is needs it, and that blob waits a few ticks at most
+// for the occupant to leave on its own.
 func rulePassThrough(g *Graph, p Params) error {
 	for v := range g.Nodes {
 		nb := g.adj[g.off[v]:g.off[v+1]]
-		if len(nb) != 2 {
+		if len(nb) != 2 || g.move(int(nb[0]), int(nb[1])) >= 0 {
 			continue
 		}
 		for _, ab := range [][2]int32{{nb[0], nb[1]}, {nb[1], nb[0]}} {
