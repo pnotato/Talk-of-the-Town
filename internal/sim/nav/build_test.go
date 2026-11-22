@@ -55,6 +55,47 @@ func kindCount(g *Graph, k Kind) int {
 	return n
 }
 
+// The edge rule on its own: two nodes link only if the step is short, stays
+// on walkable ground, keeps Radius from obstacles and MinSep from any
+// bystander.
+func TestEdgeRule(t *testing.T) {
+	ground := Area{Name: "l", Rect: Rect{MinX: -5, MaxX: 5, MinZ: -5, MaxZ: 1}}
+	leg := Area{Name: "leg", Rect: Rect{MinX: -5, MaxX: -1, MinZ: 1, MaxZ: 5}}
+	tests := []struct {
+		name      string
+		a, b      Point
+		bystander *Point
+		disc      *Disc
+		want      bool
+	}{
+		{"open ground", Point{0, 0}, Point{1.8, 0}, nil, nil, true},
+		{"too long", Point{0, 0}, Point{2, 0}, nil, nil, false},
+		{"bystander 1.1 off", Point{0, 0}, Point{1.8, 0}, &Point{0.9, 1.1}, nil, false},
+		{"bystander 1.25 off", Point{0, 0}, Point{1.8, 0}, &Point{0.9, -1.25}, nil, true},
+		{"lamp 0.5 off", Point{0, 0}, Point{1.8, 0}, nil, &Disc{X: 0.9, Z: 0.8, R: 0.3}, false},
+		{"lamp 0.65 off", Point{0, 0}, Point{1.8, 0}, nil, &Disc{X: 0.9, Z: 0.95, R: 0.3}, true},
+		{"cuts a corner", Point{-0.4, 0.8}, Point{-1.6, 2}, nil, nil, false},
+		{"round the corner", Point{-1.4, 0.8}, Point{-1.6, 2.5}, nil, nil, true},
+	}
+	for _, tc := range tests {
+		m := Map{Spacing: lattice, Areas: []Area{ground, leg}}
+		if tc.disc != nil {
+			m.Discs = []Disc{*tc.disc}
+		}
+		b, err := newBuilder(m, DefaultParams())
+		if err != nil {
+			t.Fatal(err)
+		}
+		i, j := b.add(tc.a, Stand), b.add(tc.b, Stand)
+		if tc.bystander != nil {
+			b.add(*tc.bystander, Stand)
+		}
+		if got := b.linkable(i, j); got != tc.want {
+			t.Errorf("%s: linkable = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 // A plain rect is exactly its hex grid: every spot a Stand node, an edge
 // between every two spots a spacing apart and no others, nothing added. The
 // rect has short rows top and bottom so no corner is a sharp turn.
