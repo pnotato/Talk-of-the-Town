@@ -12,6 +12,7 @@ import {
   SIDEWALK,
   VEHICLE_LENGTH,
   VEHICLE_WIDTH,
+  walkingObstacles,
 } from "./layoutCity.ts";
 import { TREE_RADIUS } from "./layoutTown.ts";
 import {
@@ -390,6 +391,19 @@ describe("layoutCity", () => {
             assert.ok(d >= BLOB_REACH - EPS, `a cell is ${d.toFixed(2)} from a ${what}`);
           }
         }
+      });
+
+      test("a walking blob goes round lamps, trees, buildings and kiosks, not doorsteps", () => {
+        const walking = walkingObstacles(city);
+        // The standing obstacles bar the doorsteps: lamps, trees, buildings, then furniture.
+        const expected = ["lamp", "tree", "building", "kiosk"].flatMap((what) =>
+          obstaclesOf(city).filter((o) => o.what === what),
+        );
+        assert.equal(
+          walking.length,
+          city.lamps.length + city.trees.length + buildings.length + furniture.length,
+        );
+        assert.deepEqual(walking, expected);
       });
 
       test("no cell is on a road, and areas never overlap", () => {

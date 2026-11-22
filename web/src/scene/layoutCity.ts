@@ -119,6 +119,12 @@ export interface CityCrosswalk extends CityRect {
   axis: "x" | "z";
 }
 
+/** Something a blob walking the city must go round, and what it is. */
+export interface CityObstacle {
+  what: "lamp" | "tree" | "building" | FurnitureKind;
+  obstacle: Obstacle;
+}
+
 export interface CityPlaza extends CityRect {
   /** The paving: the whole island, as a rectangle. */
   outline: Point[];
@@ -349,21 +355,16 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   );
   queueAtCrossings(plaza.island, vehicles, random);
   const trees = [...parkTrees, ...plantTrees(extent, random)];
+  const lampPosts = [...lamps, ...plaza.lamps];
+  const walking = walkingObstacles({
+    lamps: lampPosts,
+    trees,
+    buildings,
+    furniture: plaza.furniture,
+  });
+  // A standing blob also keeps clear of every doorstep, which a walking one may cross.
   const gathering = walkableAreas(plaza, parks, plazaBlocks, [
-    ...plaza.furniture.map(({ x, z, width, depth, rotationY }) => ({
-      kind: "box" as const,
-      ...{ x, z, width, depth, rotationY },
-    })),
-    ...[...lamps, ...plaza.lamps].map((l) => ({
-      kind: "disc" as const,
-      ...l,
-      radius: LAMP_RADIUS,
-    })),
-    ...trees.map((t) => ({ kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
-    ...buildings.map(({ x, z, width, depth }) => ({
-      kind: "box" as const,
-      ...{ x, z, width, depth, rotationY: 0 },
-    })),
+    ...walking.map((o) => o.obstacle),
     ...homes.map((h) => ({
       kind: "box" as const,
       x: h.door.x + (Math.sin(h.facing) * DOORSTEP) / 2,
@@ -471,10 +472,36 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     screens,
     tickers,
     furniture: plaza.furniture,
-    lamps: [...lamps, ...plaza.lamps],
+    lamps: lampPosts,
     vehicles,
     trees,
   };
+}
+
+/**
+ * What a blob walking the city must go round: lamp posts, tree canopies, building walls and
+ * plaza furniture, in that order. Not doorsteps: a blob may walk past a door, it just never
+ * stands in front of one.
+ */
+export function walkingObstacles(
+  city: Pick<CityLayout, "lamps" | "trees" | "buildings" | "furniture">,
+): CityObstacle[] {
+  const box = ({ x, z, width, depth }: CityRect, rotationY: number): Obstacle => ({
+    kind: "box",
+    ...{ x, z, width, depth, rotationY },
+  });
+  return [
+    ...city.lamps.map(({ x, z }): CityObstacle => ({
+      what: "lamp",
+      obstacle: { kind: "disc", x, z, radius: LAMP_RADIUS },
+    })),
+    ...city.trees.map(({ x, z, size }): CityObstacle => ({
+      what: "tree",
+      obstacle: { kind: "disc", x, z, radius: TREE_RADIUS * size },
+    })),
+    ...city.buildings.map((b): CityObstacle => ({ what: "building", obstacle: box(b, 0) })),
+    ...city.furniture.map((f): CityObstacle => ({ what: f.kind, obstacle: box(f, f.rotationY) })),
+  ];
 }
 
 // A canyon round the plaza, tallest at the news tower; low to the south, where the default
