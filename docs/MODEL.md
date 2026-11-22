@@ -245,7 +245,7 @@ Between conversations the blobs wander the city on its walk graph, without ever 
 | `WanderMaxHops` | 20 | most hops to a new goal | *(design)* |
 | `DwellMinTicks` | 2 | shortest stay at a goal | *(design)* |
 | `DwellMaxTicks` | 12 | longest stay at a goal (before any extra ticks, below) | *(design)* |
-| `StuckTicks` | 10 | a walker that has not moved for this many ticks in a row picks a new goal | *(design)* |
+| `StuckTicks` | 10 | a walker that has not moved for this many ticks in a row picks a new goal (a rare backstop; see "Why step 4") | *(design)* |
 | `MinSep` | 1.2 | closest two blobs ever get, standing or moving: 2 × the blob radius 0.6 | *(design)*, `nav.DefaultParams()` |
 
 - The walk graph is the city's standing spots plus extra nodes on crosswalks and round corners ([engine/NAV_GRAPH.md](./engine/NAV_GRAPH.md)). An edge is at most 1.95 units long.
@@ -280,7 +280,7 @@ Then every blob moves at once, in one PIBT planner step ([engine/PIBT.md](./engi
 - A dweller's goal is the node it is dwelling at, so it steps back if pushed off. Goals are therefore always distinct.
 - Priority: `ticksSinceGoal × 2^16 + tiebreak` for walkers, `tiebreak` for dwellers. Higher plans first and wins. A walker gains priority every tick until it arrives, which is what keeps every blob reaching its goals.
 - Guarantees each tick: no two blobs on one node, no two blobs swapping nodes, and no two blobs closer than `MinSep` at any moment of the tick.
-- Why step 4: at some city nodes, a blob stepping in from one side clashes with every way out, so whoever stands there cannot be pushed on. A walker whose path goes through such a node behind a blob that can never be pushed would outrank it and wait forever, and so would everyone queued behind it. A new goal drops its priority to the bottom, so the blob in front can move off on its own *(design)*. Without step 4, 29 of 40 seeds (1–40) had a blob reach fewer than 2 goals in a 50-round run; with it, every blob reached at least 15 goals in each of those runs (mean 22.9), and about 14 walkers per run took a new goal this way.
+- Why step 4: a walker that outranks a blob it can never push would wait behind it for ever, and so would everyone queued behind it. A new goal drops its priority to the bottom, so the blob in front can move off on its own *(design)*. On the city it is a rare backstop. The walk graph has no node where a blob stepping in from one side clashes with every way out (a *trap entry*, ruled out by `CheckGraph` rule 4; see [engine/PIBT.md](./engine/PIBT.md#liveness-blobs-keep-reaching-their-goals)). Over seeds 1–200 step 4 fired 5 times in all, and turning it off changes no run on seeds 1–40: every blob reached at least 15 goals in a 50-round run (mean 23.3). Before trap entries were ruled out, 72 city nodes had one and step 4 fired about 14 times per run; without it, 29 of 40 seeds had a blob reach fewer than 2 goals.
 
 ## Announcements
 

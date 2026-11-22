@@ -212,29 +212,45 @@ conditions. Both are enforced in one place: goals must be nodes that
      this never ends (`TestStepStallsOnPocketGoals`).
    - Blobs may still be pushed into a spur or onto a pocket corner, and they
      leave again because their goals are elsewhere.
-2. **Pass-through rule (`CheckGraph` rule 4).** At a corridor node `v` with
-   exactly two neighbours `a` and `b` that are **not** joined to each other,
-   the moves `a → v` and `v → b` must not conflict. Otherwise a blob dwelling
-   at `v` can never be pushed on through, because the pusher entering `v`
-   would clash with it leaving, and the corridor would stay blocked. In
-   practice, a corridor may turn at most about 93–96° at any one node.
-   Pocket corners are exempt: `a → b` is a direct edge, so a pocket is on no
-   shortest path and never blocks anyone's way through. That is why it only
-   has to be kept out of the goals.
+2. **No trap entries (`CheckGraph` rule 4).** At every node `v` with two or
+   more neighbours, a blob arriving from any neighbour `a` must have a way
+   on: some move `v → b`, `b ≠ a`, that does not conflict with `a → v`. If
+   not, `a` is a *trap entry* of `v`. Say Y dwells on `v` and X, coming from
+   `a`, needs to pass. X outranks Y, claims `v` and pushes; every exit Y has
+   clashes with X stepping in, so Y fails and stays. X never loses priority
+   and waits for ever, and so does everyone queued behind it. It is the
+   pocket-corner stall above, at a node a walker really needs to get
+   through.
+   - On a corridor (exactly two neighbours, not joined to each other) this
+     is the pass-through rule: a queue must be able to walk through, so a
+     corridor may turn at most about 93–96° at any one node.
+   - At a T-junction, a blob from the stem must turn 90° either way. With
+     legs of 1.515 and 1.8 the two moves come 1.159 apart, so it is a trap;
+     legs of about 1.7 each would pass. The end of a hex row is a trap from
+     the inside, a 120° turn either way.
+   - Pocket corners are exempt: `a → b` is a direct edge, so a pocket is on
+     no shortest path and never blocks anyone's way through. That is why it
+     only has to be kept out of the goals. After `CheckGraph`, the pockets
+     are the only nodes with a trap entry, so `GoalOK` (which rejects any
+     node with one) rejects exactly them.
+   - The city graph's builder leaves none (see
+     [NAV_GRAPH.md](./NAV_GRAPH.md)). Before it did, the city had 72 nodes
+     with a trap entry, and walkers stalled behind blobs on them.
 
 Measured with the test harness over 2,000 ticks and 40 seeds (10 for the last
-row). The fixtures run at three to four times the city's density, and every
-hex fixture keeps its pocket corners in the graph. Goal nodes are those
-`GoalOK` accepts.
+row). The fixtures run at three to four times the city's density. The hex
+fixtures go through `nav.Untrap`, which cuts a few edges at their row ends
+as the city's builder does; they keep their pocket corners. Goal nodes are
+those `GoalOK` accepts.
 
 | Fixture | Nodes (pockets) | Blobs / goal nodes | Fewest goals by one blob | Mean | Longest wait |
 |---|---|---|---|---|---|
-| hex plaza with holes | 154 (2) | 45 / 152 | 120 | 136 | 9 ticks |
+| hex plaza with holes | 154 (2) | 45 / 152 | 123 | 136 | 10 ticks |
 | 1-wide ring | 24 | 9 / 24 | 96 | 112 | 3 |
-| two rooms + 1-wide corridor | 74 (4) | 21 / 70 | 51 | 67 | 21 |
+| two rooms + 1-wide corridor | 74 (4) | 21 / 70 | 53 | 68 | 20 |
 | sidewalk rings + crosswalks | 44 | 12 / 40 | 81 | 96 | 8 |
-| ring with dead-end spurs | 39 | 9 / 30 | 84 | 98 | 9 |
-| 1,024-node hex, 100 blobs (city density) | 1,024 (2) | 100 / 1,022 | 110 | 120 | 4 |
+| ring with dead-end spurs | 39 | 9 / 30 | 84 | 97 | 9 |
+| 1,024-node hex, 100 blobs (city density) | 1,024 (2) | 100 / 1,022 | 109 | 120 | 7 |
 
 If pocket corners are allowed as goals, the same runs stall: some blobs
 reach no goals at all and stand still for nearly the whole run.
@@ -248,9 +264,10 @@ The tests require at least 25 goals per blob and no wait over 40 ticks.
   queue ends up in a room with free space. Throughput drops with crowding:
   the corridor fixture at 50% density still worked, but the slowest blob
   managed only 27 goals.
-- The pass-through rule only checks neighbours. A queue pushed round a very
-  tight bend could still be refused because of two blobs that are not
-  neighbours. Graph building should keep corridor bends gentle.
+- Rule 4 only checks one push at a time, a blob arriving and the one ahead
+  leaving. A queue pushed round a very tight bend could still be refused
+  because of two blobs that are not neighbours. Graph building should keep
+  corridor bends gentle.
 - Pocket corners (including Stand nodes at hex-area corners) stay in the
   graph and are walkable, but blobs never choose them as goals. The game's
   goal picker must use `GoalOK`, not just "is a Stand node".
@@ -282,9 +299,10 @@ never allocates (`TestStepNoAllocs`).
 | `graph.go` | `buildConflicts` | Move ids and per-move conflict lists, via a bucket grid |
 | `graph.go` | `buildHops` | All-pairs hop matrix by BFS from every node |
 | `graph.go` | `buildCore` | 2-core by peeling nodes with at most one neighbour |
-| `graph.go` | `buildGoals`, `pinch` | Goal nodes: Stand, in the 2-core, not a pocket corner |
+| `graph.go` | `buildGoals`, `pinch`, `bestExit`, `pocket` | Goal nodes: Stand, in the 2-core, no trap entry (after `CheckGraph`, not a pocket corner) |
 | `graph.go` | `Neighbors`, `Hops`, `Core`, `GoalOK`, `Conflicts`, `Fingerprint` | Read-only queries |
-| `graph.go` | `CheckGraph` and `rule*` | Brute-force recheck of the five graph rules |
+| `graph.go` | `CheckGraph` and `rule*` | Brute-force recheck of the five graph rules (`rulePassThrough` is rule 4: no trap entries) |
+| `untrap.go` | `Untrap` | Cuts trap entries out of a hand-made edge list, as the city's builder does |
 | `planner.go` | `NewPlanner` | Allocates scratch arrays once |
 | `planner.go` | `Step` = `begin`, `plan`, `finish` | Checks inputs and sorts by priority; runs PIBT; writes `next` and clears scratch |
 | `planner.go` | `pibt` | The recursion above, with the invariant argument |
@@ -298,7 +316,10 @@ never allocates (`TestStepNoAllocs`).
 - `graph_test.go`: a `Swept` table (parallel, head-on, follow straight, 60°,
   120°, crossing, identical points), `FromEdges` errors, hops and 2-core on
   small graphs, `GoalOK`, fingerprint stability, conflicts, `CheckGraph`
-  catching each rule on a small broken graph, and pocket corners passing.
+  catching each rule on a small broken graph (rule 4 at a too-sharp corridor
+  turn, a T-junction and a hex row's end), and pocket corners and a
+  long-legged T-junction passing. The flower (a hex cell) breaks rule 4 at its
+  rim, so it only serves the conflict-table tests.
 - `planner_test.go`: the wander harness on five fixtures (hex with holes,
   1-wide ring, two rooms and a corridor, sidewalk rings with crosswalks, ring
   with spurs). It checks clearance and the bookkeeping on every tick, plus

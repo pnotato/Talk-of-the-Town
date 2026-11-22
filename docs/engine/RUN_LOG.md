@@ -177,7 +177,7 @@ no comments):
       "traits": ["gullible", "charismatic"], "perception": 50, "interest": 20,
       "familyId": -1, "homeId": 17, "neighbourhoodId": 1 }, ... ], ... },
   "map": {
-    "nodes": [[0, 0], [-1.8, 0], [1.8, 0], ...],   // 1,050 nodes; node 0 is the plaza's centre
+    "nodes": [[0, 0], [-1.8, 0], [1.8, 0], ...],   // 1,054 nodes; node 0 is the plaza's centre
     "stand": 752,
     "ticksPerRound": 10
   },

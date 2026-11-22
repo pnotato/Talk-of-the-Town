@@ -8,7 +8,7 @@ and the numbers for the real city.
 How blobs then move on the graph, one edge per tick and without collisions,
 is in [PIBT.md](./PIBT.md).
 
-![The city's walk graph: 1,050 nodes coloured by kind on the plaza, the park and the sidewalks round them, joined by black edges, with zebra chains across the roads](./city-graph.svg)
+![The city's walk graph: 1,054 nodes coloured by kind on the plaza, the park and the sidewalks round them, joined by black edges, with zebra chains across the roads](./city-graph.svg)
 
 *Blue: standing spots. Orange: grid gaps filled in (mostly in front of doors).
 Purple: chains across zebra crossings. Red: bridges round block corners and
@@ -64,7 +64,7 @@ the graph keeps these rules. `nav.Check` checks them all by brute force, and
 | Nodes are apart | ≥ `MinSep` 1.2 | two blobs standing on neighbouring nodes don't overlap |
 | Edges keep clear of other nodes | ≥ `MinSep` | a blob walking an edge never brushes one standing still nearby |
 | Edges are short | ≤ `MaxEdge` 1.95 | a step fits in one tick, and the move-conflict table stays local |
-| Corridors let a queue through | swept gap ≥ `MinSep` | at a node with exactly two neighbours that aren't linked to each other, one blob can step in while the one ahead steps out; otherwise a queue in a 1-wide corridor jams |
+| No trap entries | from every neighbour, some way on with swept gap ≥ `MinSep` | a blob dwelling on a node can always be pushed on by one arriving from any side; otherwise the arriving walker stalls behind it for good (pockets excepted) |
 | Conflict table is exact | matches `Swept` | the planner looks clashes up instead of computing them |
 | Stand nodes are the spots | equal, in order | goals and spawn points line up with the scene |
 | Nodes and edges stay on the ground | inside areas ∪ crosswalks | nobody walks on the road except on a zebra |
@@ -72,17 +72,25 @@ the graph keeps these rules. `nav.Check` checks them all by brute force, and
 | One piece | every node reaches node 0 | every blob can reach every goal |
 | Every crosswalk is crossed | a chain of edges inside it | the city's blocks are joined only where the zebras are |
 
-The first five are `CheckGraph` (W1's, in `graph.go`); `Check` adds the
-geometry. A *pocket*, a node whose two neighbours are linked to each other
-(the 60° corner of a hex area), is not a corridor. Blobs may pass over it but
-`GoalOK` never makes it a goal (see PIBT.md).
+The first five are `CheckGraph` (in `graph.go`); `Check` adds the geometry.
+
+A *trap entry* is a neighbour `a` of `v` such that a blob stepping `a → v`
+clashes with every move on out of `v` (to any `b ≠ a`). A blob dwelling on
+`v` then cannot be pushed on by a walker coming from `a`: the walker keeps
+pushing, the dweller keeps failing, and the walker, which outranks it, waits
+for ever. On a 1-wide corridor that is a turn too sharp for a queue; at a
+T-junction it is a 90° turn with short legs; at the end of a hex row it is a
+120° turn either way. A *pocket*, a node whose only two neighbours are linked
+to each other (the 60° corner of a hex area), is exempt: nobody needs to pass
+through it, and `GoalOK` never makes it a goal (see PIBT.md).
 
 ```
- corridor node v              pocket v
-   a ── v                       a ─── b
-        │   a→v and v→b at       ╲   ╱    a and b are linked, so nobody
-        b   once: must stay       v       needs to pass through v
-            ≥ 1.2 apart
+ corridor v            T-junction v              pocket v
+   a ── v              b ── v ── c                a ─── b
+        │                   │                      ╲   ╱
+        b                   a                       v
+ a→v then v→b:        a→v then v→b or v→c:     a and b are linked, so
+ ≥ 1.2 apart          one must stay ≥ 1.2      nobody needs to pass v
 ```
 
 ## The build, stage by stage
@@ -92,10 +100,10 @@ randomness, no map iteration, and every computed coordinate rounded to 1e-6.
 Edges are never chosen one by one. They follow from the nodes by one rule
 (the *edge rule*, `linkable`): two nodes link if they are at most `MaxEdge`
 apart and the segment between them stays on walkable ground, keeps `Radius`
-from every obstacle and `MinSep` from every other node. Every stage just adds
-(or removes) nodes. Each addition is all-or-nothing: it is kept only if it
-does what it was for, doesn't split the graph, and leaves every corridor it
-touched passable.
+from every obstacle and `MinSep` from every other node. Every stage up to the
+last just adds (or removes) nodes. Each addition is all-or-nothing: it is
+kept only if it does what it was for, doesn't split the graph, and adds no
+trap entry anywhere. The last stage cuts the trap entries that are left.
 
 Numbers in brackets are for the real city.
 
@@ -106,14 +114,15 @@ fall into 81 separate pieces. Sidewalks are cut at every doorway and don't
 meet round block corners, the park lawn doesn't reach its sidewalks, and
 nothing crosses a road.
 
-### 2. Grid fill (+145 → 897 nodes, 31 pieces)
+### 2. Grid fill (+153 → 905 nodes, 30 pieces)
 
 Spots keep a blob's *reach* (0.85) from obstacles and doorsteps, so it can
 idle without clipping. A blob only passing through needs just its *radius*
 (0.6), and doorsteps don't block it. So each area's hex grid is rebuilt from
 its first spot, and every cell that is inside the area, a radius from the
 walkable outline and from obstacles, and at least `FillGap` (1.4) from every
-node so far, becomes a Fill node. It goes area by area, row by row.
+node so far, becomes a Fill node. It goes area by area, narrowest first,
+row by row, and an area's grid reaches one step into the areas beside it.
 
 This refills the holes in front of doors and joins the park lawn to its
 sidewalks. The clearance is measured to the outline of all walkable ground,
@@ -122,7 +131,19 @@ is no kerb.
 
 ![Doors on the news tower's north sidewalk: orange Fill nodes complete the row where doorsteps removed spots](./city-graph-doorway.svg)
 
-### 3. Crosswalk chains (+121 → 1,018 nodes, 19 pieces)
+The order matters where the park's lawn meets its sidewalks. The sidewalks'
+rows line up with the lawn's even rows, so on the lawn's grid the row of
+cells between would sit square under the sidewalk's spots, 1.515 away. A
+blob stepping off the lawn onto the 1-wide sidewalk would then have to turn
+90° either way on legs of 1.515 and 1.8. Those moves come within 1.159 of
+each other, under `MinSep`, so every such step would be a trap entry. Filling
+the sidewalks first puts that row on the sidewalk's grid instead, half a step
+along, joined to the sidewalk by triangles. It takes the nodes with a trap
+entry after this stage from 83 to 38.
+
+![The park's south-east corner: the orange row between the lawn and the south sidewalk sits half a step along from the sidewalk's spots, joined to them by triangles](./city-graph-park-edge.svg)
+
+### 3. Crosswalk chains (+120 → 1,025 nodes, 18 pieces)
 
 Roads are 7 wide and edges at most 1.95, so each crosswalk needs a chain of
 nodes. For each one:
@@ -148,7 +169,7 @@ between a kiosk and a corner lamp. Routing goes round the kiosk:
 
 ![The plaza's north-east corner: purple chains cross both roads; on the plaza side the chain bends round the kiosk to reach the paving](./city-graph-crosswalk.svg)
 
-### 4. Gap bridges (+46 Bridge, −14 Fill → 1,050 nodes, 1 piece)
+### 4. Gap bridges (+47 Bridge, −18 Fill → 1,054 nodes, 1 piece)
 
 What is left are places where two nodes are a short walk apart but the graph
 only links them the long way round, or not at all. The worst are block
@@ -173,8 +194,11 @@ Each remaining pair gets, until one works:
    Fill nodes cleared (Stand nodes are never removed);
 3. a routed chain **without** the margin, as a last resort.
 
-On the real city that is 13 routed chains, 19 one-point and 7 two-point
-bridges, with 14 Fill nodes cleared to make room. The five tightest corners,
+Every bridge must also add no trap entry, which rules out bridge nodes at
+T-junctions with legs too short for a 90° turn (about 1.7 each).
+
+On the real city that is 12 routed chains, 16 one-point and 9 two-point
+bridges, with 18 Fill nodes cleared to make room. The five tightest corners,
 where an east sidewalk's zigzag meets its north or south sidewalk, take two
 points each and leave at least 0.11 to spare. To get that room some swing
 out to 0.4 from the kerb, so a blob rounding the corner leans 0.2 over the
@@ -182,16 +206,28 @@ road. That is allowed: only obstacles block.
 
 ![Block [1,-1]'s north-east corner: the north sidewalk's row and the east sidewalk's zigzag joined by two red Bridge nodes threaded between the corner lamp and the building](./city-graph-corner.svg)
 
-### 5. Edges and corners (1,934 edges)
+### 5. Edges and trap entries (1,954 edges)
 
 Nodes cut off from Stand node 0 would be removed (there are none). The edge
-rule then links every pair one last time. One corridor turns too sharply to
-pass: the park's south-east corner, where the sidewalk row and the lawn's grid
-meet 1.5 apart at 90° (swept gap 1.176 < 1.2), with no room for a third node.
-That node drops one edge and becomes a dead end, where a blob can step in and
-back out. An edge is only dropped if the graph stays in one piece and the
-node at its other end still passes. If any Stand node is unreachable at the
-end, `Build` returns an error. It never drops a spot.
+rule then links every pair one last time, which leaves 28 trap entries, all
+at the ends of hex rows: on the plaza's east and west edges, down the lawn's
+west side, and at the ends of the fill rows. Each is fixed by cutting an
+edge, `untrap` in `untrap.go`. For entry `a → v` it tries cutting `a-v`, then
+each other edge of `v`, which can leave `v` a pocket or a dead end. A cut must
+never split the graph or uncross a crosswalk. Within that, it prefers, in
+order:
+
+1. cuts that lower the trap entries round them without costing a goal;
+2. cuts that just move a trap on along a row, which the end of a row can need;
+3. only if nothing else is left, cuts that cost a goal.
+
+Every cut drops an edge, so it ends. On the city all 28 go with the first
+kind and no goal is lost. If any trap entry is left, `Build` returns an error
+listing them rather than a graph that would stall walkers. If any Stand node
+is unreachable at the end, `Build` returns an error. It never drops a spot.
+
+`nav.Untrap` runs the same cuts on a hand-made edge list. The hex test
+fixtures go through it, as the city does.
 
 Finally `FromEdges` builds the planner's tables and `Check` re-verifies
 everything above.
@@ -200,18 +236,27 @@ everything above.
 
 | | |
 |---|---|
-| Nodes | 1,050: 752 Stand, 131 Fill, 121 Crossing, 46 Bridge |
-| Edges | 1,934 |
+| Nodes | 1,054: 752 Stand, 135 Fill, 120 Crossing, 47 Bridge |
+| Edges | 1,954 (28 cut to leave no trap entry) |
 | Pieces | 1 |
 | Closest two nodes | 1.2886 (`MinSep` 1.2) |
-| Dead ends | 1 (the park's south-east corner) |
-| 2-core | 1,049 nodes; 751 of 752 Stand nodes |
-| Possible goals (`GoalOK`) | 751 of 752 Stand nodes (99.9%); no Stand node is a pocket |
-| Fingerprint | `0x34ba2bfb0e4cfd59`, the same on arm64 and amd64 |
-| Build time | ~180 ms on an Apple M1, of which `Check` is ~50 ms |
+| Trap entries | 0 |
+| Dead ends | 0 |
+| 2-core | all 1,054 nodes |
+| Possible goals (`GoalOK`) | 750 of 752 Stand nodes (99.7%); the other 2 are pockets |
+| Fingerprint | `0x2f8815783ff8d06d`, the same on arm64 and amd64 |
+| Build time | ~195 ms on an Apple M1, of which `Check` is ~50 ms |
 
-Per stage: fill ~8 ms, crosswalk chains ~20 ms, gap bridges ~100 ms, then
-`FromEdges` and `Check`.
+Per stage: fill ~4 ms, crosswalk chains ~20 ms, gap bridges ~100 ms, then
+the trap cuts, `FromEdges` and `Check`. `nav.BuildReport` returns the counts
+above stage by stage; `TestGraph` logs them.
+
+Before trap entries were ruled out (1,050 nodes, 72 of them with one),
+walkers stalled behind blobs they could not push. `sim`'s step 4, a new goal
+after 10 ticks standing still, fired about 14 times per run, and without it
+29 of 40 seeds had a blob reach fewer than 2 goals in a run. Now it fires 5
+times in 200 runs, and turning it off changes nothing on seeds 1–40: every
+blob reaches at least 15 goals per run, 23.3 on average.
 
 ## Why builds are bit-stable
 
@@ -235,7 +280,7 @@ up as a failing test. The arm64 and amd64 builds give the same fingerprint
 
 ```sh
 make citymap                                   # re-export city.json after changing the scene
-go test ./internal/sim/citymap -run TestGraph -v   # counts, spacing, 2-core, goals, fingerprint
+go test ./internal/sim/citymap -run TestGraph -v   # stage counts, trap cuts, spacing, 2-core, goals, fingerprint
 go test ./internal/sim/citymap -run TestSVG \
     -svg ../../../docs/engine/city-graph.svg   # this page's pictures (crops go next to it)
 go test ./internal/sim/citymap -run XXX -bench . -benchtime 10x   # Build and Check timings
@@ -253,11 +298,12 @@ If the fingerprint changes on purpose, look at the new picture, update
 | `internal/sim/citymap/svg_test.go` | the pictures on this page, behind `-svg` |
 | `internal/sim/nav/types.go` | `Map`, `Params`, `DefaultParams`, `Kind` |
 | `internal/sim/nav/geometry.go` | distances, the walkable `union` (outline, segment containment), `obstacles`, the node index |
-| `internal/sim/nav/build.go` | `Build`, stages 1 and 2, the edge rule (`linkable`), pass-through (`passes`), hops and pieces |
-| `internal/sim/nav/chain.go` | grid routing (A* / Dijkstra), string pulling, chain placement (`placeChain`), all-or-nothing changes |
-| `internal/sim/nav/stages.go` | stage 3 (`crossings`), stage 4 (`bridges`, `brute`), stage 5 (`prune`, `trim`) |
+| `internal/sim/nav/build.go` | `Build`, `BuildReport`, stages 1 and 2, the edge rule (`linkable`), trap counts (`trapCount`), hops and pieces |
+| `internal/sim/nav/chain.go` | grid routing (A* / Dijkstra), string pulling, chain placement (`placeChain`), all-or-nothing changes (`keeps`: no new trap entry) |
+| `internal/sim/nav/stages.go` | stage 3 (`crossings`), stage 4 (`bridges`, `brute`), stage 5 (`prune`, `untrap`) |
+| `internal/sim/nav/untrap.go` | trap entries and the cuts that remove them; `Untrap` for hand-made graphs |
 | `internal/sim/nav/check.go` | `Check`: `CheckGraph` plus the map's geometry |
-| `internal/sim/nav/graph.go` | `FromEdges`, `CheckGraph`, `GoalOK` (see PIBT.md) |
+| `internal/sim/nav/graph.go` | `FromEdges`, `CheckGraph` (rule 4: no trap entries), `GoalOK` (see PIBT.md) |
 
 ## How it is tested
 
@@ -266,20 +312,29 @@ If the fingerprint changes on purpose, look at the new picture, update
   index.
 - **Edge rule**: length, ground, a lamp 0.5 and 0.65 off, a bystander 1.1 and
   1.25 off, a segment cutting a corner.
-- **Build on small maps**: one rect gives exactly its hex grid; a road with a
-  crosswalk gives a chain on its centreline; without the crosswalk the build
-  fails; a doorway gap is filled exactly; a copy of the tightest corner gets
-  bridged; a walled-off gap fails; pocket corners keep their edges and aren't
-  goals; a too-sharp corridor (the park's corner) is cut to dead ends; bad
-  input is rejected; two builds are identical.
+- **Build on small maps**: one rect gives its hex grid less a few row-end
+  edges, with pockets and dead ends never goals; a road with a crosswalk gives
+  a chain on its centreline; without the crosswalk the build fails; a doorway
+  gap is filled exactly; a copy of the tightest corner gets bridged; a
+  walled-off gap fails; the park block's lawn meets its sidewalks on the
+  sidewalks' grid, with no trap and no goal lost; a ladder of 90° rungs, which
+  no cut can fix, makes the build fail naming the traps; bad input is
+  rejected; two builds are identical.
+- **Untrap**: nothing to cut, a hex patch, a rhombus and a ladder that can't
+  be fixed, a bad edge.
+- **CheckGraph rule 4** catches a T-junction (90° on legs of 1.515 and 1.8,
+  swept 1.159) and a hex row's end (120° either way), and passes pockets and a
+  T-junction with legs of 1.75.
 - **Check catches**: a node nudged 0.3, a Stand node moved off its spot, a
   crosswalk narrowed off its chain, an edge through an obstacle, a node too
   near one, an edge leaving the ground, two pieces, an unchained crosswalk, a
-  missing spot, a dropped conflict entry, a too-sharp corridor.
+  missing spot, a dropped conflict entry, a trap entry.
 - **Real city**: `Load` and malformed inputs; `Graph()` is one piece with all
-  752 spots, passes `Check`, keeps ≥ 95% of spots as goals, and matches the
-  pinned fingerprint.
+  752 spots, passes `Check` (so has no trap entry), loses no goal to the trap
+  cuts, keeps ≥ 95% of spots as goals, and matches the pinned fingerprint.
 - **Mutations** (each applied by hand and reverted): skipping crosswalk
   chains, skipping bridges, `MinSep` 1.0 in the edge rule, no obstacle
-  clearance for edges, and grid fill ignoring `FillGap` each fail both small-map
-  and real-city tests.
+  clearance for edges, grid fill ignoring `FillGap`, skipping the trap cuts,
+  filling areas in map order (lawn first), and letting bridges add trap
+  entries each fail real-city tests, and all but the last fail small-map ones
+  too; rule 4 checked only on corridors fails `CheckGraph`'s own tests.

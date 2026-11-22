@@ -38,9 +38,9 @@ web/src/scene/            the city layout in TypeScript: areas, standing
      |  make citymap      (web/scripts/export-city-map.ts)
      v
 internal/sim/citymap/city.json      committed; make check fails if it is stale
-     |  citymap.Graph() = Load + nav.Build, once per process (~180 ms)
+     |  citymap.Graph() = Load + nav.Build, once per process (~195 ms)
      v
-nav.Graph                 1,050 nodes, 1,934 edges, plus the hop matrix
+nav.Graph                 1,054 nodes, 1,954 edges, plus the hop matrix
      |                    and the move-conflict table
      |  walker (sim/walk.go): goals, dwell times, priorities
      v
@@ -136,21 +136,22 @@ curl -s localhost:8080/api/run \
 - `TestGolden` pins one whole run byte for byte in
   `internal/sim/testdata/golden_run.json` (447 KB).
 - `TestCityWalkLiveness`: over a 50-round run on the city (seeds 1–10), every
-  blob reaches at least 15 goals; the mean is 22.9.
+  blob reaches at least 16 goals; the mean is 23.3, and no walker needs step 4
+  of [MODEL.md#each-tick](../MODEL.md#each-tick).
 - `internal/server/runs_test.go`: file equals response, partial and unset
   `RUNS_DIR` write nothing, an unwritable folder still answers 200, names are
   sanitised, and the startup run is written.
-- `BenchmarkRun`: a full run takes about 16 ms on an Apple M1, 12.6 ms of it
+- `BenchmarkRun`: a full run takes about 16 ms on an Apple M1, 12.8 ms of it
   movement. The city graph is built once beforehand.
 
 ## Known limits
 
-- At 72 of the city's 1,050 nodes (43 of them goal nodes), a blob stepping
-  in from one side clashes with every way out. 55 of the 72 involve a fill
-  node, mostly where a door's fill nodes join a 1-wide sidewalk at right
-  angles. Whoever stands on such a node cannot be pushed on from that side. Plain
-  PIBT would let a high-priority walker wait behind it forever.
-  [MODEL.md#each-tick](../MODEL.md#each-tick) step 4 works round this: a
-  walker that has not moved for 10 ticks takes a new goal. This happens
-  about 14 times per run. A graph rule that rules out these spots would
-  make step 4 unnecessary.
+- Step 4 of [MODEL.md#each-tick](../MODEL.md#each-tick) (a walker that has
+  not moved for 10 ticks takes a new goal) is a rare backstop. It fired 5
+  times in 200 runs (seeds 1–200), once each in 5 of them, and turning it off
+  changes no result on seeds 1–40. It used to fire about 14 times per run.
+  Then 72 of the city's nodes had a trap entry: a blob stepping in from one
+  side clashed with every way out, so whoever stood there could not be pushed
+  on, and a walker behind them stalled. `CheckGraph` rule 4 now rules these
+  out, and the graph builder leaves none
+  ([NAV_GRAPH.md](./NAV_GRAPH.md#5-edges-and-trap-entries-1954-edges)).
