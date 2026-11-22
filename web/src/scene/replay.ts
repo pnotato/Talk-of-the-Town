@@ -7,6 +7,7 @@
 // ends. Between two ticks a blob moves in a straight line at constant speed, exactly as the
 // planner assumed when it kept every pair of blobs 1.2 apart (docs/engine/PIBT.md), so any
 // easing here would break that guarantee on screen.
+import type { Round, RunLog } from "../generated/types.ts";
 import { type Mood, moodFor } from "./blobMood.ts";
 
 /** Seconds per tick at 1× speed: a 1.8 step at 3 units a second, a full stride in blobMotion. */
@@ -38,6 +39,13 @@ export interface ReplayRun {
     paths: number[][];
   }[];
 }
+
+/** A RunLog with its walks. */
+export type WalkRun = Omit<RunLog, "rounds"> & {
+  map: WalkMap;
+  start: number[];
+  rounds: (Round & { paths: number[][] })[];
+};
 
 /** Where a point is on the ground. */
 export interface Ground {
