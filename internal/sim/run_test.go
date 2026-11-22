@@ -3,6 +3,8 @@ package sim
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"slices"
 	"testing"
 
 	"talkofthetown/internal/sim/content"
@@ -187,8 +189,84 @@ func TestRunRejectsBadContent(t *testing.T) {
 	noLabel.Label = "REAL"
 	short.Moments = good.Moments[:2]
 	for name, a := range map[string]content.Announcements{"label": noLabel, "few moments": short} {
-		if _, err := run(a, 1, allHonest[:2], StubBrain{}); err == nil {
+		if _, err := run(a, cityGraph(t), 1, allHonest[:2], StubBrain{}); err == nil {
 			t.Errorf("%s: no error", name)
+		}
+	}
+}
+
+// TestMovementFieldsNeverNull: the client reads map, start and paths as
+// arrays, even before a round is played.
+func TestMovementFieldsNeverNull(t *testing.T) {
+	town := NewTown(NewRNG(1))
+	for name, v := range map[string]any{
+		"NewRunLog":    NewRunLog(1, town),
+		"Step":         NewState(town, StubBrain{}).Step(NewRNG(1)),
+		"0-choice run": mustRun(t, 1, nil),
+	} {
+		j, _ := json.Marshal(v)
+		for _, key := range []string{`"map":null`, `"nodes":null`, `"start":null`, `"paths":null`} {
+			if bytes.Contains(j, []byte(key)) {
+				t.Errorf("%s has %s", name, key)
+			}
+		}
+	}
+	// A 0-choice run plays no round but still places the blobs.
+	if l := mustRun(t, 1, nil); len(l.Start) != len(l.Town.Blobs) || len(l.Map.Nodes) == 0 {
+		t.Fatalf("0-choice run: %d starts, %d map nodes", len(l.Start), len(l.Map.Nodes))
+	}
+}
+
+// TestCityWalkLiveness runs the run's walker on the real city for a whole
+// run and counts goals reached. It also ends where Run's paths end, so it
+// is the same walk.
+func TestCityWalkLiveness(t *testing.T) {
+	g := cityGraph(t)
+	const ticks = RunRounds * TicksPerRound
+	lo, sum, n := math.MaxInt, 0, 0
+	for seed := uint64(1); seed <= 10; seed++ {
+		w := mustWalker(t, g, TownSize, seed)
+		st := watch(t, w, ticks)
+		last := mustRun(t, seed, allHonest).Rounds[RunRounds-1].Paths
+		for b, p := range last {
+			if p[TicksPerRound] != w.at[b] {
+				t.Fatalf("seed %d blob %d: walker ends on %d, Run on %d", seed, b, w.at[b], p[TicksPerRound])
+			}
+		}
+		for _, a := range st.arrivals {
+			sum += a
+			n++
+		}
+		lo = min(lo, slices.Min(st.arrivals))
+	}
+	t.Logf("goals per blob over a %d-tick run, seeds 1-10: min %d, mean %.1f", ticks, lo, float64(sum)/float64(n))
+	if lo < cityMinGoals {
+		t.Fatalf("a blob reached only %d goals in a run, want >= %d", lo, cityMinGoals)
+	}
+}
+
+// cityMinGoals: every blob should finish a couple of walks per run. A walk
+// takes at most WanderMaxHops plus DwellMaxTicks unhindered, so 500 ticks
+// fit 15.
+const cityMinGoals = 2
+
+// BenchmarkRun is a full run; the city graph is built once, before timing.
+func BenchmarkRun(b *testing.B) {
+	cityGraph(b)
+	for b.Loop() {
+		if _, err := Run(1, allBold, StubBrain{}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkCityWalk is the movement alone for a full run.
+func BenchmarkCityWalk(b *testing.B) {
+	g := cityGraph(b)
+	for b.Loop() {
+		w := mustWalker(b, g, TownSize, 1)
+		for range RunRounds {
+			w.round(TicksPerRound)
 		}
 	}
 }

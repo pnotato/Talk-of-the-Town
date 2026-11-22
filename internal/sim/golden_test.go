@@ -9,6 +9,9 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"talkofthetown/internal/sim/citymap"
+	"talkofthetown/internal/sim/nav"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
@@ -16,6 +19,8 @@ var update = flag.Bool("update", false, "rewrite golden files in testdata/")
 const (
 	goldenSeed = 20261116
 	goldenPath = "testdata/golden_run.json"
+	// nodesPerLine keeps the walk map's lines short in the golden file.
+	nodesPerLine = 10
 )
 
 // goldenChoices mixes honest and bold so both ship paths (kept and broken
@@ -23,8 +28,8 @@ const (
 var goldenChoices = []string{"m0-honest", "m1-bold", "m2-honest", "m3-bold", "m4-upbeat"}
 
 // goldenBytes encodes the golden run as compact JSON with one blob, round or
-// moment per line: about 210 KB (indented JSON is 500 KB) and a git diff
-// still points at the round that changed.
+// moment per line (and ten map nodes per line): about 480 KB, most of it the
+// rounds' paths, and a git diff still points at the round that changed.
 func goldenBytes(t *testing.T) []byte {
 	t.Helper()
 	l := mustRun(t, goldenSeed, goldenChoices)
@@ -53,7 +58,19 @@ func goldenBytes(t *testing.T) []byte {
 	enc(l.Town.Families)
 	b.WriteString(",\n\"homes\":")
 	enc(l.Town.Homes)
-	b.WriteString("},\n")
+	b.WriteString("},\n\"map\":{\"nodes\":[")
+	for i, p := range l.Map.Nodes {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		if i%nodesPerLine == 0 {
+			b.WriteString("\n")
+		}
+		enc(p)
+	}
+	fmt.Fprintf(&b, "\n],\"stand\":%d,\"ticksPerRound\":%d},\n\"start\":", l.Map.Stand, l.Map.TicksPerRound)
+	enc(l.Start)
+	b.WriteString(",\n")
 	list("rounds", len(l.Rounds), func(i int) any { return l.Rounds[i] })
 	b.WriteString(",\n")
 	list("moments", len(l.Moments), func(i int) any { return l.Moments[i] })
@@ -118,6 +135,17 @@ func firstDiff(g, w RunLog) string {
 	if !reflect.DeepEqual(g.Town, w.Town) {
 		return "town (families/homes or blob count) differs"
 	}
+	if !reflect.DeepEqual(g.Map, w.Map) {
+		return "map differs (did the city's walk graph change?)"
+	}
+	for i := range min(len(g.Start), len(w.Start)) {
+		if g.Start[i] != w.Start[i] {
+			return fmt.Sprintf("start[%d]: got node %d, want %d", i, g.Start[i], w.Start[i])
+		}
+	}
+	if len(g.Start) != len(w.Start) {
+		return fmt.Sprintf("start has %d blobs, want %d", len(g.Start), len(w.Start))
+	}
 	for i := range min(len(g.Rounds), len(w.Rounds)) {
 		a, b := g.Rounds[i], w.Rounds[i]
 		switch {
@@ -129,6 +157,13 @@ func firstDiff(g, w RunLog) string {
 					return fmt.Sprintf("round %d event %d: got %+v, want %+v", i, j, a.Events[j], b.Events[j])
 				}
 			}
+		case !reflect.DeepEqual(a.Paths, b.Paths):
+			for k := range min(len(a.Paths), len(b.Paths)) {
+				if !reflect.DeepEqual(a.Paths[k], b.Paths[k]) {
+					return fmt.Sprintf("round %d blob %d path: got %v, want %v", i, k, a.Paths[k], b.Paths[k])
+				}
+			}
+			return fmt.Sprintf("round %d: %d paths, want %d", i, len(a.Paths), len(b.Paths))
 		case a.AvgPerception != b.AvgPerception || a.AvgInterest != b.AvgInterest:
 			return fmt.Sprintf("round %d avg: got P=%v I=%v, want P=%v I=%v", i, a.AvgPerception, a.AvgInterest, b.AvgPerception, b.AvgInterest)
 		case !reflect.DeepEqual(a, b):
@@ -172,7 +207,11 @@ var strategies = map[string]func(seed uint64) []string{
 }
 
 func TestInvariants(t *testing.T) {
+	g := cityGraph(t)
 	for seed := uint64(1); seed <= 10; seed++ {
+		// Movement depends on the seed only, so every strategy must give the
+		// same start and paths: check them in full once, then compare.
+		var moves []byte
 		for name, strat := range strategies {
 			choices := strat(seed)
 			t.Run(fmt.Sprintf("seed%d/%s", seed, name), func(t *testing.T) {
@@ -184,8 +223,95 @@ func TestInvariants(t *testing.T) {
 					t.Fatal("not deterministic: second run gives different bytes")
 				}
 				checkPrefixes(t, seed, choices, l)
+				m := movesJSON(l)
+				switch {
+				case moves == nil:
+					checkMovement(t, g, l)
+					moves = m
+				case !bytes.Equal(m, moves):
+					t.Fatal("start or paths depend on the choices, not just the seed")
+				}
 			})
 		}
+	}
+}
+
+func cityGraph(t testing.TB) *nav.Graph {
+	t.Helper()
+	g, err := citymap.Graph()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+// movesJSON is a log's start and every round's paths.
+func movesJSON(l RunLog) []byte {
+	paths := make([][][]int, len(l.Rounds))
+	for i, r := range l.Rounds {
+		paths[i] = r.Paths
+	}
+	j, _ := json.Marshal(struct {
+		Start []int
+		Paths [][][]int
+	}{l.Start, paths})
+	return j
+}
+
+// checkMovement recomputes the walk's guarantees from the city graph's exact
+// coordinates: blobs spawn apart on goal nodes, each round picks up where the
+// last one stopped, and every tick is edges or stays, onto distinct nodes,
+// with every two blobs at least MinSep apart throughout.
+func checkMovement(t *testing.T, g *nav.Graph, l RunLog) {
+	t.Helper()
+	n := len(l.Town.Blobs)
+	m := l.Map
+	if m.Stand != g.NumStand || len(m.Nodes) != g.Len() || m.TicksPerRound != TicksPerRound {
+		t.Fatalf("map has %d nodes (%d stand), %d ticks; want %d (%d), %d", len(m.Nodes), m.Stand, m.TicksPerRound, g.Len(), g.NumStand, TicksPerRound)
+	}
+	for i, p := range g.Nodes {
+		if math.Abs(m.Nodes[i][0]-p.X) > 0.0005+1e-9 || math.Abs(m.Nodes[i][1]-p.Z) > 0.0005+1e-9 {
+			t.Fatalf("map node %d is %v, graph has %v", i, m.Nodes[i], p)
+		}
+	}
+	if len(l.Start) != n {
+		t.Fatalf("start has %d blobs, want %d", len(l.Start), n)
+	}
+	spawned := map[int]bool{}
+	for b, v := range l.Start {
+		if v < 0 || v >= g.Len() || !g.GoalOK(v) || spawned[v] {
+			t.Fatalf("blob %d starts on node %d", b, v)
+		}
+		spawned[v] = true
+	}
+	minSep := nav.DefaultParams().MinSep
+	prev, at, next := l.Start, make([]int, n), make([]int, n)
+	for r, rd := range l.Rounds {
+		if len(rd.Paths) != n {
+			t.Fatalf("round %d has %d paths, want %d", r, len(rd.Paths), n)
+		}
+		last := make([]int, n)
+		for b, p := range rd.Paths {
+			if len(p) != TicksPerRound+1 {
+				t.Fatalf("round %d blob %d: %d entries, want %d", r, b, len(p), TicksPerRound+1)
+			}
+			if p[0] != prev[b] {
+				t.Fatalf("round %d blob %d starts on node %d, but was on %d", r, b, p[0], prev[b])
+			}
+			for _, v := range p {
+				if v < 0 || v >= g.Len() {
+					t.Fatalf("round %d blob %d: node %d is off the graph", r, b, v)
+				}
+			}
+			last[b] = p[TicksPerRound]
+		}
+		for k := range TicksPerRound {
+			for b, p := range rd.Paths {
+				at[b], next[b] = p[k], p[k+1]
+			}
+			checkTick(t, g, minSep, at, next, fmt.Sprintf("round %d tick %d", r, k))
+		}
+		prev = last
 	}
 }
 
@@ -329,7 +455,15 @@ func checkPrefixes(t *testing.T, seed uint64, choices []string, full RunLog) {
 		fm, _ := json.Marshal(full.Moments[:n])
 		pt, _ := json.Marshal(p.Town)
 		ft, _ := json.Marshal(full.Town)
-		if !bytes.Equal(pr, fr) || !bytes.Equal(pm, fm) || !bytes.Equal(pt, ft) {
+		pw, _ := json.Marshal(struct {
+			Map   WalkMap
+			Start []int
+		}{p.Map, p.Start})
+		fw, _ := json.Marshal(struct {
+			Map   WalkMap
+			Start []int
+		}{full.Map, full.Start})
+		if !bytes.Equal(pr, fr) || !bytes.Equal(pm, fm) || !bytes.Equal(pt, ft) || !bytes.Equal(pw, fw) {
 			t.Fatalf("%d choices: not a prefix of the full run", n)
 		}
 	}
