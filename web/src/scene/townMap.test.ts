@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HOME_DEPTH, layoutTown } from "./layoutTown.ts";
-import { distanceToOutline, insidePolygon } from "./mapLayout.ts";
+import { BLOB_RADIUS, BLOB_REACH, distanceToOutline, insidePolygon } from "./mapLayout.ts";
 import { townMap } from "./townMap.ts";
 
 const town = layoutTown(53, 5);
@@ -21,13 +21,16 @@ test("homes keep their index and neighbourhood, with the door on the front face"
 });
 
 test("the square has a standing spot for each of 100 blobs, clear of the fountain", () => {
-  const { spots, outline } = map.gathering;
-  assert.ok(spots.length >= 100, `${spots.length} spots`);
+  assert.equal(map.gathering.areas.length, 1, "the town's one walkable area is its square");
+  const [{ name, spots, outline }] = map.gathering.areas;
+  assert.equal(name, "square");
+  // Pinned: the town's grid is unchanged by the city's walkable areas.
+  assert.equal(spots.length, 102);
   for (const p of spots) {
     assert.ok(insidePolygon(p, outline));
-    assert.ok(distanceToOutline(p, outline) >= 0.6 - 1e-9);
+    assert.ok(distanceToOutline(p, outline) >= BLOB_RADIUS - 1e-9);
     const fromCentre = Math.hypot(p.x - town.square.x, p.z - town.square.z);
-    assert.ok(fromCentre >= town.square.fountainRadius + 0.6 - 1e-9);
+    assert.ok(fromCentre >= town.square.fountainRadius + BLOB_REACH - 1e-9);
   }
 });
 

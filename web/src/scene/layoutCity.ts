@@ -2,12 +2,17 @@
 // No three.js, DOM, Math.random or clock, so the same counts always give the same city.
 //
 // A grid of blocks with a plaza island in the middle cell, every block ringed by a sidewalk
-// and every gap a road. The plaza is a bow-tie: two planted beds pinch its waist. Districts
-// (neighbourhoods) take whole blocks of apartment buildings, one door per home onto the
-// sidewalk; the other blocks are offices and shops. Big screens on the buildings round the
-// plaza face into it and towards the default camera, which looks north from the south.
+// and every gap a road. The plaza is an open square of paving, a kiosk in each of its north
+// corners. Districts (neighbourhoods) take whole blocks of apartment buildings, one door per
+// home onto the sidewalk; the other blocks are offices and shops. Big screens on the buildings
+// round the plaza face into it and towards the default camera, which looks north from the south.
+//
+// Blobs can walk and stand on the plaza, the park south of it, and the sidewalks of every block
+// across a road from it (the gathering's areas), never on a road.
 import { TREE_HEIGHT, TREE_RADIUS, type TownTree } from "./layoutTown.ts";
 import {
+  BLOB_RADIUS,
+  BLOB_REACH,
   type Disc,
   type Solid,
   type MapHome,
@@ -15,7 +20,9 @@ import {
   type Obstacle,
   type Point,
   seededRandom,
+  SPOT_SPACING,
   standingSpots,
+  type WalkArea,
 } from "./mapLayout.ts";
 
 export const ROAD = 7; // two 3.5 lanes
@@ -23,12 +30,14 @@ export const SIDEWALK = 2.5; // the paved edge of every block, inside its rectan
 export const VEHICLE_LENGTH = 4.2;
 export const VEHICLE_WIDTH = 1.9;
 export const SETBACK = 1.5; // how far a tall building's upper floors step in
+export const DOOR_WIDTH = 1.1;
+/** Blobs keep their reach from a doorstep this deep in front of every door, so none blocks it. */
+export const DOORSTEP = 1;
 
 const BLOCK_X = 24;
 const BLOCK_Z = 18;
 const PLAZA_X = 46;
 const PLAZA_Z = 24;
-const NOTCH = 0.22; // share of the plaza's depth each bed takes at the waist
 // The plaza grows past its base size so there are standing spots for 2 blobs per home.
 const PLAZA_AREA_PER_HOME = 10;
 const BUILDING_GAP = 1;
@@ -38,7 +47,9 @@ const SCREEN_BOTTOM = 4; // above the doors and their canopies
 const SCREEN_OFF_WALL = 0.15;
 const ROOFTOP = 2; // headroom for water tanks and plant on the roofs
 const LAMP_INSET = 0.8;
+const LAMP_RADIUS = 0.3; // what of a lamp post a blob must keep its reach from
 const PARK_CLEAR = 3.5; // parked cars keep clear of junctions and their crosswalks
+const PARK_EDGE = 1.8; // park trees stand this far in from the lawn's long edges
 const TREE_BELT = 16;
 const TREE_DENSITY = 0.004;
 
@@ -82,9 +93,9 @@ export interface TickerStrip extends CityPanel {
   run: number;
 }
 
-export type FurnitureKind = "steps" | "bench" | "planter" | "kiosk";
+export type FurnitureKind = "kiosk";
 
-/** Plaza furniture. Steps and benches face local -z (north, the screens) at rotationY 0. */
+/** Plaza furniture. */
 export interface CityFurniture extends CityRect {
   kind: FurnitureKind;
   height: number;
@@ -98,9 +109,8 @@ export interface CityVehicle extends Point {
 }
 
 export interface CityPlaza extends CityRect {
-  /** The paved bow-tie; the rest of the island is two planted beds. */
+  /** The paving: the whole island, as a rectangle. */
   outline: Point[];
-  beds: Point[][];
 }
 
 export interface CityLayout extends MapLayout {
@@ -178,7 +188,7 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   const sizes = Array.from({ length: n }, (_, k) => Math.floor((homeCount + n - 1 - k) / n));
   const random = seededRandom(Math.imul(homeCount, 0x27d4eb2d) ^ Math.imul(n, 0x165667b1));
 
-  const baseArea = PLAZA_X * PLAZA_Z * (1 - NOTCH);
+  const baseArea = PLAZA_X * PLAZA_Z;
   const scale = Math.max(1, Math.sqrt((homeCount * PLAZA_AREA_PER_HOME) / baseArea));
   const plazaX = PLAZA_X * scale;
   const plazaZ = PLAZA_Z * scale;
@@ -243,6 +253,8 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   const parks: CityRect[] = [];
   const parkTrees: TownTree[] = [];
   const lamps: Point[] = [];
+  // The blocks across a road from the plaza, whose sidewalks blobs can walk; walled unless a park.
+  const plazaBlocks: { rect: Rect; walled: boolean }[] = [];
   const slotsByCell = new Map<string, { door: Point; facing: number }[]>();
   for (let r = 1; r <= rings; r++) {
     for (const cell of ring(r)) {
@@ -274,8 +286,10 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
         };
         parks.push(rectOf(lawn));
         parkTrees.push(...grove(lawn, random));
+        if (r === 1) plazaBlocks.push({ rect: area, walled: false });
         continue;
       }
+      if (r === 1) plazaBlocks.push({ rect: area, walled: true });
       const kind: BuildingKind = district >= 0 ? "apartments" : j > 0 ? "shops" : "offices";
       lotsOf(cell).forEach((lot) => {
         const height = heightFor(i, j, r, random);
@@ -320,7 +334,31 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
     random,
   );
   queueAtCrossings(plaza.island, vehicles, random);
-  const trees = [...parkTrees, ...plantTrees(plaza, extent, random)];
+  const trees = [...parkTrees, ...plantTrees(extent, random)];
+  const gathering = walkableAreas(plaza, parks, plazaBlocks, [
+    ...plaza.furniture.map(({ x, z, width, depth, rotationY }) => ({
+      kind: "box" as const,
+      ...{ x, z, width, depth, rotationY },
+    })),
+    ...[...lamps, ...plaza.lamps].map((l) => ({
+      kind: "disc" as const,
+      ...l,
+      radius: LAMP_RADIUS,
+    })),
+    ...trees.map((t) => ({ kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
+    ...buildings.map(({ x, z, width, depth }) => ({
+      kind: "box" as const,
+      ...{ x, z, width, depth, rotationY: 0 },
+    })),
+    ...homes.map((h) => ({
+      kind: "box" as const,
+      x: h.door.x + (Math.sin(h.facing) * DOORSTEP) / 2,
+      z: h.door.z + (Math.cos(h.facing) * DOORSTEP) / 2,
+      width: DOOR_WIDTH,
+      depth: DOORSTEP,
+      rotationY: h.facing,
+    })),
+  ]);
 
   const neighbourhoods = districtCells.map((cells, k) => {
     const centres = cells.map((c) => rectOf(cellRect(c)));
@@ -403,7 +441,7 @@ export function layoutCity(homeCount: number, neighbourhoodCount: number): CityL
   return {
     homes,
     neighbourhoods,
-    gathering: plaza.gathering,
+    gathering,
     bounds: extent,
     roam: "box",
     frame,
@@ -467,58 +505,104 @@ function doorSlots(lot: Lot): { door: Point; facing: number }[] {
   });
 }
 
-// The bow-tie, its beds, furniture and lamps, and where blobs can stand on it.
+// The plaza: open paving edge to edge, a kiosk in each north corner and a lamp in every corner,
+// like the blocks round it. The middle is left clear for the crowd.
 function layoutPlaza(width: number, depth: number) {
   const halfX = width / 2;
   const halfZ = depth / 2;
-  const notch = NOTCH * depth;
   const outline: Point[] = [
     { x: -halfX, z: -halfZ },
-    { x: 0, z: -halfZ + notch },
     { x: halfX, z: -halfZ },
     { x: halfX, z: halfZ },
-    { x: 0, z: halfZ - notch },
     { x: -halfX, z: halfZ },
   ];
-  const beds = [
-    [outline[0], outline[2], outline[1]],
-    [outline[3], outline[5], outline[4]],
-  ];
-  // Where the north and south edges of the paving are, |x| from the middle.
-  const north = (x: number) => -halfZ + notch * (1 - Math.abs(x) / halfX);
-  const south = (x: number) => halfZ - notch * (1 - Math.abs(x) / halfX);
+  const furniture: CityFurniture[] = [-1, 1].map((side) => ({
+    kind: "kiosk",
+    x: side * (halfX - 3.2),
+    z: -halfZ + 3.2,
+    width: 2.6,
+    depth: 2.6,
+    height: 2.6,
+    rotationY: 0,
+  }));
+  const lamps = outline.map((p) => ({
+    x: p.x - Math.sign(p.x) * LAMP_INSET,
+    z: p.z - Math.sign(p.z) * LAMP_INSET,
+  }));
+  return { island: { x: 0, z: 0, width, depth, outline }, furniture, lamps };
+}
 
-  const furniture: CityFurniture[] = [];
-  const add = (kind: FurnitureKind, x: number, z: number, w: number, d: number, h: number) =>
-    furniture.push({ kind, x, z, width: w, depth: d, height: h, rotationY: 0 });
-  for (const side of [-1, 1]) {
-    // Bleacher steps in the south half, facing the screens to the north.
-    const stepsX = side * width * 0.27;
-    const inner = Math.abs(stepsX) - 4.5;
-    add("steps", stepsX, south(inner) - 0.8 - 2.1, 9, 4.2, 1.8);
-    add("kiosk", side * (halfX - 3.2), -halfZ + 3.2, 2.6, 2.6, 2.6);
-    for (const at of [0.14, 0.32]) {
-      const x = side * width * at;
-      add("bench", x, north(Math.abs(x) - 1.5) + 1.4, 3, 0.8, 0.9);
-    }
-    add("planter", side * (halfX - 1.6), halfZ - 1.6, 1.8, 1.8, 0.9);
-    add("planter", side * 2.5, north(2.5 - 0.8) + 1.6, 1.6, 1.6, 0.9);
-  }
-  const lamps: Point[] = [-0.42, -0.1, 0.1, 0.42].map((at) => ({ x: at * width, z: 0 }));
-  const obstacles: Obstacle[] = [
-    ...furniture.map(({ x, z, width, depth, rotationY }) => ({
-      kind: "box" as const,
-      ...{ x, z, width, depth, rotationY },
-    })),
-    ...lamps.map((l) => ({ kind: "disc" as const, ...l, radius: 0.3 })),
-  ];
-
-  return {
-    island: { x: 0, z: 0, width, depth, outline, beds },
-    gathering: { outline, spots: standingSpots(outline, obstacles) },
-    furniture,
-    lamps,
+// Where blobs can walk and stand: the plaza first, then the parks, then the four strips of
+// sidewalk round each block across a road from the plaza. Every cell keeps a blob's reach
+// from the obstacles. Where two areas meet (a park's lawn and its sidewalk), the earlier keeps
+// its cells and the later drops any closer than the spacing, so neighbours never crowd.
+function walkableAreas(
+  plaza: ReturnType<typeof layoutPlaza>,
+  parks: CityRect[],
+  blocks: { rect: Rect; walled: boolean }[],
+  obstacles: Obstacle[],
+): { areas: WalkArea[] } {
+  const area = (name: string, r: Rect, anchor?: Point): WalkArea => {
+    const outline = [
+      { x: r.minX, z: r.minZ },
+      { x: r.maxX, z: r.minZ },
+      { x: r.maxX, z: r.maxZ },
+      { x: r.minX, z: r.maxZ },
+    ];
+    return { name, outline, spots: standingSpots(outline, obstacles, anchor) };
   };
+  const { outline } = plaza.island;
+  const areas: WalkArea[] = [
+    { name: "plaza", outline, spots: standingSpots(outline, obstacles) },
+    ...parks.map((p) =>
+      area("park", {
+        minX: p.x - p.width / 2,
+        maxX: p.x + p.width / 2,
+        minZ: p.z - p.depth / 2,
+        maxZ: p.z + p.depth / 2,
+      }),
+    ),
+    ...blocks.flatMap(({ rect, walled }) =>
+      sidewalkStrips(rect, walled).map((strip) => area("sidewalk", strip, strip.anchor)),
+    ),
+  ];
+  const kept: Point[] = [];
+  for (const a of areas) {
+    a.spots = a.spots.filter((p) =>
+      kept.every((q) => Math.hypot(p.x - q.x, p.z - q.z) >= SPOT_SPACING - 1e-9),
+    );
+    kept.push(...a.spots);
+  }
+  return { areas };
+}
+
+// A block's sidewalk as four strips that don't overlap: north and south the block's full
+// width, east and west between them. A strip is one cell wide, so its grid runs through where
+// cells fit best: centred between a blob's radius off the kerb and its reach off the walls (or
+// its radius off a park's lawn). Along an east or west strip the cells zigzag in two columns,
+// half a spacing apart, either side of that line.
+function sidewalkStrips(r: Rect, walled: boolean): (Rect & { anchor: Point })[] {
+  const fromKerb = (BLOB_RADIUS + SIDEWALK - (walled ? BLOB_REACH : BLOB_RADIUS)) / 2;
+  const zigzag = SPOT_SPACING / 4;
+  const x = (r.minX + r.maxX) / 2;
+  const z = (r.minZ + r.maxZ) / 2;
+  const between = { minZ: r.minZ + SIDEWALK, maxZ: r.maxZ - SIDEWALK };
+  return [
+    { ...r, maxZ: r.minZ + SIDEWALK, anchor: { x, z: r.minZ + fromKerb } },
+    { ...r, minZ: r.maxZ - SIDEWALK, anchor: { x, z: r.maxZ - fromKerb } },
+    {
+      ...between,
+      minX: r.minX,
+      maxX: r.minX + SIDEWALK,
+      anchor: { x: r.minX + fromKerb - zigzag, z },
+    },
+    {
+      ...between,
+      minX: r.maxX - SIDEWALK,
+      maxX: r.maxX,
+      anchor: { x: r.maxX - fromKerb - zigzag, z },
+    },
+  ];
 }
 
 // One wall of a lot, for hanging panels on: where it starts, the way a panel's local +x runs
@@ -779,18 +863,18 @@ function queueAtCrossings(plaza: CityRect, vehicles: CityVehicle[], random: () =
   }
 }
 
-// Two loose rows of trees across a park lawn, a little jitter so they don't look planted
-// by a machine.
+// Two loose rows of trees along a park lawn's long edges, leaving the middle open for blobs;
+// a little jitter so they don't look planted by a machine. Every canopy stays on the lawn.
 function grove(lawn: Rect, random: () => number): TownTree[] {
   const trees: TownTree[] = [];
   const width = lawn.maxX - lawn.minX;
   const depth = lawn.maxZ - lawn.minZ;
   const columns = Math.max(1, Math.floor((width - 4) / 5));
-  for (const row of [0.3, 0.7]) {
+  for (const row of [PARK_EDGE, depth - PARK_EDGE]) {
     for (let c = 0; c < columns; c++) {
       trees.push({
         x: lawn.minX + 2 + ((c + 0.5) * (width - 4)) / columns + (random() - 0.5),
-        z: lawn.minZ + row * depth + (random() - 0.5),
+        z: lawn.minZ + row + (random() - 0.5),
         size: 0.85 + random() * 0.25,
       });
     }
@@ -798,21 +882,9 @@ function grove(lawn: Rect, random: () => number): TownTree[] {
   return trees;
 }
 
-// Trees in the plaza's beds and a seeded scatter in the fields round the city.
-function plantTrees(
-  plaza: ReturnType<typeof layoutPlaza>,
-  extent: Rect,
-  random: () => number,
-): TownTree[] {
-  const { width, depth } = plaza.island;
-  const notch = NOTCH * depth;
+// A seeded scatter of trees in the fields round the city.
+function plantTrees(extent: Rect, random: () => number): TownTree[] {
   const trees: TownTree[] = [];
-  for (const side of [-1, 1]) {
-    for (const x of [-0.26, 0, 0.26]) {
-      const bedDepth = notch * (1 - Math.abs(x) * 2);
-      trees.push({ x: x * width, z: side * (depth / 2 - bedDepth / 2), size: 0.8 });
-    }
-  }
   const inner = {
     minX: extent.minX - 3,
     maxX: extent.maxX + 3,
@@ -824,8 +896,7 @@ function plantTrees(
   const wanted = Math.round(
     TREE_DENSITY * (outerW * outerD - (inner.maxX - inner.minX) * (inner.maxZ - inner.minZ)),
   );
-  const start = trees.length;
-  for (let tries = 0; tries < wanted * 30 && trees.length - start < wanted; tries++) {
+  for (let tries = 0; tries < wanted * 30 && trees.length < wanted; tries++) {
     const tree = {
       x: inner.minX - TREE_BELT + random() * outerW,
       z: inner.minZ - TREE_BELT + random() * outerD,

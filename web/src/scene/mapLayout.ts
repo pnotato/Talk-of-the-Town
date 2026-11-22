@@ -48,11 +48,24 @@ export interface MapNeighbourhood {
   centre: Point;
 }
 
-export interface MapGathering {
-  /** The paved area where everyone gathers, as a simple (possibly concave) polygon. */
+/** Somewhere blobs can walk and stand, and the cells of the hex grid on it. */
+export interface WalkArea {
+  /** What the area is ("plaza", "park", "sidewalk", "square"); the scene draws its cells to suit. */
+  name: string;
+  /** Its edge, as a simple (possibly concave) polygon. */
   outline: Point[];
-  /** Where blobs can stand: inside the outline, clear of furniture, nearest the middle first. */
+  /** Where blobs can stand: inside the outline, clear of obstacles, nearest its middle first. */
   spots: Point[];
+}
+
+export interface MapGathering {
+  /** Every area blobs can walk and stand on, the main gathering place first. None overlap. */
+  areas: WalkArea[];
+}
+
+/** Every cell of every area, area by area: the whole grid blobs can stand on. */
+export function gatheringSpots(gathering: MapGathering): Point[] {
+  return gathering.areas.flatMap((area) => area.spots);
 }
 
 export interface MapLayout {
@@ -76,7 +89,15 @@ export interface MapLayout {
 // A blob's standing room: spots sit on a hex grid this far apart, about 2.8 square units
 // each. The widest blob (an elder) is 1.2 across, which leaves 0.6 between neighbours.
 export const SPOT_SPACING = 1.8;
-const BLOB_RADIUS = 0.6;
+// A blob's feet stay this far inside the edge of where it stands.
+export const BLOB_RADIUS = 0.6;
+/**
+ * How far from its spot any part of a blob can reach while it idles or holds a pose: an elder
+ * star shaking in anger, or an elder square slumped forward, tips past its own radius.
+ * Obstacles keep this far off, so nobody clips into a kiosk, a wall or a tree; two
+ * neighbours reaching towards each other still leave a gap. blobReach.test.ts measures it.
+ */
+export const BLOB_REACH = 0.85;
 
 /** Even-odd test, so concave outlines (a bow-tie) work. */
 export function insidePolygon(p: Point, polygon: Point[]): boolean {
@@ -165,10 +186,12 @@ export function cameraFloor(solids: Solid[], x: number, z: number): number {
 }
 
 /**
- * Hex-grid standing spots inside an outline, a blob's radius clear of its edge and of every
- * obstacle, sorted nearest the outline's middle first so a smaller crowd fills the centre.
+ * Hex-grid standing spots inside an outline, a blob's radius clear of its edge and its reach
+ * clear of every obstacle, sorted nearest the outline's middle first so a smaller crowd fills
+ * the centre. The grid runs through `anchor`, the outline's middle unless given: a narrow strip
+ * passes the point where its cells fit best.
  */
-export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] {
+export function standingSpots(outline: Point[], obstacles: Obstacle[], anchor?: Point): Point[] {
   const xs = outline.map((p) => p.x);
   const zs = outline.map((p) => p.z);
   const minX = Math.min(...xs);
@@ -177,18 +200,20 @@ export function standingSpots(outline: Point[], obstacles: Obstacle[]): Point[] 
   const maxZ = Math.max(...zs);
   const middle = { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 };
   const row = (SPOT_SPACING * Math.sqrt(3)) / 2;
+  const origin = anchor ?? middle;
 
   const spots: Point[] = [];
-  // Anchored on the middle, so the same outline always gives the same grid.
-  const rows = Math.ceil((maxZ - minZ) / 2 / row);
-  const columns = Math.ceil((maxX - minX) / 2 / SPOT_SPACING) + 1;
+  // Anchored, so the same outline always gives the same grid; wide enough to cover the outline
+  // from an anchor anywhere inside it.
+  const rows = Math.ceil((maxZ - minZ) / row) + 1;
+  const columns = Math.ceil((maxX - minX) / SPOT_SPACING) + 1;
   for (let r = -rows; r <= rows; r++) {
     const shift = (Math.abs(r) % 2) * (SPOT_SPACING / 2);
     for (let c = -columns; c <= columns; c++) {
-      const p = { x: middle.x + c * SPOT_SPACING + shift, z: middle.z + r * row };
+      const p = { x: origin.x + c * SPOT_SPACING + shift, z: origin.z + r * row };
       if (!insidePolygon(p, outline)) continue;
       if (distanceToOutline(p, outline) < BLOB_RADIUS) continue;
-      if (obstacles.some((o) => distanceToObstacle(p, o) < BLOB_RADIUS)) continue;
+      if (obstacles.some((o) => distanceToObstacle(p, o) < BLOB_REACH)) continue;
       spots.push(p);
     }
   }
