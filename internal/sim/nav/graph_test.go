@@ -73,45 +73,6 @@ func hexLattice(cols, rows int, x0, z0 float64, shiftEven bool, drop func(c, r i
 	return nodes
 }
 
-// pruneSharp removes nodes with exactly two neighbours whose pass-through
-// moves conflict (a hex grid's 60° corners, say), repeating until none are
-// left. Kinds keep their order, so Stand nodes stay first.
-func pruneSharp(nodes []Point, kinds []Kind, edges [][2]int) ([]Point, []Kind, [][2]int) {
-	minSep := DefaultParams().MinSep
-	for {
-		nb := make([][]int, len(nodes))
-		for _, e := range edges {
-			nb[e[0]] = append(nb[e[0]], e[1])
-			nb[e[1]] = append(nb[e[1]], e[0])
-		}
-		drop := -1
-		for v, ns := range nb {
-			if len(ns) == 2 && Swept(nodes[ns[0]], nodes[v], nodes[v], nodes[ns[1]]) < minSep {
-				drop = v
-				break
-			}
-		}
-		if drop < 0 {
-			return nodes, kinds, edges
-		}
-		nodes = slices.Delete(slices.Clone(nodes), drop, drop+1)
-		kinds = slices.Delete(slices.Clone(kinds), drop, drop+1)
-		var kept [][2]int
-		for _, e := range edges {
-			if e[0] == drop || e[1] == drop {
-				continue
-			}
-			for k := range e {
-				if e[k] > drop {
-					e[k]--
-				}
-			}
-			kept = append(kept, e)
-		}
-		edges = kept
-	}
-}
-
 // flower is a hex cell: node 0 in the middle and nodes 1..6 round it at
 // 0°, 60°, ..., 300°, joined to the middle and to each other.
 func flower() ([]Point, [][2]int) {
@@ -290,6 +251,35 @@ func TestCore(t *testing.T) {
 	}
 }
 
+func TestGoalOK(t *testing.T) {
+	// Row 0 of a small hex grid starts at a 60° pocket corner: node 0's
+	// neighbours 1 and 4 are joined to each other. A spur 12-13 hangs off
+	// node 3, and node 14, the end of a second spur, is a Fill node.
+	nodes := hexLattice(4, 3, 0, 0, false, nil)
+	nodes = append(nodes, pnt(7.2, 0), pnt(9, 0), pnt(7.2+lattice/2, -hexRise))
+	kinds := allStand(len(nodes))
+	kinds[14] = Fill
+	edges := append(linkWithin(nodes[:12], fixtureLink), [2]int{3, 12}, [2]int{12, 13}, [2]int{12, 14})
+	g := mustValidGraph(t, nodes, kinds, edges)
+	tests := []struct {
+		v    int
+		want bool
+		why  string
+	}{
+		{5, true, "inside the grid"},
+		{3, true, "where the spur leaves"},
+		{0, false, "pocket corner"},
+		{8, false, "pocket corner on the last row"},
+		{13, false, "dead-end spur"},
+		{14, false, "not a Stand node"},
+	}
+	for _, tt := range tests {
+		if got := g.GoalOK(tt.v); got != tt.want {
+			t.Errorf("GoalOK(%d) (%s) = %v, want %v", tt.v, tt.why, got, tt.want)
+		}
+	}
+}
+
 func TestFingerprint(t *testing.T) {
 	nodes, edges := flower()
 	kinds := allStand(len(nodes))
@@ -436,10 +426,17 @@ func TestCheckGraphCatches(t *testing.T) {
 		{"edge too long", func(t *testing.T) *Graph {
 			return mustGraph(t, line(2, 3), allStand(3), path(3))
 		}, []string{"edge 0-1", "2.000", "MaxEdge"}},
+		// The same 120° turn as a pocket would pass, but 0 and 2 are not
+		// joined, so node 1 is a real corridor bend.
 		{"too-sharp corridor turn", func(t *testing.T) *Graph {
 			nodes := []Point{pnt(-lattice, 0), pnt(0, 0), pnt(-lattice/2, hexRise)}
 			return mustGraph(t, nodes, allStand(3), path(3))
 		}, []string{"node 1", "0->1", "1->2", "0.900"}},
+		{"too-sharp 90° corridor turn", func(t *testing.T) *Graph {
+			const step = 1.6 // 1.6 * cos(45°) = 1.131 < MinSep
+			nodes := []Point{pnt(-step, 0), pnt(0, 0), pnt(0, step)}
+			return mustGraph(t, nodes, allStand(3), path(3))
+		}, []string{"node 1", "1.131"}},
 		{"dropped conflict entry", func(t *testing.T) *Graph {
 			nodes, edges := flower()
 			g := mustGraph(t, nodes, allStand(len(nodes)), edges)
@@ -472,6 +469,26 @@ func TestCheckGraphPasses(t *testing.T) {
 	nodes, edges := flower()
 	if err := CheckGraph(mustGraph(t, nodes, allStand(len(nodes)), edges), DefaultParams()); err != nil {
 		t.Errorf("flower: %v", err)
+	}
+	// Pockets: node v has two neighbours that are joined to each other, so
+	// the 120° turn through it does not matter (see rulePassThrough).
+	pockets := []struct {
+		name  string
+		nodes []Point
+		edges [][2]int
+	}{
+		{"triangle", []Point{pnt(0, 0), pnt(lattice, 0), pnt(lattice/2, hexRise)},
+			[][2]int{{0, 1}, {1, 2}, {2, 0}}},
+		// A spur 3-0 makes nodes 0 and 1 corners of a wider area; node 2 is
+		// still a pocket on a 60° corner.
+		{"hex area corner", []Point{pnt(0, 0), pnt(lattice, 0), pnt(lattice/2, hexRise), pnt(-lattice, 0)},
+			[][2]int{{0, 1}, {1, 2}, {2, 0}, {3, 0}}},
+	}
+	for _, pk := range pockets {
+		g := mustGraph(t, pk.nodes, allStand(len(pk.nodes)), pk.edges)
+		if err := CheckGraph(g, DefaultParams()); err != nil {
+			t.Errorf("pocket %s: %v", pk.name, err)
+		}
 	}
 	for _, fx := range plannerFixtures() {
 		g := mustGraph(t, fx.nodes, fx.kinds, fx.edges)
@@ -521,8 +538,7 @@ func hexHolesFixture() navFixture {
 		return false
 	}
 	nodes := hexLattice(14, 12, 0, 0, false, drop)
-	nodes, kinds, edges := pruneSharp(nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
-	return navFixture{"hex with holes", nodes, kinds, edges, 45}
+	return navFixture{"hex with holes", nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink), 45}
 }
 
 // ringFixture is a 1-wide loop, where nobody can overtake.
@@ -551,8 +567,7 @@ func roomsFixture() navFixture {
 	}
 	// Flip the shifted rows so the right room's middle row reaches west.
 	nodes = append(nodes, hexLattice(5, 7, door+(corridor+1)*corridorStep, 0, true, nil)...)
-	nodes, kinds, edges := pruneSharp(nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
-	return navFixture{"two rooms and a corridor", nodes, kinds, edges, 21}
+	return navFixture{"two rooms and a corridor", nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink), 21}
 }
 
 // blocksFixture is two 1-wide sidewalk rings round city blocks, joined by two

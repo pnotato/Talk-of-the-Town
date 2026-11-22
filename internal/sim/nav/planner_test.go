@@ -23,13 +23,13 @@ const (
 	tieBits = 16
 )
 
-// wanderGoals returns the nodes the harness may pick as goals: Stand nodes in
-// the 2-core. Goals in a dead end can wedge two agents for good (see
-// TestStepWedgesOnDeadEndGoals).
+// wanderGoals returns the nodes the harness may pick as goals: those GoalOK
+// accepts. Goals in a dead end or a pocket corner can stall agents for good
+// (see TestStepWedgesOnDeadEndGoals and TestStepStallsOnPocketGoals).
 func wanderGoals(g *Graph) []int {
 	var goals []int
 	for v := range g.NumStand {
-		if g.Core(v) {
+		if g.GoalOK(v) {
 			goals = append(goals, v)
 		}
 	}
@@ -244,13 +244,13 @@ func TestStepKeepsClearance(t *testing.T) {
 // Unhindered, a walk takes at most wanderMaxHops ticks plus a dwell of at
 // most dwellMax, so wanderTicks fits at least 80 goals. minGoals allows each
 // goal three times that on average. The tightest fixture (two rooms and a
-// corridor) measured a minimum of 53 over 40 seeds, so falling below 25
+// corridor) measured a minimum of 51 over 40 seeds, so falling below 25
 // means agents are stuck or circling, not just crowded.
 //
 // A walker's priority grows every tick it has not reached its goal, so a
 // queue clears in about as many ticks as there are agents in its way. The
-// worst run of standing still measured was 17 ticks (corridor again);
-// maxWaitTicks is a little over twice that.
+// worst run of standing still measured was 21 ticks (corridor again);
+// maxWaitTicks is about twice that.
 const (
 	minGoals     = 25
 	maxWaitTicks = 40
@@ -482,6 +482,32 @@ func TestStepWedgesOnDeadEndGoals(t *testing.T) {
 	}
 }
 
+// Why pocket corners are not goals either. X wants the pocket corner 0 and
+// outranks Y, who stands on it. Every tick X claims 0 and pushes Y, but Y's
+// only exits are X's node (a swap) and the other corner neighbour, a 120°
+// turn that clashes with X stepping in. Y fails and stays, and is never
+// planned on its own, so it never gets to step out while X waits.
+func TestStepStallsOnPocketGoals(t *testing.T) {
+	nodes := hexLattice(4, 3, 0, 0, false, nil)
+	g := mustValidGraph(t, nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
+	corner, far := 0, 11
+	if nb := g.Neighbors(corner); len(nb) != 2 || g.GoalOK(corner) {
+		t.Fatal("fixture changed: node 0 should be a pocket corner")
+	}
+	for seed := range uint64(10) {
+		pl := NewPlanner(g, 2)
+		rng := rand.New(rand.NewPCG(seed, 0))
+		at, next := []int{1, corner}, make([]int, 2)
+		for tick := range 50 {
+			pl.Step(at, []int{corner, far}, []uint64{2, 1}, rng, next)
+			if next[1] != corner || next[0] == corner {
+				t.Fatalf("seed %d tick %d: moved to %v, but the pocket should stay stuck", seed, tick, next)
+			}
+			copy(at, next)
+		}
+	}
+}
+
 func TestStepDeterministic(t *testing.T) {
 	fx := hexHolesFixture()
 	g := mustValidGraph(t, fx.nodes, fx.kinds, fx.edges)
@@ -554,12 +580,11 @@ func TestStepPanicsOnSharedNode(t *testing.T) {
 // bigHex is a ~1000-node hex plaza, about the size of the city graph.
 func bigHex() navFixture {
 	nodes := hexLattice(32, 32, 0, 0, false, nil)
-	nodes, kinds, edges := pruneSharp(nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
-	return navFixture{"big hex", nodes, kinds, edges, 100}
+	return navFixture{"big hex", nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink), 100}
 }
 
 func BenchmarkFromEdges(b *testing.B) {
-	fx := bigHex() // 1022 nodes, 2941 edges
+	fx := bigHex() // 1024 nodes, 2945 edges
 	for b.Loop() {
 		if _, err := FromEdges(fx.nodes, fx.kinds, fx.edges, DefaultParams()); err != nil {
 			b.Fatal(err)
