@@ -3,7 +3,7 @@ import { BoxGeometry, BufferGeometry, Float32BufferAttribute, Shape, ShapeGeomet
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { CityLayout, CityRect } from "./layoutCity.ts";
 import type { Point } from "./mapLayout.ts";
-import { roadMarkings } from "./roadMarkings.ts";
+import { laneDashes, zebraStripes } from "./roadMarkings.ts";
 import { GRASS, GROUND_RADIUS } from "./TownGround.tsx";
 
 /** Height of the raised sidewalks and the plaza island; things on them stand this high. */
@@ -54,7 +54,7 @@ export function CityGround({ city }: { city: CityLayout }) {
   const geometries = useMemo(
     () => ({
       roads: flatRects(city.roads, 0.02),
-      paint: flatRects(roadMarkings(city), 0.03),
+      paint: flatRects([...zebraStripes(city.crosswalks), ...laneDashes(city.roads)], 0.03),
       sidewalks: slabs([...city.blocks, city.plaza]),
       paving: flatPolygon(city.plaza.outline, SURFACE),
       lawns: flatRects(city.parks, SURFACE),

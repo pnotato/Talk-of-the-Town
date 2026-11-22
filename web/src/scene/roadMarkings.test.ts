@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { type CityLayout, type CityRect, layoutCity } from "./layoutCity.ts";
-import { roadMarkings } from "./roadMarkings.ts";
+import { laneDashes, zebraStripes } from "./roadMarkings.ts";
 
 const CASES: [homes: number, neighbourhoods: number][] = [
   [0, 1],
@@ -68,11 +68,20 @@ function oldRoadMarkings(city: CityLayout): CityRect[] {
   return marks;
 }
 
-describe("roadMarkings", () => {
+describe("road markings", () => {
   for (const [homes, hoods] of CASES) {
     test(`${homes} homes, ${hoods} neighbourhoods: the paint is where it always was`, () => {
       const city = layoutCity(homes, hoods);
-      assert.deepEqual(roadMarkings(city), oldRoadMarkings(city));
+      // A zebra stripe is 0.55 across its road, a lane dash 0.18.
+      const old = oldRoadMarkings(city);
+      const stripe = (r: CityRect) => Math.min(r.width, r.depth) === 0.55;
+      const stripes = zebraStripes(city.crosswalks);
+      assert.ok(stripes.length > 0);
+      assert.deepEqual(stripes, old.filter(stripe));
+      assert.deepEqual(
+        laneDashes(city.roads),
+        old.filter((r) => !stripe(r)),
+      );
     });
   }
 });
