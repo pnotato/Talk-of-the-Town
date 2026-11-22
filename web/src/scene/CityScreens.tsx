@@ -46,16 +46,18 @@ interface ScreenProps {
    * an animated canvas), an image, a VideoTexture, or a render target's .texture.
    */
   content: Texture;
+  /** Height the panel's y is measured from: the city's raised paving unless given. */
+  base?: number;
   ref?: Ref<Mesh>;
 }
 
 /** One screen: an unlit panel, so it glows whatever the light. One draw call. */
-export function CityScreen({ panel, content, ref }: ScreenProps) {
+export function CityScreen({ panel, content, base = CURB, ref }: ScreenProps) {
   return (
     <mesh
       ref={ref}
       geometry={UNIT_PLANE}
-      position={[panel.x, CURB + panel.y, panel.z]}
+      position={[panel.x, base + panel.y, panel.z]}
       rotation-y={panel.rotationY}
       scale={[panel.width, panel.height, 1]}
     >
