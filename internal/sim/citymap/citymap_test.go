@@ -13,9 +13,11 @@ import (
 // city (make citymap) or the build changes; update it deliberately, after
 // looking at the new graph (TestSVG), and say why in the commit.
 //
-// Last changed: chains try Params.Margin first, so the outer block corners
-// get roomier two-point bridges.
-const cityFingerprint = 0x34ba2bfb0e4cfd59
+// Last changed: no trap entries (CheckGraph rule 4 now covers every node).
+// Grid fill puts the row between the park's lawn and its sidewalks on the
+// sidewalks' grid, bridges never add a trap, and a last stage cuts the 28
+// left at hex row ends.
+const cityFingerprint = 0x2f8815783ff8d06d
 
 func TestLoad(t *testing.T) {
 	m, err := Load()
@@ -113,11 +115,29 @@ func TestGraph(t *testing.T) {
 	if g.NumStand != 752 {
 		t.Errorf("%d Stand nodes, want 752", g.NumStand)
 	}
-	// Check already asks for one piece; say it plainly here too.
+	// Check already asks for one piece and no trap entries (CheckGraph rule
+	// 4); say it plainly here too.
 	for u := range g.Len() {
 		if g.Hops(0, u) < 0 {
 			t.Fatalf("node %d is cut off", u)
 		}
+	}
+	// Build again for its report: what each stage did.
+	g2, rep, err := nav.BuildReport(m, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g2.Fingerprint() != g.Fingerprint() {
+		t.Error("BuildReport built a different graph")
+	}
+	for k, name := range []string{"spots", "grid fill", "crosswalk chains", "gap bridges"} {
+		t.Logf("after %s: %d nodes, %d pieces", name, rep.Nodes[k], rep.Pieces[k])
+	}
+	t.Logf("bridges: %d routed, %d one-point, %d two-point; %d gap pairs left; %d fills cleared",
+		rep.Routed, rep.OnePoint, rep.TwoPoint, rep.Unjoined, rep.Cleared)
+	t.Logf("trap entries: %d edges cut, %d spots lost as goals", rep.TrapCuts, rep.GoalsLost)
+	if rep.GoalsLost > 0 {
+		t.Errorf("cutting trap entries cost %d goals, want 0", rep.GoalsLost)
 	}
 
 	kinds := map[nav.Kind]int{}

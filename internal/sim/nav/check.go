@@ -58,7 +58,7 @@ func Check(g *Graph, p Params, m *Map) error {
 		}
 	}
 	for i, c := range m.Crosswalks {
-		if !crossed(g, c) {
+		if !crossed(g.Nodes, func(u int32) []int32 { return g.adj[g.off[u]:g.off[u+1]] }, c) {
 			return fmt.Errorf("nav: crosswalk %d at %+v has no chain of edges across it", i, c.Rect)
 		}
 	}
@@ -85,8 +85,8 @@ func checkStands(g *Graph, m *Map) error {
 }
 
 // crossed reports whether some path runs from one kerb of c to the other
-// through nodes on the crosswalk itself.
-func crossed(g *Graph, c Crosswalk) bool {
+// through nodes on the crosswalk itself. nbrs lists a node's neighbours.
+func crossed(pts []Point, nbrs func(u int32) []int32, c Crosswalk) bool {
 	r := c.Rect
 	along := func(q Point) float64 { return q.X }
 	lo, hi := r.MinX, r.MaxX
@@ -95,21 +95,20 @@ func crossed(g *Graph, c Crosswalk) bool {
 		lo, hi = r.MinZ, r.MaxZ
 	}
 	on := func(u int32) bool {
-		a := along(g.Nodes[u])
-		return a > lo+eps && a < hi-eps && inRect(r, g.Nodes[u])
+		a := along(pts[u])
+		return a > lo+eps && a < hi-eps && inRect(r, pts[u])
 	}
-	sideA := func(u int32) bool { return along(g.Nodes[u]) <= lo+eps }
-	sideB := func(u int32) bool { return along(g.Nodes[u]) >= hi-eps }
-	nbrs := func(u int32) []int32 { return g.adj[g.off[u]:g.off[u+1]] }
+	sideA := func(u int32) bool { return along(pts[u]) <= lo+eps }
+	sideB := func(u int32) bool { return along(pts[u]) >= hi-eps }
 
-	seen := make([]bool, g.Len())
+	seen := make([]bool, len(pts))
 	var queue []int32
-	for u := range g.Nodes {
+	for u := range pts {
 		if !sideA(int32(u)) {
 			continue
 		}
 		for _, v := range nbrs(int32(u)) {
-			if sideB(v) && inRect(r, lerp(g.Nodes[u], g.Nodes[v], 0.5)) {
+			if sideB(v) && inRect(r, lerp(pts[u], pts[v], 0.5)) {
 				return true // a single step across a very narrow road
 			}
 			if on(v) && !seen[v] {

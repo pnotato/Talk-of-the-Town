@@ -430,19 +430,55 @@ func (b *builder) undo(ch *change) {
 	}
 }
 
-// keeps reports whether a change left every node it touched passable. A
-// node's neighbours count as touched too: whether a corner is a corridor
-// depends on the edge between its neighbours.
-func (b *builder) keeps(ch *change) bool {
-	for _, id := range ch.changed {
-		if !b.passes(id) {
-			return false
-		}
-		for _, n := range b.adj[id] {
-			if !b.passes(n) {
-				return false
-			}
+// keeps reports whether changes, applied in this order, added no trap entry
+// anywhere (see untrap.go). Only nodes whose edges changed and their
+// neighbours can gain one: a node's trap entries depend on its edges and on
+// whether its two neighbours are linked. Their counts are compared with the
+// graph rewound to before the first change; entries that were already there
+// don't count against it.
+func (b *builder) keeps(chs ...*change) bool {
+	chs = slices.DeleteFunc(slices.Clone(chs), func(ch *change) bool { return ch == nil })
+	var near []int32
+	for _, ch := range chs {
+		for _, id := range ch.changed {
+			near = append(near, id)
+			near = append(near, b.adj[id]...)
 		}
 	}
-	return true
+	slices.Sort(near)
+	near = slices.Compact(near)
+	after := make([]int, len(near))
+	for k, id := range near {
+		after[k] = b.trapCount(id)
+	}
+
+	// Rewind, newest change first, then put everything back.
+	type held struct {
+		id  int32
+		adj []int32
+	}
+	var put []held
+	set := func(id int32, adj []int32) {
+		put = append(put, held{id, b.adj[id]})
+		b.adj[id] = adj
+	}
+	for i := len(chs) - 1; i >= 0; i-- {
+		for k, id := range chs[i].saved {
+			set(id, chs[i].oldAdj[k])
+		}
+	}
+	for id := chs[0].start; id < len(b.adj); id++ {
+		set(int32(id), nil) // not there yet
+	}
+	ok := true
+	for k, id := range near {
+		if after[k] > b.trapCount(id) {
+			ok = false
+			break
+		}
+	}
+	for i := len(put) - 1; i >= 0; i-- {
+		b.adj[put[i].id] = put[i].adj
+	}
+	return ok
 }

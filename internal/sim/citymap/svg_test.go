@@ -24,6 +24,7 @@ var svgCrops = []struct {
 	{"corner", nav.Rect{MinX: 46, MaxX: 56, MinZ: -39, MaxZ: -29}},   // block [1,-1]'s north-east corner
 	{"crosswalk", nav.Rect{MinX: 14, MaxX: 32, MinZ: -24, MaxZ: -6}}, // the kiosk-wedged plaza mouths
 	{"doorway", nav.Rect{MinX: -8, MaxX: 11, MinZ: -39, MaxZ: -31}},  // doors on the news tower's north sidewalk
+	{"park-edge", nav.Rect{MinX: 6, MaxX: 24, MinZ: 29, MaxZ: 38}},   // the lawn meets its south and east sidewalks
 }
 
 // TestSVG draws the real city's walk graph. It only runs with -svg:

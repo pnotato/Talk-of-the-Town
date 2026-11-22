@@ -40,6 +40,17 @@ func mustValidGraph(t testing.TB, nodes []Point, kinds []Kind, edges [][2]int) *
 	return g
 }
 
+// untrapped is edges less the ones Untrap cuts. A raw hex lattice breaks
+// CheckGraph rule 4 at its row ends (a blob from inside must turn 120°
+// either way), so lattice fixtures go through it as the city does.
+func untrapped(nodes []Point, kinds []Kind, edges [][2]int) [][2]int {
+	out, err := Untrap(nodes, kinds, edges, DefaultParams())
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 // linkWithin joins every pair of nodes at most d apart.
 func linkWithin(nodes []Point, d float64) [][2]int {
 	var edges [][2]int
@@ -74,7 +85,9 @@ func hexLattice(cols, rows int, x0, z0 float64, shiftEven bool, drop func(c, r i
 }
 
 // flower is a hex cell: node 0 in the middle and nodes 1..6 round it at
-// 0°, 60°, ..., 300°, joined to the middle and to each other.
+// 0°, 60°, ..., 300°, joined to the middle and to each other. Its rim breaks
+// CheckGraph rule 4 (from the middle, a rim node is 120° either way), so it
+// only serves the conflict table.
 func flower() ([]Point, [][2]int) {
 	nodes := []Point{pnt(0, 0)}
 	for k := range 6 {
@@ -260,7 +273,7 @@ func TestGoalOK(t *testing.T) {
 	kinds := allStand(len(nodes))
 	kinds[14] = Fill
 	edges := append(linkWithin(nodes[:12], fixtureLink), [2]int{3, 12}, [2]int{12, 13}, [2]int{12, 14})
-	g := mustValidGraph(t, nodes, kinds, edges)
+	g := mustValidGraph(t, nodes, kinds, untrapped(nodes, kinds, edges))
 	tests := []struct {
 		v    int
 		want bool
@@ -322,8 +335,13 @@ func TestFingerprint(t *testing.T) {
 }
 
 func TestConflicts(t *testing.T) {
+	// The flower's rim breaks rule 4 (a blob from the middle must turn 120°
+	// either way), which doesn't matter here: only its conflict table does.
 	nodes, edges := flower()
-	g := mustValidGraph(t, nodes, allStand(len(nodes)), edges)
+	g := mustGraph(t, nodes, allStand(len(nodes)), edges)
+	if err := ruleConflictTable(g, DefaultParams()); err != nil {
+		t.Fatal(err)
+	}
 	// In the flower, node 0 is the middle and k = 1..6 sits at (k-1)*60°.
 	tests := []struct {
 		name           string
@@ -437,18 +455,31 @@ func TestCheckGraphCatches(t *testing.T) {
 			nodes := []Point{pnt(-step, 0), pnt(0, 0), pnt(0, step)}
 			return mustGraph(t, nodes, allStand(3), path(3))
 		}, []string{"node 1", "1.131"}},
+		// A sidewalk row with a lawn node 1.515 off it: a blob stepping up
+		// from the lawn must turn 90° either way, too sharp with such short
+		// legs (1.159 at the closest). Along the row, it goes straight on.
+		{"trap entry at a T-junction", func(t *testing.T) *Graph {
+			nodes := []Point{pnt(0, 0), pnt(-lattice, 0), pnt(lattice, 0), pnt(0, 1.515)}
+			return mustGraph(t, nodes, allStand(4), [][2]int{{0, 1}, {0, 2}, {0, 3}})
+		}, []string{"node 0 traps blobs from 3", "1.159"}},
+		// The end of a hex row with neighbours west, south-west and
+		// south-east: from the south-west it is 120° either way.
+		{"trap entry at a hex row's end", func(t *testing.T) *Graph {
+			nodes := []Point{pnt(0, 0), pnt(-lattice, 0), pnt(-lattice/2, hexRise), pnt(lattice/2, hexRise)}
+			return mustGraph(t, nodes, allStand(4), [][2]int{{0, 1}, {0, 2}, {0, 3}, {1, 2}, {2, 3}})
+		}, []string{"node 0 traps blobs from 2", "0.900"}},
 		{"dropped conflict entry", func(t *testing.T) *Graph {
-			nodes, edges := flower()
+			nodes, edges := hexCorner()
 			g := mustGraph(t, nodes, allStand(len(nodes)), edges)
 			withoutConflict(g, g.move(1, 0))
 			return g
 		}, []string{"conflict table", "missing"}},
 		{"extra conflict entry", func(t *testing.T) *Graph {
-			nodes, edges := flower()
+			nodes, edges := hexCorner()
 			g := mustGraph(t, nodes, allStand(len(nodes)), edges)
-			withConflict(g, g.move(4, 0), g.move(0, 1))
+			withConflict(g, g.move(3, 3), g.move(1, 2))
 			return g
-		}, []string{"conflict table", "4->0", "0->1"}},
+		}, []string{"conflict table", "stay 3", "1->2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -466,28 +497,26 @@ func TestCheckGraphCatches(t *testing.T) {
 }
 
 func TestCheckGraphPasses(t *testing.T) {
-	nodes, edges := flower()
-	if err := CheckGraph(mustGraph(t, nodes, allStand(len(nodes)), edges), DefaultParams()); err != nil {
-		t.Errorf("flower: %v", err)
-	}
-	// Pockets: node v has two neighbours that are joined to each other, so
-	// the 120° turn through it does not matter (see rulePassThrough).
-	pockets := []struct {
+	cornerNodes, cornerEdges := hexCorner()
+	passes := []struct {
 		name  string
 		nodes []Point
 		edges [][2]int
 	}{
+		// Pockets: node v has two neighbours that are joined to each other,
+		// so the 120° turn through it does not matter (see rulePassThrough).
 		{"triangle", []Point{pnt(0, 0), pnt(lattice, 0), pnt(lattice/2, hexRise)},
 			[][2]int{{0, 1}, {1, 2}, {2, 0}}},
-		// A spur 3-0 makes nodes 0 and 1 corners of a wider area; node 2 is
-		// still a pocket on a 60° corner.
-		{"hex area corner", []Point{pnt(0, 0), pnt(lattice, 0), pnt(lattice/2, hexRise), pnt(-lattice, 0)},
-			[][2]int{{0, 1}, {1, 2}, {2, 0}, {3, 0}}},
+		{"hex area corner", cornerNodes, cornerEdges},
+		// A 90° turn with legs of 1.75 sweeps 1.237 apart: a T-junction
+		// with long enough legs is no trap.
+		{"T-junction with 1.75 legs", []Point{pnt(0, 0), pnt(-corridorStep, 0), pnt(corridorStep, 0), pnt(0, corridorStep)},
+			[][2]int{{0, 1}, {0, 2}, {0, 3}}},
 	}
-	for _, pk := range pockets {
+	for _, pk := range passes {
 		g := mustGraph(t, pk.nodes, allStand(len(pk.nodes)), pk.edges)
 		if err := CheckGraph(g, DefaultParams()); err != nil {
-			t.Errorf("pocket %s: %v", pk.name, err)
+			t.Errorf("%s: %v", pk.name, err)
 		}
 	}
 	for _, fx := range plannerFixtures() {
@@ -538,7 +567,8 @@ func hexHolesFixture() navFixture {
 		return false
 	}
 	nodes := hexLattice(14, 12, 0, 0, false, drop)
-	return navFixture{"hex with holes", nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink), 45}
+	kinds := allStand(len(nodes))
+	return navFixture{"hex with holes", nodes, kinds, untrapped(nodes, kinds, linkWithin(nodes, fixtureLink)), 45}
 }
 
 // ringFixture is a 1-wide loop, where nobody can overtake.
@@ -567,7 +597,8 @@ func roomsFixture() navFixture {
 	}
 	// Flip the shifted rows so the right room's middle row reaches west.
 	nodes = append(nodes, hexLattice(5, 7, door+(corridor+1)*corridorStep, 0, true, nil)...)
-	return navFixture{"two rooms and a corridor", nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink), 21}
+	kinds := allStand(len(nodes))
+	return navFixture{"two rooms and a corridor", nodes, kinds, untrapped(nodes, kinds, linkWithin(nodes, fixtureLink)), 21}
 }
 
 // blocksFixture is two 1-wide sidewalk rings round city blocks, joined by two

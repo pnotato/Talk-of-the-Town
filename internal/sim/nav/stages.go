@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 )
 
 const (
@@ -230,7 +231,7 @@ func (b *builder) bridge(i, j int32, limit int) bool {
 		return true
 	}
 	if k := b.fillsIn(b.window(i, j, brutePad), i, j); len(k) > 0 && b.brute(i, j, limit, k) {
-		b.stats.cleared += len(k)
+		b.report.Cleared += len(k)
 		b.version++
 		return true
 	}
@@ -239,7 +240,7 @@ func (b *builder) bridge(i, j int32, limit int) bool {
 		b.version++
 		return true
 	}
-	b.stats.failed++
+	b.report.Unjoined++
 	return false
 }
 
@@ -247,12 +248,12 @@ func (b *builder) bridge(i, j int32, limit int) bool {
 // after clearing the Fill nodes in kill off it.
 func (b *builder) routedBridge(line []Point, i, j int32, limit int, kill []int32, margin float64) bool {
 	if b.tryChain(line, i, j, limit, nil, margin) {
-		b.stats.routed++
+		b.report.Routed++
 		return true
 	}
 	if len(kill) > 0 && b.tryChain(line, i, j, limit, kill, margin) {
-		b.stats.routedCleared++
-		b.stats.cleared += len(kill)
+		b.report.Routed++
+		b.report.Cleared += len(kill)
 		return true
 	}
 	return false
@@ -309,7 +310,7 @@ func (b *builder) tryChain(line []Point, i, j int32, limit int, kill []int32, ma
 	chain, ok := b.placeChain(line, i, j, margin)
 	if ok {
 		ch := b.apply(chain, Bridge, nil)
-		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(ch) && (cleared == nil || b.keeps(cleared)) {
+		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(cleared, ch) {
 			return true
 		}
 		b.undo(ch)
@@ -480,11 +481,11 @@ func (b *builder) brute(i, j int32, limit int, kill []int32) bool {
 	}
 	for _, o := range opts {
 		ch := b.apply(o.pts, Bridge, nil)
-		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(ch) && (cleared == nil || b.keeps(cleared)) {
+		if b.hops(i, j, limit) >= 0 && b.components() <= before && b.keeps(cleared, ch) {
 			if len(o.pts) == 1 {
-				b.stats.brute1++
+				b.report.OnePoint++
 			} else {
-				b.stats.brute2++
+				b.report.TwoPoint++
 			}
 			return true
 		}
@@ -525,49 +526,32 @@ func (b *builder) prune() {
 	}
 }
 
-// trim fixes the corridor corners no node can be added to (the park's
-// south-east corner, where the sidewalk row and the lawn's grid meet 1.5
-// apart): a corridor node whose two edges turn too sharply for a queue to
-// walk through drops one of them and becomes a dead end, where a blob steps
-// in and back out. An edge is only
-// dropped if the graph stays in one piece and its other end still passes;
-// the busier neighbour loses its edge first, to keep the most cycles.
-// Dropped edges are final, so trim runs after the last relink.
-func (b *builder) trim() error {
-	pieces := b.components()
-	for v := range b.pts {
-		if !b.alive[v] || b.passes(int32(v)) {
-			continue
-		}
-		ends := slices.Clone(b.adj[v])
-		slices.SortStableFunc(ends, func(x, y int32) int { return len(b.adj[y]) - len(b.adj[x]) })
-		ok := false
-		for _, x := range ends {
-			b.unlink(int32(v), x)
-			if b.passes(x) && b.components() == pieces {
-				ok = true
-				b.stats.trimmed++
-				break
+// untrap is the last stage: cut every trap entry (see untrap.go), as long as
+// the graph stays one piece, no standing spot stops being a possible goal and
+// every crosswalk is still crossed. Dropped edges are final, like trim's.
+// Any trap entry left is an error, listing them.
+func (b *builder) untrap() error {
+	nbrs := func(u int32) []int32 { return b.adj[u] }
+	crossings := func() bool {
+		for _, c := range b.m.Crosswalks {
+			if !crossed(b.pts, nbrs, c) {
+				return false
 			}
-			b.link(int32(v), x)
 		}
-		if !ok {
-			q := b.pts[v]
-			return fmt.Errorf("nav: node %d at (%.3f, %.3f) turns too sharply between %d and %d for a queue to pass, and neither edge can go",
-				v, q.X, q.Z, b.adj[v][0], b.adj[v][1])
+		return true
+	}
+	cut, left, lost := untrap(b.pts, b.kinds, b.adj, b.p.MinSep, crossings)
+	b.report.TrapCuts, b.report.GoalsLost = len(cut), lost
+	if len(left) == 0 {
+		return nil
+	}
+	var list strings.Builder
+	for k, e := range left[:min(len(left), 5)] {
+		if k > 0 {
+			list.WriteString(", ")
 		}
+		p := b.pts[e[1]]
+		fmt.Fprintf(&list, "%d->%d at (%.3f, %.3f)", e[0], e[1], p.X, p.Z)
 	}
-	return nil
-}
-
-func (b *builder) unlink(u, v int32) {
-	b.adj[u] = slices.DeleteFunc(b.adj[u], func(w int32) bool { return w == v })
-	b.adj[v] = slices.DeleteFunc(b.adj[v], func(w int32) bool { return w == u })
-}
-
-func (b *builder) link(u, v int32) {
-	for _, e := range [2][2]int32{{u, v}, {v, u}} {
-		k, _ := slices.BinarySearch(b.adj[e[0]], e[1])
-		b.adj[e[0]] = slices.Insert(b.adj[e[0]], k, e[1])
-	}
+	return fmt.Errorf("nav: %d trap entries could not be cut: %s", len(left), list.String())
 }

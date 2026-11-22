@@ -155,7 +155,7 @@ func TestCheckCatches(t *testing.T) {
 			graph: func(t *testing.T) *Graph {
 				return mustGraph(t, []Point{{0, 0}, {1.8, 0}, {1.8, 1.5}}, allStand(3), [][2]int{{0, 1}, {1, 2}})
 			},
-			want: "corridor node 1",
+			want: "node 1 traps blobs from 0",
 		},
 	}
 	for _, tc := range tests {

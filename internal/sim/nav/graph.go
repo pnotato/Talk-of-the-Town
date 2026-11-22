@@ -181,11 +181,12 @@ func (g *Graph) Hops(u, v int) int {
 func (g *Graph) Core(u int) bool { return g.core[u] }
 
 // GoalOK reports whether v may be a goal: a Stand node in the 2-core that is
-// not a pinch. A pinch has two neighbours, and a blob cannot be pushed
-// through it because one blob entering as another leaves would clash. After
-// CheckGraph, the only pinches left are pockets such as a hex area's 60°
-// corner. Blobs may still be pushed onto a pinch and leave it; they just
-// never head for one (see TestStepStallsOnPocketGoals).
+// not a pinch. A pinch has a trap entry: a neighbour a such that a blob
+// stepping a -> v clashes with every move on out of v, so a blob dwelling on
+// v can never be pushed on by one arriving from a. After CheckGraph, the only
+// pinches left are pockets such as a hex area's 60° corner. Blobs may still
+// be pushed onto a pinch and leave it; they just never head for one (see
+// TestStepStallsOnPocketGoals).
 func (g *Graph) GoalOK(v int) bool { return g.goalOK[v] }
 
 // Conflicts reports whether two simultaneous moves u1 -> v1 and u2 -> v2
@@ -419,16 +420,38 @@ func (g *Graph) buildGoals(minSep float64) {
 	}
 }
 
-// pinch reports whether v has exactly two neighbours and a blob entering v
-// from one would clash with a blob leaving v for the other.
+// pinch reports whether v has a trap entry (see trapEntry).
 func (g *Graph) pinch(v int, minSep float64) bool {
-	nb := g.adj[g.off[v]:g.off[v+1]]
-	if len(nb) != 2 {
-		return false
+	for _, a := range g.adj[g.off[v]:g.off[v+1]] {
+		if _, d := g.bestExit(int(a), v); d >= 0 && d < minSep {
+			return true
+		}
 	}
+	return false
+}
+
+// bestExit is the way on for a blob that entered v from its neighbour a:
+// the move v -> b (b != a) that keeps farthest from the move a -> v, and
+// that swept gap. It returns -1, -1 if v has no other neighbour.
+func (g *Graph) bestExit(a, v int) (int, float64) {
 	q := g.Nodes
-	a, b := q[nb[0]], q[nb[1]]
-	return Swept(a, q[v], q[v], b) < minSep || Swept(b, q[v], q[v], a) < minSep
+	best, gap := -1, -1.0
+	for _, b := range g.adj[g.off[v]:g.off[v+1]] {
+		if int(b) == a {
+			continue
+		}
+		if d := Swept(q[a], q[v], q[v], q[b]); d > gap {
+			best, gap = int(b), d
+		}
+	}
+	return best, gap
+}
+
+// pocket reports whether v has exactly two neighbours joined to each other,
+// such as the 60° corner of a hex area.
+func (g *Graph) pocket(v int) bool {
+	nb := g.adj[g.off[v]:g.off[v+1]]
+	return len(nb) == 2 && g.move(int(nb[0]), int(nb[1])) >= 0
 }
 
 // CheckGraph rechecks, by brute force from coordinates, the rules the
@@ -438,10 +461,12 @@ func (g *Graph) pinch(v int, minSep float64) bool {
 //  2. every edge passes at least p.MinSep from every node not on it, so a
 //     blob standing still is safe from any move;
 //  3. every edge is at most p.MaxEdge long;
-//  4. at every corridor node v (exactly two neighbours a and b, which are not
-//     joined to each other), the moves a -> v and v -> b do not conflict (nor
-//     b -> v and v -> a), so a blob dwelling in a corridor can always be
-//     pushed on through it;
+//  4. at every node v with two or more neighbours, other than a pocket, a
+//     blob arriving from any neighbour a has a way on: some move v -> b
+//     (b != a) that does not conflict with a -> v. So a blob dwelling on v
+//     can always be pushed on by one arriving from anywhere. On a corridor
+//     (exactly two neighbours, not joined) that is a turn gentle enough for
+//     a queue to walk through;
 //  5. the conflict table matches Swept and shared targets for every pair of
 //     moves.
 func CheckGraph(g *Graph, p Params) error {
@@ -500,23 +525,28 @@ func ruleEdgeLength(g *Graph, p Params) error {
 	return nil
 }
 
-// rulePassThrough skips pockets: a node whose two neighbours are joined to
-// each other, such as the 60° corner of a hex area. A pocket lies on no
-// shortest path between other nodes (a -> b is one direct edge), and GoalOK
-// keeps it from ever being a goal, so nobody needs to get through one. Goals
-// on pockets would stall (see TestStepStallsOnPocketGoals).
+// rulePassThrough checks that no node has a trap entry, an entry a -> v that
+// conflicts with every move on out of v. Otherwise a blob dwelling on v
+// cannot be pushed on by a walker arriving from a: the walker keeps pushing,
+// the dweller keeps failing, and the walker stalls. A 90° joint between a
+// lawn's grid and a sidewalk 1.5 apart is one; a corridor turn too sharp for
+// a queue is another.
+//
+// Pockets are skipped: a node whose two neighbours are joined to each other,
+// such as the 60° corner of a hex area. A pocket lies on no shortest path
+// between other nodes (a -> b is one direct edge), and GoalOK keeps it from
+// ever being a goal, so nobody needs to get through one. Goals on pockets
+// would stall (see TestStepStallsOnPocketGoals).
 func rulePassThrough(g *Graph, p Params) error {
 	for v := range g.Nodes {
 		nb := g.adj[g.off[v]:g.off[v+1]]
-		if len(nb) != 2 || g.move(int(nb[0]), int(nb[1])) >= 0 {
+		if len(nb) < 2 || g.pocket(v) {
 			continue
 		}
-		for _, ab := range [][2]int32{{nb[0], nb[1]}, {nb[1], nb[0]}} {
-			a, b := ab[0], ab[1]
-			q := g.Nodes
-			if d := Swept(q[a], q[v], q[v], q[b]); d < p.MinSep {
-				return fmt.Errorf("nav: corridor node %d: moves %d->%d and %d->%d come %.3f apart, want >= %.3f (pass-through)",
-					v, a, v, v, b, d, p.MinSep)
+		for _, a := range nb {
+			if b, d := g.bestExit(int(a), v); d < p.MinSep {
+				return fmt.Errorf("nav: node %d traps blobs from %d: the best way on, %d->%d, comes %.3f from %d->%d, want >= %.3f (pass-through)",
+					v, a, v, b, d, a, v, p.MinSep)
 			}
 		}
 	}

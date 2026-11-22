@@ -18,10 +18,17 @@ const (
 )
 
 // mustTestGraph builds a graph and checks it the way the city graph is
-// checked, so the planner's guarantees hold on it.
+// checked, so the planner's guarantees hold on it. Like the city's, its
+// edges go through nav.Untrap first: a hex lattice's row ends would
+// otherwise trap blobs coming from inside.
 func mustTestGraph(t testing.TB, nodes []nav.Point, edges [][2]int) *nav.Graph {
 	t.Helper()
-	g, err := nav.FromEdges(nodes, make([]nav.Kind, len(nodes)), edges, nav.DefaultParams())
+	kinds := make([]nav.Kind, len(nodes))
+	edges, err := nav.Untrap(nodes, kinds, edges, nav.DefaultParams())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := nav.FromEdges(nodes, kinds, edges, nav.DefaultParams())
 	if err != nil {
 		t.Fatal(err)
 	}

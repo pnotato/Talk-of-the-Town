@@ -435,7 +435,10 @@ func TestStepHeadOn(t *testing.T) {
 // paths come 0.9 apart, so the planner must refuse.
 func TestStepRefusesTriangleRotation(t *testing.T) {
 	nodes, edges := flower()
-	g := mustValidGraph(t, nodes, allStand(len(nodes)), edges)
+	g := mustGraph(t, nodes, allStand(len(nodes)), edges)
+	if err := ruleConflictTable(g, DefaultParams()); err != nil {
+		t.Fatal(err)
+	}
 	at, goal := []int{0, 1, 2}, []int{1, 2, 0}
 	rotation := goal
 	owner := slices.Repeat([]int{-1}, g.Len())
@@ -489,7 +492,8 @@ func TestStepWedgesOnDeadEndGoals(t *testing.T) {
 // planned on its own, so it never gets to step out while X waits.
 func TestStepStallsOnPocketGoals(t *testing.T) {
 	nodes := hexLattice(4, 3, 0, 0, false, nil)
-	g := mustValidGraph(t, nodes, allStand(len(nodes)), linkWithin(nodes, fixtureLink))
+	kinds := allStand(len(nodes))
+	g := mustValidGraph(t, nodes, kinds, untrapped(nodes, kinds, linkWithin(nodes, fixtureLink)))
 	corner, far := 0, 11
 	if nb := g.Neighbors(corner); len(nb) != 2 || g.GoalOK(corner) {
 		t.Fatal("fixture changed: node 0 should be a pocket corner")

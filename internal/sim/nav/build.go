@@ -9,13 +9,18 @@ import (
 // guard is the margin Build keeps inside every limit CheckGraph tests.
 const guard = 1e-7
 
-// buildStats counts what the stages did, for tests and the docs.
-type buildStats struct {
-	routed, routedCleared int // bridges placed along a routed path, without and with clearing fills
-	brute1, brute2        int // bridges of one or two hand-placed points
-	failed                int // gap pairs no bridge could join
-	cleared               int // Fill nodes removed to make room for bridges
-	trimmed               int // corridor corners cut to dead ends
+// Report is what Build did, stage by stage, for tests and the docs.
+type Report struct {
+	// Live nodes and connected pieces after stages 1 to 4: standing spots,
+	// grid fill, crosswalk chains, gap bridges.
+	Nodes, Pieces [4]int
+	// Stage 4: bridges placed along a routed path, bridges of one or two
+	// hand-placed points, gap pairs no bridge could join, and Fill nodes
+	// cleared to make room.
+	Routed, OnePoint, TwoPoint, Unjoined, Cleared int
+	// Stage 5: edges cut to leave no trap entry, and standing spots that
+	// could be goals before the cuts but not after.
+	TrapCuts, GoalsLost int
 }
 
 // builder holds the graph while Build grows it. Edges are never stored as
@@ -32,7 +37,7 @@ type builder struct {
 	ix    *nodeIndex
 	adj   [][]int32
 
-	stats   buildStats
+	report  Report
 	scratch routeScratch
 
 	// version counts accepted changes; roomAt caches hasRoom per node,
@@ -112,38 +117,59 @@ func validate(m Map, p Params) error {
 //
 // The result passes Check. Build is pure and deterministic.
 func Build(m Map, p Params) (*Graph, error) {
+	g, _, err := BuildReport(m, p)
+	return g, err
+}
+
+// BuildReport is Build, also saying what each stage did.
+func BuildReport(m Map, p Params) (*Graph, Report, error) {
 	b, err := newBuilder(m, p)
 	if err != nil {
-		return nil, err
+		return nil, Report{}, err
 	}
 	if err := b.run(); err != nil {
-		return nil, err
+		return nil, b.report, err
 	}
 	pts, kinds, edges := b.export()
 	g, err := FromEdges(pts, kinds, edges, p)
 	if err != nil {
-		return nil, err
+		return nil, b.report, err
 	}
 	if err := Check(g, p, &m); err != nil {
-		return nil, fmt.Errorf("nav: built graph fails its check: %w", err)
+		return nil, b.report, fmt.Errorf("nav: built graph fails its check: %w", err)
 	}
-	return g, nil
+	return g, b.report, nil
 }
 
 func (b *builder) run() error {
 	b.stands()
+	b.relinkAll()
+	b.note(0)
 	b.fill()
 	b.relinkAll()
+	b.note(1)
 	if err := b.crossings(); err != nil {
 		return err
 	}
+	b.note(2)
 	b.bridges()
+	b.note(3)
 	b.prune()
 	b.relinkAll()
-	if err := b.trim(); err != nil {
+	if err := b.untrap(); err != nil {
 		return err
 	}
 	return b.reachable()
+}
+
+// note records the live nodes and pieces after a stage.
+func (b *builder) note(stage int) {
+	for _, a := range b.alive {
+		if a {
+			b.report.Nodes[stage]++
+		}
+	}
+	b.report.Pieces[stage] = b.components()
 }
 
 func (b *builder) add(p Point, k Kind) int32 {
@@ -187,27 +213,44 @@ func (b *builder) stands() {
 // needs its radius, so this fills the gaps spots leave in front of doors and
 // along the park's edge. Cells keep a radius from the walkable outline, not
 // from the area's own rect: where a lawn meets its sidewalk there is no kerb.
+//
+// Narrow areas go first and their grids reach a step into the areas next to
+// them, so where a sidewalk meets a lawn the row between follows the
+// sidewalk's grid: half a step off its spots, joined to them by triangles.
+// On the lawn's grid that row would sit square under them, and a step off
+// the lawn onto a 1-wide sidewalk would be a 90° turn either way: a trap
+// entry (see untrap.go).
 func (b *builder) fill() {
 	s := b.m.Spacing
 	row := float64(s*math.Sqrt(3)) / 2
-	for _, a := range b.m.Areas {
+	order := make([]int, len(b.m.Areas))
+	for k := range order {
+		order[k] = k
+	}
+	narrow := func(r Rect) float64 { return min(r.MaxX-r.MinX, r.MaxZ-r.MinZ) }
+	slices.SortStableFunc(order, func(x, y int) int {
+		return cmpFloat(narrow(b.m.Areas[x].Rect), narrow(b.m.Areas[y].Rect))
+	})
+	for _, k := range order {
+		a := b.m.Areas[k]
 		if len(a.Spots) == 0 {
 			continue
 		}
 		o := a.Spots[0]
-		r0 := int(math.Floor((a.Rect.MinZ - o.Z) / row))
-		r1 := int(math.Ceil((a.Rect.MaxZ - o.Z) / row))
+		reach := Rect{a.Rect.MinX - s, a.Rect.MaxX + s, a.Rect.MinZ - s, a.Rect.MaxZ + s}
+		r0 := int(math.Floor((reach.MinZ - o.Z) / row))
+		r1 := int(math.Ceil((reach.MaxZ - o.Z) / row))
 		for r := r0; r <= r1; r++ {
 			z := quantise(o.Z + float64(float64(r)*row))
 			shift := 0.0
 			if r%2 != 0 {
 				shift = s / 2
 			}
-			c0 := int(math.Floor((a.Rect.MinX - o.X - shift) / s))
-			c1 := int(math.Ceil((a.Rect.MaxX - o.X - shift) / s))
+			c0 := int(math.Floor((reach.MinX - o.X - shift) / s))
+			c1 := int(math.Ceil((reach.MaxX - o.X - shift) / s))
 			for c := c0; c <= c1; c++ {
 				q := Point{quantise(o.X + float64(float64(c)*s) + shift), z}
-				if !inRect(a.Rect, q) || b.walk.edgeDist(q) < b.p.Radius || b.obs.dist(q) < b.p.Radius ||
+				if !inRect(reach, q) || !b.onArea(q) || b.walk.edgeDist(q) < b.p.Radius || b.obs.dist(q) < b.p.Radius ||
 					b.nearestDist(q, b.p.FillGap) < b.p.FillGap {
 					continue
 				}
@@ -215,6 +258,16 @@ func (b *builder) fill() {
 			}
 		}
 	}
+}
+
+// onArea reports whether q is on an area (not a crosswalk).
+func (b *builder) onArea(q Point) bool {
+	for _, a := range b.m.Areas {
+		if inRect(a.Rect, q) {
+			return true
+		}
+	}
+	return false
 }
 
 // linkable is the edge rule: i and j are one step apart, and a blob walking
@@ -293,20 +346,11 @@ func (b *builder) touched(at []Point) []int32 {
 	return slices.Compact(ids)
 }
 
-// passes reports whether a corridor node (exactly two neighbours, not linked
-// to each other) lets one blob step in while another steps out the other
-// side, so a queue can walk through it. A pocket corner, whose neighbours
-// are linked, is no corridor: a blob going past cuts across it.
-func (b *builder) passes(v int32) bool {
-	n := b.adj[v]
-	if len(n) != 2 {
-		return true
-	}
-	if _, linked := slices.BinarySearch(b.adj[n[0]], n[1]); linked {
-		return true
-	}
-	a, c, q := b.pts[n[0]], b.pts[n[1]], b.pts[v]
-	return Swept(a, q, q, c) >= b.p.MinSep && Swept(c, q, q, a) >= b.p.MinSep
+// trapCount is how many trap entries v has that CheckGraph rejects (see
+// untrap.go).
+func (b *builder) trapCount(v int32) int {
+	u := untrapper{pts: b.pts, adj: b.adj, minSep: b.p.MinSep}
+	return len(u.trapsAt(v))
 }
 
 // hops is the number of edges between from and to, or -1 if more than limit.

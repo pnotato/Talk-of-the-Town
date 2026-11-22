@@ -96,10 +96,12 @@ func TestEdgeRule(t *testing.T) {
 	}
 }
 
-// A plain rect is exactly its hex grid: every spot a Stand node, an edge
-// between every two spots a spacing apart and no others, nothing added. The
-// rect has short rows top and bottom so no corner is a sharp turn.
-func TestBuildOneRectIsHexGrid(t *testing.T) {
+// A plain rect is its hex grid, less a few edges at the row ends: there a
+// blob from inside would have to turn 120° either way (a trap entry), so
+// Build cuts one edge each, leaving the end a pocket, a dead end or a gentle
+// corner. Nothing is added, every edge joins neighbours, and pockets and
+// dead ends are not goals.
+func TestBuildHexPatch(t *testing.T) {
 	row := lattice * math.Sqrt(3) / 2
 	r := Rect{MinX: 0, MaxX: 8.4, MinZ: 0, MaxZ: 1.2 + 2*row}
 	m := Map{Spacing: lattice}
@@ -107,57 +109,92 @@ func TestBuildOneRectIsHexGrid(t *testing.T) {
 	if n := len(m.Areas[0].Spots); n != 13 {
 		t.Fatalf("fixture has %d spots, want 13", n)
 	}
-	g := mustBuild(t, m)
+	g, rep, err := BuildReport(m, DefaultParams())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if g.Len() != 13 || g.NumStand != 13 {
 		t.Fatalf("graph has %d nodes (%d Stand), want 13 Stand only", g.Len(), g.NumStand)
 	}
 	edges := 0
 	for u := range g.Len() {
-		var want []int32
-		for v := range g.Len() {
-			if v != u && math.Abs(dist(g.Nodes[u], g.Nodes[v])-lattice) < 1e-9 {
-				want = append(want, int32(v))
+		nb := g.Neighbors(u)
+		edges += len(nb)
+		for _, v := range nb {
+			if d := dist(g.Nodes[u], g.Nodes[v]); math.Abs(d-lattice) > 1e-9 {
+				t.Errorf("edge %d-%d is %.3f long, want a neighbour %.1f away", u, v, d, lattice)
 			}
 		}
-		if got := g.Neighbors(u); !slices.Equal(got, want) {
-			t.Errorf("node %d neighbours %v, want %v", u, got, want)
+		pocket := len(nb) == 2 && slices.Contains(g.Neighbors(int(nb[0])), nb[1])
+		if (pocket || len(nb) < 2) && g.GoalOK(u) {
+			t.Errorf("node %d (%d neighbours, pocket %v) is a goal", u, len(nb), pocket)
 		}
-		edges += len(want)
 	}
-	if edges/2 != 26 {
-		t.Errorf("%d edges, want 26", edges/2)
+	// The full grid has 26 edges.
+	if edges/2+rep.TrapCuts != 26 || rep.TrapCuts == 0 {
+		t.Errorf("%d edges and %d cut, want 26 in all with some cut", edges/2, rep.TrapCuts)
 	}
+	t.Logf("%d edges cut, %d goals lost", rep.TrapCuts, rep.GoalsLost)
 }
 
-// A two-row strip has a 60 degree pocket at each end of its first row:
-// two neighbours joined to each other. Pockets are no corridor, so Build
-// keeps every hex edge; they just aren't goals.
-func TestBuildKeepsPocketCorners(t *testing.T) {
-	row := lattice * math.Sqrt(3) / 2
+// lawnMap copies the park block without its trees: a lawn ringed by four
+// sidewalks, lamps in the corners. The lawn's spots stop a reach short of
+// its edge, and the north and south sidewalks' rows line up with the lawn's
+// even rows, 1.515 off the last cell of the lawn's grid.
+func lawnMap() Map {
 	m := Map{Spacing: lattice}
-	m.Areas = []Area{area("strip", Rect{MinX: 0, MaxX: 6.6, MinZ: 0, MaxZ: 1.2 + row}, Point{0.6, 0.6}, &m)}
-	g := mustBuild(t, m)
-	if g.Len() != 7 {
-		t.Fatalf("%d nodes, want the 7 spots", g.Len())
-	}
-	pockets := 0
-	for u := range g.Len() {
-		nb := g.Neighbors(u)
-		for v := range g.Len() {
-			linked := slices.Contains(nb, int32(v))
-			if spaced := v != u && math.Abs(dist(g.Nodes[u], g.Nodes[v])-lattice) < 1e-9; linked != spaced {
-				t.Errorf("edge %d-%d present %v, want %v", u, v, linked, spaced)
-			}
-		}
-		if len(nb) == 2 && slices.Contains(g.Neighbors(int(nb[0])), nb[1]) {
-			pockets++
-			if g.GoalOK(u) {
-				t.Errorf("pocket %d at %v is a goal", u, g.Nodes[u])
-			}
+	for _, x := range []float64{-22.2, 22.2} {
+		for _, z := range []float64{19.8, 36.2} {
+			m.Discs = append(m.Discs, Disc{X: x, Z: z, R: 0.3})
 		}
 	}
-	if pockets != 2 {
-		t.Errorf("%d pockets, want 2", pockets)
+	// Anchors as layoutCity.sidewalkStrips for an unwalled block.
+	fromKerb := (0.6 + 2.5 - 0.6) / 2
+	m.Areas = []Area{
+		area("park", Rect{MinX: -20.5, MaxX: 20.5, MinZ: 21.5, MaxZ: 34.5}, Point{0, 28}, &m),
+		area("north", Rect{MinX: -23, MaxX: 23, MinZ: 19, MaxZ: 21.5}, Point{0, 19 + fromKerb}, &m),
+		area("south", Rect{MinX: -23, MaxX: 23, MinZ: 34.5, MaxZ: 37}, Point{0, 37 - fromKerb}, &m),
+		area("west", Rect{MinX: -23, MaxX: -20.5, MinZ: 21.5, MaxZ: 34.5}, Point{-23 + fromKerb - lattice/4, 28}, &m),
+		area("east", Rect{MinX: 20.5, MaxX: 23, MinZ: 21.5, MaxZ: 34.5}, Point{23 - fromKerb - lattice/4, 28}, &m),
+	}
+	return m
+}
+
+// Where a lawn meets a 1-wide sidewalk, the row of cells between follows the
+// sidewalk's grid, half a step off its spots, so stepping off the lawn is a
+// gentle turn onto the sidewalk. On the lawn's grid the row would sit square
+// under the spots: a 90° turn either way with legs of 1.515 and 1.8 (swept
+// 1.159), a trap entry at every one, which W4 found stalling walkers.
+func TestBuildLawnMeetsSidewalk(t *testing.T) {
+	m := lawnMap()
+	g, rep, err := BuildReport(m, DefaultParams())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%d nodes, %d trap edges cut, %d goals lost", g.Len(), rep.TrapCuts, rep.GoalsLost)
+	lawn, north := m.Areas[0].Spots, m.Areas[1].Spots
+	south := m.Areas[2].Spots
+	start := len(lawn) + len(north) // first south spot's id
+	for k, s := range south {
+		// Nothing sits square under a south spot, 1.515 into the lawn.
+		for u, p := range g.Nodes {
+			if math.Abs(p.X-s.X) < 0.05 && math.Abs(s.Z-p.Z-1.515) < 0.05 {
+				t.Errorf("%s node %d at %v sits square under south spot %v", kindName(g.Kinds[u]), u, p, s)
+			}
+		}
+		// And each is a few steps from the lawn spot nearest above it.
+		above := -1
+		for l, q := range lawn {
+			if math.Abs(q.X-s.X) <= lattice/2 && (above < 0 || q.Z > lawn[above].Z) {
+				above = l
+			}
+		}
+		if h := g.Hops(start+k, above); above >= 0 && (h < 0 || h > 3) {
+			t.Errorf("south spot %v is %d hops from lawn spot %v, want <= 3", s, h, lawn[above])
+		}
+	}
+	if rep.GoalsLost > 0 {
+		t.Errorf("%d spots stopped being goals", rep.GoalsLost)
 	}
 }
 
@@ -281,13 +318,11 @@ func TestBuildWalledOffGapFails(t *testing.T) {
 	}
 }
 
-// A node whose only two edges turn too sharply for a queue to pass becomes
-// a dead end rather than breaking the pass-through rule. The fixture is the
-// park's south-east corner: a sidewalk row and a lawn row on different grids,
-// 1.515 apart, so every corner of the ladder turns 90 degrees with a swept
-// gap of 1.176, under MinSep. Each cut leaves the corner and the node it was
-// cut from as dead ends, so the ladder ends up an H.
-func TestBuildTrimsSharpCorners(t *testing.T) {
+// Two rows 1.515 apart joined by rungs: a sidewalk and a lawn's row square
+// under it. Every rung has a 90° turn with short legs at one end at least,
+// so no set of cuts leaves it in one piece without a trap. Build must say
+// so, not hand back a graph that stalls walkers.
+func TestBuildReportsTrapsItCannotCut(t *testing.T) {
 	m := Map{Spacing: lattice}
 	m.Areas = []Area{
 		{Name: "sidewalk", Rect: Rect{MinX: -0.6, MaxX: 4.2, MinZ: -0.6, MaxZ: 0.6},
@@ -295,29 +330,14 @@ func TestBuildTrimsSharpCorners(t *testing.T) {
 		{Name: "lawn", Rect: Rect{MinX: -0.6, MaxX: 4.2, MinZ: -2.115, MaxZ: -0.6},
 			Spots: []Point{{0, -1.515}, {1.8, -1.515}, {3.6, -1.515}}},
 	}
-	g := mustBuild(t, m)
-	deadEnds := 0
-	for v := range g.Len() {
-		nb := g.Neighbors(v)
-		if len(nb) == 1 {
-			deadEnds++
-		}
-		if len(nb) == 2 {
-			if s := Swept(g.Nodes[nb[0]], g.Nodes[v], g.Nodes[v], g.Nodes[nb[1]]); s < DefaultParams().MinSep {
-				t.Errorf("node %d keeps a sharp corridor (swept %.3f)", v, s)
-			}
-		}
-		if g.Hops(0, v) < 0 {
-			t.Errorf("node %d cut off", v)
-		}
-	}
-	if deadEnds != 4 {
-		t.Errorf("%d dead ends, want 4 (an H)", deadEnds)
+	_, err := Build(m, DefaultParams())
+	if err == nil || !strings.Contains(err.Error(), "trap entries could not be cut") {
+		t.Fatalf("err = %v, want trap entries reported", err)
 	}
 }
 
 func TestBuildDeterministic(t *testing.T) {
-	for name, m := range map[string]Map{"crosswalk": crosswalkMap(), "corner": cornerMap()} {
+	for name, m := range map[string]Map{"crosswalk": crosswalkMap(), "corner": cornerMap(), "lawn": lawnMap()} {
 		g1, g2 := mustBuild(t, m), mustBuild(t, m)
 		if g1.Fingerprint() != g2.Fingerprint() {
 			t.Errorf("%s: fingerprints differ", name)
