@@ -12,6 +12,9 @@ import {
 export const GROUND_RADIUS = 5000;
 export const GRASS = "#a3b292";
 
+/** Top of the town's ground layers: the grid is laid here and blobs stand on it. */
+export const TOWN_SURFACE = 0.05;
+
 const ASPHALT = "#9b9a96";
 const KERB = "#d9d1c0"; // sidewalks
 const PAVING = "#e6dcc6"; // the square

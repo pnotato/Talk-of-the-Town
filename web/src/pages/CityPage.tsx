@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { RunLog } from "../generated/types.ts";
 import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
+import TownScene from "../scene/TownScene.tsx";
 import "./cityPage.css";
 
 const FIRST_SEED = 1;
@@ -9,6 +10,12 @@ const SPEEDS = [1, 2, 4] as const;
 // A run asks for one announcement every 10 rounds, so a server still asking after this many is
 // broken; stop rather than ask forever.
 const MAX_ANNOUNCEMENTS = 50;
+
+type MapName = "city" | "town";
+const MAPS: { id: MapName; label: string }[] = [
+  { id: "city", label: "City" },
+  { id: "town", label: "Town" },
+];
 
 const UNREACHABLE = "Can't reach the sim server. Start it with make dev.";
 
@@ -20,13 +27,13 @@ class RunRefused extends Error {}
  * while the sim stops at an announcement with no choice yet, pick one and ask again. Until the
  * newsroom exists, it always picks the first option.
  */
-async function fetchRun(seed: number, signal: AbortSignal): Promise<RunLog> {
+async function fetchRun(seed: number, map: MapName, signal: AbortSignal): Promise<RunLog> {
   const choices: string[] = [];
   while (choices.length <= MAX_ANNOUNCEMENTS) {
     const response = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seed, choices }),
+      body: JSON.stringify({ seed, choices, map }),
       signal,
     });
     // The Vite proxy answers 5xx when the Go server is down.
@@ -52,6 +59,7 @@ export default function CityPage() {
   const reduceMotion = useReducedMotion();
   const [seed, setSeed] = useState(FIRST_SEED);
   const [attempt, setAttempt] = useState(0);
+  const [map, setMap] = useState<MapName>("city");
   const [result, setResult] = useState<Result | null>(null);
   const [playing, setPlaying] = useState(!reduceMotion);
   const [ended, setEnded] = useState(false);
@@ -60,9 +68,9 @@ export default function CityPage() {
   const [grid, setGrid] = useState(true);
 
   useEffect(() => {
-    const key = `${seed}/${attempt}`;
+    const key = `${seed}/${attempt}/${map}`;
     const controller = new AbortController();
-    fetchRun(seed, controller.signal).then(
+    fetchRun(seed, map, controller.signal).then(
       (run) => {
         if (!controller.signal.aborted) setResult({ key, run });
       },
@@ -74,10 +82,10 @@ export default function CityPage() {
       },
     );
     return () => controller.abort();
-  }, [seed, attempt]);
+  }, [seed, attempt, map]);
 
-  // Until the result for this seed and attempt arrives, the page is loading.
-  const current = result?.key === `${seed}/${attempt}` ? result : null;
+  // Until the result for this seed, attempt and map arrives, the page is loading.
+  const current = result?.key === `${seed}/${attempt}/${map}` ? result : null;
   const run = current && "run" in current ? current.run : null;
   const error = current && "error" in current ? current.error : null;
 
@@ -95,19 +103,40 @@ export default function CityPage() {
     setEnded(false);
     setPlaying(!reduceMotion);
   };
+  const chooseMap = (next: MapName) => {
+    if (next === map) return;
+    setMap(next);
+    setRound(0);
+    setEnded(false);
+    setPlaying(!reduceMotion);
+  };
 
   const headline = run?.moments.findLast((m) => m.round <= round)?.headline;
 
   return (
-    <section aria-label="City" style={{ position: "relative", height: "100%" }}>
-      <CityScene
-        run={run}
-        playing={playing}
-        speed={speed}
-        showGrid={grid}
-        onRound={setRound}
-        onEnd={handleEnd}
-      />
+    <section
+      aria-label={map === "town" ? "Town replay" : "City replay"}
+      style={{ position: "relative", height: "100%" }}
+    >
+      {map === "town" ? (
+        <TownScene
+          run={run}
+          playing={playing}
+          speed={speed}
+          showGrid={grid}
+          onRound={setRound}
+          onEnd={handleEnd}
+        />
+      ) : (
+        <CityScene
+          run={run}
+          playing={playing}
+          speed={speed}
+          showGrid={grid}
+          onRound={setRound}
+          onEnd={handleEnd}
+        />
+      )}
       {!current && (
         <p role="status" className="city-notice">
           Simulating…
@@ -136,6 +165,19 @@ export default function CityPage() {
           </p>
         )}
         <div className="city-controls" role="group" aria-label="Replay">
+          <span className="city-speeds" role="group" aria-label="Map">
+            {MAPS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="city-speed"
+                aria-pressed={map === m.id}
+                onClick={() => chooseMap(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </span>
           <button type="button" className="city-button" disabled={!run} onClick={togglePlay}>
             {ended ? "Replay" : playing ? "Pause" : "Play"}
           </button>

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"talkofthetown/internal/sim"
+	"talkofthetown/internal/sim/citymap"
 )
 
 func TestHealth(t *testing.T) {
@@ -89,6 +90,36 @@ func TestRunHappyPath(t *testing.T) {
 	}
 }
 
+func TestRunTownMap(t *testing.T) {
+	rec := postRun(newTest(), `{"seed":42,"choices":[],"map":"town"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var log sim.RunLog
+	if err := json.Unmarshal(rec.Body.Bytes(), &log); err != nil {
+		t.Fatal(err)
+	}
+	g, err := citymap.TownGraph()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(log.Map.Nodes) != g.Len() || log.Map.Stand != g.NumStand {
+		t.Fatalf("map has %d nodes (%d stand), want town's %d (%d)", len(log.Map.Nodes), log.Map.Stand, g.Len(), g.NumStand)
+	}
+
+	cityRec := postRun(newTest(), `{"seed":42,"choices":[]}`)
+	if cityRec.Code != http.StatusOK {
+		t.Fatalf("city run: status = %d: %s", cityRec.Code, cityRec.Body)
+	}
+	var city sim.RunLog
+	if err := json.Unmarshal(cityRec.Body.Bytes(), &city); err != nil {
+		t.Fatal(err)
+	}
+	if len(city.Map.Nodes) == len(log.Map.Nodes) {
+		t.Fatalf("city and town runs both have %d nodes; the map was not switched", len(log.Map.Nodes))
+	}
+}
+
 func TestRunBadRequests(t *testing.T) {
 	for name, body := range map[string]string{
 		"bad json":       `{"seed":`,
@@ -103,6 +134,7 @@ func TestRunBadRequests(t *testing.T) {
 		"trailing brace": `{"seed":1,"choices":[]}}`,
 		"trailing brack": `{"seed":1,"choices":[]}]`,
 		"too big":        `{"seed":1,"choices":["` + strings.Repeat("a", 5000) + `"]}`,
+		"unknown map":    `{"seed":1,"choices":[],"map":"moon"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if rec := postRun(newTest(), body); rec.Code != http.StatusBadRequest {

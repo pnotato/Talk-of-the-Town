@@ -9,6 +9,7 @@ import { tileOutlines, tilePositions } from "./plazaGrid.ts";
 // lighter grass, so the park still reads as a lawn.
 const TILES: Record<string, string> = {
   plaza: "#efe7d4",
+  square: "#efe7d4",
   sidewalk: "#dcd5c6",
   park: "#9dba78",
 };

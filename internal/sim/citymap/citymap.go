@@ -1,5 +1,6 @@
-// Package citymap embeds the city's walkable geometry, exported from the
-// TypeScript scene (make citymap), and builds its walk graph.
+// Package citymap embeds the walkable geometry of the game's maps, exported
+// from the TypeScript scenes (make citymap, make townmap), and builds their
+// walk graphs.
 //
 // Standard library only. Loading and building are pure and deterministic.
 package citymap
@@ -20,7 +21,10 @@ import (
 //go:embed city.json
 var cityJSON []byte
 
-// Version is the city.json format this package reads.
+//go:embed town.json
+var townJSON []byte
+
+// Version is the map file format this package reads.
 const Version = 1
 
 // SpotSpacing is the standing grid's spacing, SPOT_SPACING in
@@ -73,31 +77,34 @@ type fileJSON struct {
 }
 
 // Load decodes the embedded city.json into a nav.Map.
-func Load() (nav.Map, error) { return parse(cityJSON) }
+func Load() (nav.Map, error) { return parse("city", cityJSON) }
+
+// LoadTown decodes the embedded town.json into a nav.Map.
+func LoadTown() (nav.Map, error) { return parse("town", townJSON) }
 
 // parse decodes and validates city.json strictly: unknown fields, trailing
 // data, a different version or radius, and spots off their area's grid are
 // all errors, so a stale or hand-edited file can't slip through.
-func parse(data []byte) (nav.Map, error) {
+func parse(name string, data []byte) (nav.Map, error) {
 	var f fileJSON
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&f); err != nil {
-		return nav.Map{}, fmt.Errorf("citymap: %w", err)
+		return nav.Map{}, fmt.Errorf("%smap: %w", name, err)
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return nav.Map{}, errors.New("citymap: trailing data after the city")
+		return nav.Map{}, fmt.Errorf("%smap: trailing data after the map", name)
 	}
 	radius := nav.DefaultParams().Radius
 	switch {
 	case f.Version != Version:
-		return nav.Map{}, fmt.Errorf("citymap: version %d, want %d", f.Version, Version)
+		return nav.Map{}, fmt.Errorf("%smap: version %d, want %d", name, f.Version, Version)
 	case f.BlobRadius != radius:
-		return nav.Map{}, fmt.Errorf("citymap: blobRadius %v, want %v (nav.DefaultParams)", f.BlobRadius, radius)
+		return nav.Map{}, fmt.Errorf("%smap: blobRadius %v, want %v (nav.DefaultParams)", name, f.BlobRadius, radius)
 	case f.SpotSpacing != SpotSpacing:
-		return nav.Map{}, fmt.Errorf("citymap: spotSpacing %v, want %v", f.SpotSpacing, SpotSpacing)
+		return nav.Map{}, fmt.Errorf("%smap: spotSpacing %v, want %v", name, f.SpotSpacing, SpotSpacing)
 	case len(f.Areas) == 0:
-		return nav.Map{}, errors.New("citymap: no areas")
+		return nav.Map{}, fmt.Errorf("%smap: no areas", name)
 	}
 
 	m := nav.Map{Spacing: f.SpotSpacing}
@@ -173,7 +180,7 @@ func onGrid(o, p nav.Point, spacing float64) bool {
 	return math.Abs(p.X-(o.X+c*spacing+shift)) <= gridTol
 }
 
-var graph struct {
+var cityGraph struct {
 	once sync.Once
 	g    *nav.Graph
 	err  error
@@ -182,13 +189,33 @@ var graph struct {
 // Graph builds the city's walk graph with nav.DefaultParams on first use
 // and returns the same graph (or error) every time after.
 func Graph() (*nav.Graph, error) {
-	graph.once.Do(func() {
+	cityGraph.once.Do(func() {
 		m, err := Load()
 		if err != nil {
-			graph.err = err
+			cityGraph.err = err
 			return
 		}
-		graph.g, graph.err = nav.Build(m, nav.DefaultParams())
+		cityGraph.g, cityGraph.err = nav.Build(m, nav.DefaultParams())
 	})
-	return graph.g, graph.err
+	return cityGraph.g, cityGraph.err
+}
+
+var townGraph struct {
+	once sync.Once
+	g    *nav.Graph
+	err  error
+}
+
+// TownGraph builds the town's walk graph with nav.DefaultParams on first use
+// and returns the same graph (or error) every time after.
+func TownGraph() (*nav.Graph, error) {
+	townGraph.once.Do(func() {
+		m, err := LoadTown()
+		if err != nil {
+			townGraph.err = err
+			return
+		}
+		townGraph.g, townGraph.err = nav.Build(m, nav.DefaultParams())
+	})
+	return townGraph.g, townGraph.err
 }

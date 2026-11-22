@@ -40,7 +40,7 @@ const mapScale = 1000
 // WalkMap is the walk graph the run's paths index into.
 type WalkMap struct {
 	Nodes         [][2]float64 `json:"nodes"`         // [x, z] per node, rounded to 0.001
-	Stand         int          `json:"stand"`         // nodes[:stand] are the standing spots, in the city's gathering order
+	Stand         int          `json:"stand"`         // nodes[:stand] are the standing spots, in the map's gathering order
 	TicksPerRound int          `json:"ticksPerRound"` // paths have this many moves per round
 }
 

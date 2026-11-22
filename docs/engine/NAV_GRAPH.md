@@ -1,9 +1,9 @@
 # The walk graph
 
-How the city's walkable ground becomes the graph the planner moves blobs on:
+How a map's walkable ground becomes the graph the planner moves blobs on:
 where the geometry comes from, how `nav.Build` turns it into nodes and edges,
 the rules the result keeps (and why each one matters for blobs never touching),
-and the numbers for the real city.
+and the numbers for the real city and town.
 
 How blobs then move on the graph, one edge per tick and without collisions,
 is in [PIBT.md](./PIBT.md).
@@ -51,6 +51,33 @@ radius other than `nav.DefaultParams().Radius`, a spacing other than 1.8, and
 any spot off its area's hex grid or closer than a radius to its area's edge.
 A stale or hand-edited file fails loudly instead of building a subtly wrong
 graph.
+
+### The town
+
+The town is exported the same way, from its own layout and square:
+
+```
+web/src/scene/layoutTown.ts      the town: square, homes, streets, trees
+web/src/scene/townMap.ts         the square's standing spots and obstacles
+web/src/scene/townMapExport.ts   picks out what walking needs
+        │  make townmap  (node web/scripts/export-town-map.ts)
+        ▼
+internal/sim/citymap/town.json   committed; make check fails if it is stale
+        │  go:embed, citymap.LoadTown()
+        ▼
+*nav.Graph                       citymap.TownGraph() builds it once and caches it
+```
+
+`town.json` (version 1) holds:
+
+- **1 area**, the town square: **122 spots** as Stand nodes 0..121.
+- **no crosswalks**: every goal is on the square, so the crowd never leaves it.
+- **6 discs** (the square's trees) and **9 boxes** (the screen, two flower
+  beds, four benches and two lamps).
+
+The town graph has 126 nodes (122 stand, 4 grid-fill) and 118 goal nodes, enough
+for the 100-blob town. `POST /api/run` with `"map": "town"` walks this graph;
+the social simulation is the same as on the city.
 
 ## The rules a graph must keep
 
