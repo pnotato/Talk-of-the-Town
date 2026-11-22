@@ -196,6 +196,7 @@ Per blob: roll the tag count, choose that many distinct categories uniformly at 
 
 Numbers for the round loop. Turns [BLOBS.md#interactions](./BLOBS.md#interactions) into rules.
 All randomness comes from the run's one seeded RNG, drawn in blob `id` order *(design)*. Same seed and choices give the same run.
+The one exception is movement, which has its own seeded RNG ([#movement](#movement)).
 `clamp(x, lo, hi)` limits `x` to `[lo, hi]`. Scores are `float64` inside the sim and rounded only for display *(design)*.
 
 ## Run state
@@ -224,12 +225,59 @@ Each round `r` (0–49) runs these steps in order *(design)*:
 ```
 if r % 10 == 0: announce(story[r/10])          // #announcements
 if r % 10 == 8: ship(story[r/10])              // #shipping
+repeat 10 times: move every blob one tick      // #movement
 for b in blobs (by id): act(b)                 // #actions
 for b in blobs: b.interest += 0.03 * (10 - b.interest)   // #decay
 record town averages
 ```
 
 - Updates from a hearing apply at once, so a blob told something early in a round can retell it later that round *(design)*. Order is by id, so this stays deterministic.
+- Movement and the social steps do not read each other yet: walking changes no score, and partner choice does not look at positions *(design)*.
+
+## Movement
+
+Between conversations the blobs wander the city on its walk graph, without ever bumping into each other.
+
+| Constant | Value | Meaning | Source |
+|---|---|---|---|
+| `TicksPerRound` | 10 | movement ticks per round; each tick a blob moves at most one edge or stays put | *(design)* |
+| `WanderMinHops` | 3 | fewest hops to a new goal | *(design)* |
+| `WanderMaxHops` | 20 | most hops to a new goal | *(design)* |
+| `DwellMinTicks` | 2 | shortest stay at a goal | *(design)* |
+| `DwellMaxTicks` | 12 | longest stay at a goal (before any extra ticks, below) | *(design)* |
+| `MinSep` | 1.2 | closest two blobs ever get, standing or moving: 2 × the blob radius 0.6 | *(design)*, `nav.DefaultParams()` |
+
+- The walk graph is the city's standing spots plus extra nodes on crosswalks and round corners ([engine/NAV_GRAPH.md](./engine/NAV_GRAPH.md)). An edge is at most 1.95 units long.
+- Goals and spawn points are only nodes that `Graph.GoalOK` accepts: standing spots in the graph's 2-core that are not pocket corners *(design)*. Other goals can wedge blobs for good ([engine/PIBT.md](./engine/PIBT.md#liveness-blobs-keep-reaching-their-goals)).
+
+### Movement RNG
+
+Movement draws from its own source, `NewMoveRNG(seed)` = PCG(seed, `0x6d6f7665`), the second word being `"move"` in ASCII *(design)*. It is the one exception to "all randomness comes from the run's one seeded RNG":
+
+- The social sim's draws are exactly what they were before movement existed, so movement changed no event, score or moment.
+- Movement depends on the seed only, never on the player's choices. A run with fewer choices is still an exact prefix of the full run, paths included.
+
+### Spawn
+
+Before round 0, in this order *(design)*:
+
+1. Positions: one node per blob, distinct, uniform over the goal nodes.
+2. Tiebreaks: a random permutation of `0..n-1`, one value per blob, fixed for the run.
+3. Each blob's spawn node is its goal, so on the first tick every blob arrives and starts dwelling for a random time (step 3 below). Departures are staggered.
+
+### Each tick
+
+Blobs update in id order *(design)*:
+
+1. A dwelling blob counts down by 1, even if it was pushed off its node.
+2. When its count reaches 0, it picks a new goal uniformly from the goal nodes `WanderMinHops..WanderMaxHops` hops from where it stands, leaving out every other blob's goal. If none qualifies, it dwells 1 more tick and tries again.
+3. A walking blob standing on its goal starts dwelling for `DwellMinTicks..DwellMaxTicks` ticks, uniform. It dwells on that tick and the next ones, and picks a new goal on the tick its count reaches 0.
+
+Then every blob moves at once, in one PIBT planner step ([engine/PIBT.md](./engine/PIBT.md)):
+
+- A dweller's goal is the node it is dwelling at, so it steps back if pushed off. Goals are therefore always distinct.
+- Priority: `ticksSinceGoal × 2^16 + tiebreak` for walkers, `tiebreak` for dwellers. Higher plans first and wins. A walker gains priority every tick until it arrives, which is what keeps every blob reaching its goals.
+- Guarantees each tick: no two blobs on one node, no two blobs swapping nodes, and no two blobs closer than `MinSep` at any moment of the tick.
 
 ## Announcements
 
