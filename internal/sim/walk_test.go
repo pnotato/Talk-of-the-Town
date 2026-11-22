@@ -151,16 +151,15 @@ func TestFirstTickDwells(t *testing.T) {
 func TestNewGoal(t *testing.T) {
 	g := ring(t, 8)
 	tests := []struct {
-		name      string
-		at        int   // blob 0's node; its count has just run out
-		others    []int // the other blobs' nodes, which are also their goals
-		want      []int // the goals it may pick
-		wantDwell int
+		name   string
+		at     int   // blob 0's node
+		others []int // the other blobs' nodes, which are also their goals
+		want   []int // the goals it may pick
 	}{
-		{"all free", 0, []int{1, 2}, []int{3, 4, 5}, 0},
-		{"others' goals left out", 0, []int{3, 5}, []int{4}, 0},
-		{"none qualifies", 0, []int{3, 4, 5}, nil, 1},
-		{"measured from where it stands", 2, []int{0, 1}, []int{5, 6, 7}, 0},
+		{"all free", 0, []int{1, 2}, []int{3, 4, 5}},
+		{"others' goals left out", 0, []int{3, 5}, []int{4}},
+		{"none qualifies", 0, []int{3, 4, 5}, nil},
+		{"measured from where it stands", 2, []int{0, 1}, []int{5, 6, 7}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -170,20 +169,64 @@ func TestNewGoal(t *testing.T) {
 				for k, v := range tt.others {
 					w.at[k+1], w.goal[k+1] = v, v
 				}
-				w.newGoal(0)
+				w.since[0], w.still[0] = 7, 7
+				ok := w.newGoal(0)
 				if got := slices.Sorted(slices.Values(w.pick)); !slices.Equal(got, tt.want) {
 					t.Fatalf("candidates %v, want %v", got, tt.want)
 				}
-				if w.dwell[0] != tt.wantDwell {
-					t.Fatalf("dwell %d, want %d", w.dwell[0], tt.wantDwell)
+				if ok != (tt.want != nil) || w.dwell[0] != 0 {
+					t.Fatalf("newGoal = %v, dwell %d; want %v, 0", ok, w.dwell[0], tt.want != nil)
 				}
 				if tt.want == nil {
-					if w.goal[0] != tt.at {
-						t.Fatalf("goal moved to %d with no candidate", w.goal[0])
+					if w.goal[0] != tt.at || w.since[0] != 7 || w.still[0] != 7 {
+						t.Fatalf("goal %d since %d still %d changed with no candidate", w.goal[0], w.since[0], w.still[0])
 					}
-				} else if !slices.Contains(tt.want, w.goal[0]) || w.since[0] != 0 {
-					t.Fatalf("goal %d since %d, want one of %v and 0", w.goal[0], w.since[0], tt.want)
+				} else if !slices.Contains(tt.want, w.goal[0]) || w.since[0] != 0 || w.still[0] != 0 {
+					t.Fatalf("goal %d since %d still %d, want one of %v and 0, 0", w.goal[0], w.since[0], w.still[0], tt.want)
 				}
+			}
+		})
+	}
+}
+
+// TestStuckWalker checks MODEL.md#each-tick step 4 on an 8-node ring: a
+// walker that has stood still StuckTicks ticks gets a new goal, and with it
+// the lowest walker priority; one that hasn't, or has nowhere else to go,
+// keeps its goal.
+func TestStuckWalker(t *testing.T) {
+	g := ring(t, 8)
+	tests := []struct {
+		name    string
+		still   int
+		others  []int // the other blobs' nodes and goals
+		wantNew bool
+	}{
+		{"moving", 0, []int{1}, false},
+		{"one tick short", StuckTicks - 1, []int{1}, false},
+		{"stuck", StuckTicks, []int{1}, true},
+		{"long stuck", StuckTicks + 5, []int{1}, true},
+		{"stuck, nothing free", StuckTicks, []int{3, 4, 5}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Blob 0 stands on node 0 walking to node 2; goals 3-5 are in reach.
+			w := mustWalker(t, g, 1+len(tt.others), 1)
+			w.at[0], w.goal[0], w.since[0], w.still[0], w.dwell[0] = 0, 2, 30, tt.still, 0
+			for k, v := range tt.others {
+				w.at[k+1], w.goal[k+1], w.dwell[k+1] = v, v, 5
+			}
+			w.update()
+			if w.dwell[0] != 0 {
+				t.Fatalf("dwell %d, want still walking", w.dwell[0])
+			}
+			switch {
+			case !tt.wantNew && (w.goal[0] != 2 || w.since[0] != 31 || w.still[0] != tt.still):
+				t.Fatalf("goal %d since %d still %d, want 2, 31, %d", w.goal[0], w.since[0], w.still[0], tt.still)
+			case tt.wantNew && (w.goal[0] < 3 || w.goal[0] > 5 || w.since[0] != 0 || w.still[0] != 0):
+				t.Fatalf("goal %d since %d still %d, want 3-5, 0, 0", w.goal[0], w.since[0], w.still[0])
+			}
+			if want := uint64(w.since[0])<<tieBits | w.tie[0]; w.prio[0] != want {
+				t.Fatalf("priority %#x, want %#x", w.prio[0], want)
 			}
 		})
 	}
@@ -207,6 +250,7 @@ type walkStats struct {
 	arrivals []int // goals reached per blob, not counting the spawn
 	minDwell int   // shortest and longest stay, arrival to new goal
 	maxDwell int
+	regoals  int // walkers that gave up a goal after standing still
 }
 
 // watch runs ticks ticks, checking every tick's rules, and returns the stats.
@@ -234,10 +278,14 @@ func watch(t *testing.T, w *walker, ticks int) walkStats {
 				if tick > 0 {
 					st.arrivals[i]++
 				}
-			case w.goal[i] != oldGoal[i]: // left with a new goal
+			case w.goal[i] != oldGoal[i]: // a new goal
 				h := g.Hops(w.at[i], w.goal[i])
 				if !g.GoalOK(w.goal[i]) || h < WanderMinHops || h > WanderMaxHops {
 					t.Fatalf("tick %d: blob %d picks goal %d, %d hops away (GoalOK %v)", tick, i, w.goal[i], h, g.GoalOK(w.goal[i]))
+				}
+				if wasDwell[i] == 0 {
+					st.regoals++
+					break
 				}
 				d := tick - arrived[i]
 				st.minDwell, st.maxDwell = min(st.minDwell, d), max(st.maxDwell, d)

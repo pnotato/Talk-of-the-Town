@@ -223,10 +223,11 @@ func TestMovementFieldsNeverNull(t *testing.T) {
 func TestCityWalkLiveness(t *testing.T) {
 	g := cityGraph(t)
 	const ticks = RunRounds * TicksPerRound
-	lo, sum, n := math.MaxInt, 0, 0
+	lo, sum, n, regoals := math.MaxInt, 0, 0, 0
 	for seed := uint64(1); seed <= 10; seed++ {
 		w := mustWalker(t, g, TownSize, seed)
 		st := watch(t, w, ticks)
+		regoals += st.regoals
 		last := mustRun(t, seed, allHonest).Rounds[RunRounds-1].Paths
 		for b, p := range last {
 			if p[TicksPerRound] != w.at[b] {
@@ -239,7 +240,8 @@ func TestCityWalkLiveness(t *testing.T) {
 		}
 		lo = min(lo, slices.Min(st.arrivals))
 	}
-	t.Logf("goals per blob over a %d-tick run, seeds 1-10: min %d, mean %.1f", ticks, lo, float64(sum)/float64(n))
+	t.Logf("goals per blob over a %d-tick run, seeds 1-10: min %d, mean %.1f; %.1f stuck walkers re-goaled per run",
+		ticks, lo, float64(sum)/float64(n), float64(regoals)/10)
 	if lo < cityMinGoals {
 		t.Fatalf("a blob reached only %d goals in a run, want >= %d", lo, cityMinGoals)
 	}
