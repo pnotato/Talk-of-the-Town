@@ -2,9 +2,11 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,10 +14,12 @@ import (
 	"talkofthetown/internal/sim"
 )
 
-// Config holds the spend caps (CLAUDE.md hard rule 5). Runs past them are refused.
+// Config holds the spend caps (CLAUDE.md hard rule 5), which refuse runs past
+// them, and where finished runs are written.
 type Config struct {
-	MaxRounds int // rounds one request may simulate
-	MaxBlobs  int // blobs one run may contain
+	MaxRounds int    // rounds one request may simulate
+	MaxBlobs  int    // blobs one run may contain
+	RunsDir   string // write each finished run's log here; empty writes nothing
 }
 
 // Default caps: a full run of the standard town.
@@ -25,9 +29,10 @@ const (
 	maxBodyBytes     = 4 << 10 // {seed, 5 choices} is well under 1 KiB
 )
 
-// ConfigFromEnv reads MAX_ROUNDS and MAX_BLOBS, falling back to the defaults.
+// ConfigFromEnv reads MAX_ROUNDS and MAX_BLOBS, falling back to the defaults,
+// and RUNS_DIR, which is empty (write nothing) unless set.
 func ConfigFromEnv() (Config, error) {
-	c := Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs}
+	c := Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs, RunsDir: os.Getenv("RUNS_DIR")}
 	for name, dst := range map[string]*int{"MAX_ROUNDS": &c.MaxRounds, "MAX_BLOBS": &c.MaxBlobs} {
 		if v := os.Getenv(name); v != "" {
 			n, err := strconv.Atoi(v)
@@ -71,6 +76,7 @@ type runRequest struct {
 }
 
 // handleRun serves POST /api/run. Stateless: the run is replayed from the seed.
+// A finished run is also written to cfg.RunsDir, as the same bytes.
 func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Brain) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
@@ -88,12 +94,26 @@ func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Bra
 		writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("run exceeds server caps (%d rounds, %d blobs)", cfg.MaxRounds, cfg.MaxBlobs))
 		return
 	}
-	log, err := sim.Run(*req.Seed, req.Choices, brain)
+	run, err := sim.Run(*req.Seed, req.Choices, brain)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, log)
+	body, err := encodeJSON(run)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not encode the run")
+		return
+	}
+	writeBody(w, http.StatusOK, body)
+	if run.Next != nil || cfg.RunsDir == "" {
+		return
+	}
+	// The client already has its answer; a failed write only costs the file.
+	if path, err := WriteRun(cfg.RunsDir, run, body); err != nil {
+		log.Printf("run log not written: %v", err)
+	} else {
+		log.Printf("wrote run log %s", path)
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
@@ -101,7 +121,23 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
+	body, err := encodeJSON(v)
+	if err != nil {
+		http.Error(w, "could not encode the response", http.StatusInternalServerError)
+		return
+	}
+	writeBody(w, status, body)
+}
+
+// encodeJSON is v as JSON plus a newline, as json.Encoder writes it.
+func encodeJSON(v any) ([]byte, error) {
+	var b bytes.Buffer
+	err := json.NewEncoder(&b).Encode(v)
+	return b.Bytes(), err
+}
+
+func writeBody(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(body)
 }
