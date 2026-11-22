@@ -204,7 +204,7 @@ func (b *builder) bridgeRoute(i, j int32) []Point {
 	// A path at most maxDetour times d long stays inside an ellipse round
 	// the pair whose half-width is d*sqrt(maxDetour^2-1)/2.
 	d := dist(b.pts[i], b.pts[j])
-	window := b.window(i, j, min(routePad, d*math.Sqrt(maxDetour*maxDetour-1)/2+b.p.Grid*snapCells))
+	window := b.window(i, j, min(routePad, d*math.Sqrt(maxDetour*maxDetour-1)/2+float64(b.p.Grid*snapCells)))
 	obs := b.obs.near(window, b.p.Radius+b.p.Margin)
 	free := func(q Point) bool {
 		return b.walk.contains(q) && obs.dist(q) >= b.p.Radius+b.p.Margin
