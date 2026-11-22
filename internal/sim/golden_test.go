@@ -366,8 +366,15 @@ func checkRunLog(t *testing.T, l RunLog, choices []string) {
 		}
 		for j, e := range r.Events {
 			score(t, fmt.Sprintf("round %d event %d claim", i, j), e.Claim)
-			if len(e.To) == 0 || len(e.DP) != len(e.To) || len(e.DI) != len(e.To) || (!e.Post && len(e.To) != 1) {
+			if len(e.To) == 0 || len(e.DP) != len(e.To) || len(e.DI) != len(e.To) {
 				t.Errorf("round %d event %d malformed: %+v", i, j, e)
+			}
+			if e.Scroll {
+				if e.Post || len(e.To) != 1 || e.To[0] == e.From {
+					t.Errorf("round %d event %d does not look like a scroll: %+v", i, j, e)
+				}
+			} else if !e.Post && len(e.To) != 1 {
+				t.Errorf("round %d event %d does not look like a talk: %+v", i, j, e)
 			}
 			for _, to := range append([]int{e.From}, e.To...) {
 				if to < 0 || to >= 100 {

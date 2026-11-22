@@ -99,6 +99,7 @@ export interface RunEvent {
   f: number;
   to: number[];
   p: boolean;
+  s: boolean;
   c: number;
   dp: number[];
   di: number[];

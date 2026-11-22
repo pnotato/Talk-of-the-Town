@@ -77,6 +77,12 @@ func TestActionRules(t *testing.T) {
 			}
 			for _, e := range st.Step(rng).Events {
 				b := log.Town.Blobs[e.From]
+				if e.Scroll {
+					if e.Post || len(e.To) != 1 || e.To[0] == e.From {
+						t.Fatalf("bad scroll event %+v", e)
+					}
+					continue
+				}
 				if !e.Post && hasTag(b, TraitRecluse) {
 					t.Fatalf("recluse %d talked in person", b.ID)
 				}
@@ -109,6 +115,101 @@ func TestActionRules(t *testing.T) {
 }
 
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+
+func TestScrollEventsAreWellFormed(t *testing.T) {
+	for seed := uint64(1); seed <= 5; seed++ {
+		log := runFor(seed, 50, 60)
+		for r, round := range log.Rounds {
+			acted := map[int]bool{}
+			for _, e := range round.Events {
+				if !e.Scroll {
+					acted[e.From] = true
+				}
+			}
+			for _, e := range round.Events {
+				if !e.Scroll {
+					continue
+				}
+				if e.Post || len(e.To) != 1 || len(e.DP) != 1 || len(e.DI) != 1 {
+					t.Fatalf("seed %d round %d: malformed scroll %+v", seed, r, e)
+				}
+				if e.From == e.To[0] {
+					t.Fatalf("seed %d round %d: blob %d scrolled its own post", seed, r, e.From)
+				}
+				if acted[e.From] {
+					t.Fatalf("seed %d round %d: blob %d both acted and scrolled", seed, r, e.From)
+				}
+			}
+		}
+	}
+}
+
+func TestScrollRateIsAboutEightPercent(t *testing.T) {
+	scrolls, opportunities := 0, 0
+	for seed := uint64(1); seed <= 10; seed++ {
+		log := runFor(seed, 50, 60)
+		for _, round := range log.Rounds {
+			acted := map[int]bool{}
+			for _, e := range round.Events {
+				if e.Scroll {
+					scrolls++
+				} else {
+					acted[e.From] = true
+				}
+			}
+			opportunities += 100 - len(acted)
+		}
+	}
+	rate := float64(scrolls) / float64(opportunities)
+	if rate < 0.06 || rate > 0.10 {
+		t.Fatalf("scroll rate %.4f (%d/%d), want about %.2f", rate, scrolls, opportunities, ScrollChance)
+	}
+}
+
+func TestScrollFeedResetsAtAnnouncement(t *testing.T) {
+	st := NewState(NewTown(NewRNG(1)), StubBrain{})
+	rng := NewRNG(2)
+	st.announce(60, rng)
+	st.Step(rng)
+	if len(st.feed) == 0 {
+		t.Fatal("no posts entered the feed")
+	}
+	st.announce(60, rng)
+	if len(st.feed) != 0 {
+		t.Fatalf("%d old posts left in the feed", len(st.feed))
+	}
+}
+
+func TestScrollReadsAnotherBlobsPost(t *testing.T) {
+	st := NewState(Town{Blobs: []Blob{{ID: 0}, {ID: 1}}}, StubBrain{})
+	st.feed = []feedPost{{from: 0, claim: 70, tone: 80}}
+	rng := NewRNG(3)
+	var r Round
+	st.scroll(0, &r, rng)
+	if len(r.Events) != 0 {
+		t.Fatalf("blob scrolled its own post: %+v", r.Events)
+	}
+	st.scroll(1, &r, rng)
+	if len(r.Events) != 1 {
+		t.Fatalf("got %d events, want one scroll", len(r.Events))
+	}
+	e := r.Events[0]
+	if !e.Scroll || e.From != 1 || len(e.To) != 1 || e.To[0] != 0 {
+		t.Fatalf("scroll = %+v, want blob 1 reading blob 0", e)
+	}
+	if !near(st.blobs[1].heard, 70) {
+		t.Fatalf("reader heard %v, want the post's 70", st.blobs[1].heard)
+	}
+}
+
+func TestScrollNeedsAFeed(t *testing.T) {
+	st := NewState(Town{Blobs: []Blob{{ID: 0}, {ID: 1}}}, StubBrain{})
+	var r Round
+	st.scroll(1, &r, NewRNG(4))
+	if len(r.Events) != 0 {
+		t.Fatalf("scrolled an empty feed: %+v", r.Events)
+	}
+}
 
 // MODEL.md#worked-example, steps 1–6. Steps 7–8 (shipping) belong to #15.
 func TestWorkedExample(t *testing.T) {

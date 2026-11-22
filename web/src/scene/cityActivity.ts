@@ -1,16 +1,17 @@
 // What every city blob is doing in a round, for the inspector. Derived from what the sim recorded
 // (rounds[].events and paths), never invented: a blob talks when it is an event's speaker, listens
-// when it is an in-person listener, posts when it holds the phone, and walks when its path moves.
-// Scores and moods come from the same replay helpers the blobs themselves use.
+// when it is an in-person listener, posts when it holds the phone, scrolls when it reads a post,
+// and walks when its path moves. Scores and moods come from the same replay helpers the blobs
+// themselves use.
 import type { RunLog } from "../generated/types.ts";
 import type { BlobActivity } from "../inspector/inspectorModel.ts";
 import { moodAt } from "./replay.ts";
 
 /**
  * Every blob's activity in `round` (an index into the run's rounds) after `done` rounds have
- * completed. Posting wins over talking over listening over walking, because those are what the
- * blob visibly does. The scores are the ones the replay shows at that point: the town's starting
- * values before round 0 is done, then the completed round's scores.
+ * completed. Posting wins over scrolling, then talking, listening and walking, because those are
+ * what the blob visibly does. The scores are the ones the replay shows at that point: the town's
+ * starting values before round 0 is done, then the completed round's scores.
  */
 export function cityActivities(
   run: RunLog,
@@ -19,6 +20,7 @@ export function cityActivities(
 ): Record<number, BlobActivity> {
   const count = run.town.blobs.length;
   const posting = new Uint8Array(count);
+  const scrolling = new Uint8Array(count);
   const speakerPartner = new Int32Array(count).fill(-1);
   const listenerPartner = new Int32Array(count).fill(-1);
 
@@ -28,6 +30,10 @@ export function cityActivities(
   for (const event of events) {
     if (event.p) {
       if (event.f >= 0 && event.f < count) posting[event.f] = 1;
+      continue;
+    }
+    if (event.s) {
+      if (event.f >= 0 && event.f < count) scrolling[event.f] = 1;
       continue;
     }
     if (event.to.length !== 1) continue;
@@ -69,6 +75,8 @@ export function cityActivities(
     let activity: BlobActivity;
     if (posting[b]) {
       activity = { state: "posting", mood, perception, interest };
+    } else if (scrolling[b]) {
+      activity = { state: "scrolling", mood, perception, interest };
     } else if (speakerPartner[b] >= 0) {
       activity = {
         state: "talking",

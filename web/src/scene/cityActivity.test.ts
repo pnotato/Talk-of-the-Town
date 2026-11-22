@@ -15,6 +15,7 @@ const COUNT = GOLDEN.town.blobs.length;
 /** What the sim's events say each blob does in a round, by the reporting's precedence. */
 function roles(run: RunLog, round: number) {
   const posters = new Set<number>();
+  const scrollers = new Set<number>();
   const speakers = new Map<number, number>();
   const listeners = new Map<number, number>();
   for (const event of run.rounds[round].events) {
@@ -22,12 +23,16 @@ function roles(run: RunLog, round: number) {
       posters.add(event.f);
       continue;
     }
+    if (event.s) {
+      scrollers.add(event.f);
+      continue;
+    }
     if (event.to.length !== 1) continue;
     const listener = event.to[0];
     if (!speakers.has(event.f)) speakers.set(event.f, listener);
     if (!listeners.has(listener)) listeners.set(listener, event.f);
   }
-  return { posters, speakers, listeners };
+  return { posters, scrollers, speakers, listeners };
 }
 
 function moves(run: RunLog, round: number, blob: number): boolean {
@@ -37,10 +42,10 @@ function moves(run: RunLog, round: number, blob: number): boolean {
 }
 
 describe("cityActivities", () => {
-  test("reports the sim's talks, posts, walks and idles for a round", () => {
+  test("reports the sim's talks, posts, scrolls, walks and idles for a round", () => {
     const round = 0;
     const activities = cityActivities(GOLDEN, round, 0);
-    const { posters, speakers, listeners } = roles(GOLDEN, round);
+    const { posters, scrollers, speakers, listeners } = roles(GOLDEN, round);
 
     assert.equal(Object.keys(activities).length, COUNT);
     for (let b = 0; b < COUNT; b++) {
@@ -48,6 +53,9 @@ describe("cityActivities", () => {
       assert.ok(activity, `blob ${b}`);
       if (posters.has(b)) {
         assert.equal(activity.state, "posting", `blob ${b}`);
+        assert.equal(activity.partnerId, undefined, `blob ${b}`);
+      } else if (scrollers.has(b)) {
+        assert.equal(activity.state, "scrolling", `blob ${b}`);
         assert.equal(activity.partnerId, undefined, `blob ${b}`);
       } else if (speakers.has(b)) {
         assert.equal(activity.state, "talking", `blob ${b}`);
@@ -60,6 +68,19 @@ describe("cityActivities", () => {
         assert.equal(activity.partnerId, undefined, `blob ${b}`);
       }
     }
+  });
+
+  test("reports blobs scrolling social media when the sim records it", () => {
+    let found = false;
+    for (const [r, round] of GOLDEN.rounds.entries()) {
+      const scrollers = new Set(round.events.filter((e) => e.s).map((e) => e.f));
+      if (scrollers.size === 0) continue;
+      found = true;
+      const activities = cityActivities(GOLDEN, r, 0);
+      for (const b of scrollers)
+        assert.equal(activities[b].state, "scrolling", `round ${r} blob ${b}`);
+    }
+    assert.ok(found, "the golden run records no scrolls");
   });
 
   test("uses the town's starting scores before round 0 is done", () => {
@@ -89,10 +110,11 @@ describe("cityActivities", () => {
   test("reports a later round's roles while keeping the completed scores", () => {
     const round = 1;
     const activities = cityActivities(GOLDEN, round, 1);
-    const { posters, speakers, listeners } = roles(GOLDEN, round);
+    const { posters, scrollers, speakers, listeners } = roles(GOLDEN, round);
     for (let b = 0; b < COUNT; b++) {
       const activity = activities[b];
       if (posters.has(b)) assert.equal(activity.state, "posting", `blob ${b}`);
+      else if (scrollers.has(b)) assert.equal(activity.state, "scrolling", `blob ${b}`);
       else if (speakers.has(b)) {
         assert.equal(activity.state, "talking", `blob ${b}`);
         assert.equal(activity.partnerId, speakers.get(b), `blob ${b}`);

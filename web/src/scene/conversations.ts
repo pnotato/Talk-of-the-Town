@@ -159,12 +159,13 @@ function planRound(
   const claimed = new Uint8Array(count);
   const used = new Uint8Array(nodes.length);
 
-  // A blob who posts this round acts alone, so it must not be pulled into a conversation as well.
-  for (const event of events) if (event.p) claimed[event.f] = 1;
+  // A blob who posts or scrolls this round acts alone, so it must not be pulled into a
+  // conversation as well.
+  for (const event of events) if (event.p || event.s) claimed[event.f] = 1;
 
   const conversations: Conversation[] = [];
   for (const event of events) {
-    if (event.p || event.to.length !== 1) continue;
+    if (event.p || event.s || event.to.length !== 1) continue;
     const speaker = event.f;
     const listener = event.to[0];
     if (

@@ -26,7 +26,9 @@ describe("stageRun", () => {
   test("stages only in-person talks the sim recorded", () => {
     GOLDEN.rounds.forEach((round, r) => {
       const talks = new Set(
-        round.events.filter((e) => !e.p && e.to.length === 1).map((e) => `${e.f}>${e.to[0]}`),
+        round.events
+          .filter((e) => !e.p && !e.s && e.to.length === 1)
+          .map((e) => `${e.f}>${e.to[0]}`),
       );
       for (const { speaker, listener } of staged[r].conversations) {
         assert.ok(talks.has(`${speaker}>${listener}`), `round ${r}: ${speaker} → ${listener}`);
@@ -34,7 +36,7 @@ describe("stageRun", () => {
     });
   });
 
-  test("never stages a blob twice in a round, and never one that posts", () => {
+  test("never stages a blob twice in a round, or one that posts or scrolls", () => {
     for (const [r, round] of staged.entries()) {
       const seen = new Set<number>();
       for (const { speaker, listener } of round.conversations) {
@@ -43,8 +45,9 @@ describe("stageRun", () => {
           seen.add(b);
         }
       }
-      const posters = new Set(GOLDEN.rounds[r].events.filter((e) => e.p).map((e) => e.f));
-      for (const b of seen) assert.ok(!posters.has(b), `round ${r}: poster ${b} is staged`);
+      const posters = new Set(GOLDEN.rounds[r].events.filter((e) => e.p || e.s).map((e) => e.f));
+      for (const b of seen)
+        assert.ok(!posters.has(b), `round ${r}: poster or scroller ${b} is staged`);
     }
   });
 

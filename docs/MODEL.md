@@ -295,16 +295,18 @@ Then every blob moves at once, in one PIBT planner step ([engine/PIBT.md](./engi
 
 ## Actions
 
-A blob with `heard == none` idles: it has nothing to pass on *(design)*.
+A blob with `heard == none` cannot pass the story on, so it does not talk or post. It may still scroll social media *(design)*.
 Otherwise, per round:
 
 ```
 pActive = clamp(soc(b) + 0.40 * b.interest/100 + 0.20 * |b.perception - 50|/50, 0, 0.90)
-if rng() >= pActive: idle
+if b.heard == none or rng() >= pActive: idle
 else if b.recluse:            post
 else if b.age < 13:           talk
 else if rng() < pPost(b.age): post
 else:                         talk
+
+if idle and rng() < ScrollChance: scroll   // #scrolling
 ```
 
 | Socialness tag | `soc(b)` | Source |
@@ -327,6 +329,10 @@ else:                         talk
 
 - Recluses always post, never talk in person ([BLOBS.md](./BLOBS.md#special-traits)).
 - Elders post at the adult rate *(design)*. Their higher sharing of questionable news [8] comes from higher trust ([#trust](#trust)), not more posting.
+
+| Constant | Value | Meaning | Source |
+|---|---|---|---|
+| `ScrollChance` | 0.08 | chance per round that a blob who did not talk or post scrolls social media | social media's "about 8% of the town", [#scrolling](#scrolling) |
 
 ## Partner choice
 
@@ -448,6 +454,17 @@ A post by `s` reaches 8 readers *(design)*:
 - Range: exactly 8 readers per post. About 8% of the town.
 - Uniform reach is a simplification *(design)*. No feed algorithm.
 - Posts reach across shapes and neighbourhoods; in-person talk mostly does not [28].
+
+## Scrolling
+
+A blob who did not talk or post may still scroll social media *(design)*:
+
+- Chance: `ScrollChance = 0.08` per round, the same "about 8% of the town" as a post's 8 readers.
+- A scroller reads one post drawn uniformly from the posts made so far in the current story, by a blob other than itself. It then gets `hear(reader, c_told, T, k)` with `channel = 0.5`, exactly as a post's readers do.
+- Scrolling is how under-13s and recluses read: both may scroll. Scrolling is not posting.
+- A blob that has heard nothing may still scroll, so social media can be its first contact with a story.
+- The feed holds every post of the current story, oldest first, and resets when the next story is announced. Old stories live on only in perception, interest and credibility ([#announcements](#announcements)).
+- Drawn in blob `id` order with every other action, so the same seed and choices give the same scrolls.
 
 ## Decay
 

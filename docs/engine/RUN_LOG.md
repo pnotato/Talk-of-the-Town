@@ -120,7 +120,7 @@ announcements are the same.
 | Field | Type | Meaning |
 |---|---|---|
 | `i` | number | Round index, 0–49. |
-| `events` | RunEvent[] | What was said this round, in the order it happened. |
+| `events` | RunEvent[] | What was said, posted or read this round, in the order it happened. |
 | `perception` | number[] | Each blob's perception after the round, by id, 0–100, rounded to 0.1. |
 | `interest` | number[] | Each blob's interest after the round's decay, by id, 0–100, rounded to 0.1. |
 | `avgPerception` | number | Town average perception, rounded to 0.1. |
@@ -130,16 +130,17 @@ announcements are the same.
 Movement happens before the talking in each round, so `paths` is where blobs
 walked while that round's news went round.
 
-A **RunEvent** is one conversation or one post:
+A **RunEvent** is one conversation, one post, or one scroll:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `f` | number | The blob who spoke or posted. |
-| `to` | number[] | Who heard it: one blob for a talk, 8 readers for a post. |
-| `p` | boolean | `true` for a social media post, `false` for one-to-one talk. |
-| `c` | number | Claim strength told, 0–100, rounded to 0.1. Retellings drift upward. |
-| `dp` | number[] | Perception change for each blob in `to`, same order. |
-| `di` | number[] | Interest change for each blob in `to`, same order. |
+| `f` | number | The blob who spoke, posted or scrolled. |
+| `to` | number[] | Who heard it: one blob for a talk, 8 readers for a post, or the poster for a scroll. |
+| `p` | boolean | `true` for a social media post, `false` otherwise. |
+| `s` | boolean | `true` for a scroll: `f` read `to[0]`'s post. Omitted when false. |
+| `c` | number | Claim strength told or read, 0–100, rounded to 0.1. Retellings drift upward. |
+| `dp` | number[] | Perception change for each blob in `to`, same order. For a scroll, the reader's change. |
+| `di` | number[] | Interest change for each blob in `to`, same order. For a scroll, the reader's change. |
 
 ### `moments[]`
 

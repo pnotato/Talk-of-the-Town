@@ -192,6 +192,7 @@ export default function Blob({
   const root = useRef<Group>(null);
   const body = useRef<Group>(null);
   const mouth = useRef<Mesh>(null);
+  const phone = useRef<Group>(null);
   const bubble = useRef<Group>(null);
   const material = useRef<MeshStandardMaterial>(null);
   const goal = useRef({ x: position[0], z: position[2] });
@@ -267,6 +268,8 @@ export default function Blob({
 
     const open = mouthOpen(a, t);
     mouth.current.scale.set(1 - 0.2 * open, 1 + open, 1);
+    // The phone is always mounted so a replay can bring it out mid-round through `drive`.
+    if (phone.current) phone.current.visible = poseNow === "phone";
     // A staged conversation mounts the bubble at the start of the round but only shows it once
     // the pair is standing together and talking.
     if (bubble.current) bubble.current.visible = talkingNow;
@@ -294,7 +297,9 @@ export default function Blob({
             <meshStandardMaterial ref={material} color={start.color} roughness={0.6} />
           </mesh>
           <BlobFace shape={shape} mood={mood} mouthRef={mouth} />
-          {pose === "phone" && <Phone shape={shape} />}
+          <group ref={phone} visible={pose === "phone"}>
+            <Phone shape={shape} />
+          </group>
         </group>
       </group>
       {talking && (

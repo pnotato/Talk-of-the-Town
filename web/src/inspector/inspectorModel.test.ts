@@ -51,6 +51,7 @@ describe("activities", () => {
   test("read plainly, idle when the scene has said nothing", () => {
     assert.equal(activityText(undefined), "Idle");
     assert.equal(activityText({ state: "posting", mood: "o" }), "Posting to social media");
+    assert.equal(activityText({ state: "scrolling", mood: "flat" }), "Scrolling social media");
     assert.equal(activityText({ state: "talking", mood: "smile", partnerId: 2 }), "Talking");
   });
 
@@ -86,13 +87,14 @@ describe("describeAction", () => {
     assert.deepEqual(describeAction({ state: "talking", mood: "smile" }), { text: "Talking" });
   });
 
-  test("never attaches a partner to posting, walking or idle, or invents an action", () => {
-    for (const state of ["posting", "walking", "idle"] as const) {
+  test("never attaches a partner to posting, scrolling, walking or idle, or invents an action", () => {
+    for (const state of ["posting", "scrolling", "walking", "idle"] as const) {
       const { partnerId } = describeAction({ state, mood: "flat", partnerId: 3 });
       assert.equal(partnerId, undefined, state);
     }
     assert.deepEqual(describeAction(undefined), { text: "Idle" });
     assert.equal(describeAction({ state: "posting", mood: "o" }).text, "Posting to social media");
+    assert.equal(describeAction({ state: "scrolling", mood: "o" }).text, "Scrolling social media");
   });
 });
 

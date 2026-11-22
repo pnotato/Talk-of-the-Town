@@ -93,6 +93,16 @@ export const CityReplay = memo(function CityReplay({
   const moods = useMemo(() => run.town.blobs.map((_, b) => moodAt(run, b, done)), [run, done]);
   // Which pairs meet on adjacent hex cells this round, and where everyone starts it.
   const staging = useMemo(() => stageRun(run), [run]);
+  // Blobs posting or scrolling this round, so the phone is out: their events say who they are.
+  const phones = useMemo(
+    () =>
+      run.rounds.map((round) => {
+        const shown = new Set<number>();
+        for (const event of round.events) if (event.p || event.s) shown.add(event.f);
+        return shown;
+      }),
+    [run],
+  );
   const [shownRound, setShownRound] = useState(0);
   // The speakers this round, so their speech bubbles are mounted; frames decide when they show.
   const speakers = useMemo(() => {
@@ -128,6 +138,7 @@ export const CityReplay = memo(function CityReplay({
       const drive = drives[b];
       const blob = stage?.blobs[b];
       const role = blob?.role;
+      const phone = phones[round]?.has(b) ?? false;
       if (blob && role) {
         // Walk to this blob's hex cell, then stand on it and talk to its partner.
         const meet = run.map.nodes[role.node];
@@ -159,7 +170,7 @@ export const CityReplay = memo(function CityReplay({
         drive.x = from.x + (simAt.x - from.x) * back;
         drive.z = from.z + (simAt.z - from.z) * back;
         drive.talking = false;
-        drive.pose = "idle";
+        drive.pose = phone ? "phone" : "idle";
         const heading = headingAt(run, b, t);
         if (heading !== null) drive.yaw = heading;
       }

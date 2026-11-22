@@ -87,7 +87,11 @@ How widely people trust differs between societies: some trust mainly their own g
 
 ## Interactions
 
-Each round a blob talks, posts, or idles.
+Each round a blob talks, posts, scrolls social media, or idles.
+
+**Reading social media**
+- A blob who is not talking or posting may scroll the social feed *(design)*. Under-13s and recluses read this way.
+- Incremental scroll chance comes from the same social media share as a post's audience (see [MODEL.md](./MODEL.md#scrolling)).
 
 **Hearing about the company**
 - How much it moves the listener's scores depends on the listener's credulity, the speaker's persuasiveness, and the listener's trust in the speaker (shape, family) [12], [21].
