@@ -73,6 +73,7 @@ func handleTown(w http.ResponseWriter, r *http.Request) {
 type runRequest struct {
 	Seed    *uint64  `json:"seed"`
 	Choices []string `json:"choices"`
+	Map     string   `json:"map"` // "city" or "town"; empty means city
 }
 
 // handleRun serves POST /api/run. Stateless: the run is replayed from the seed.
@@ -94,7 +95,7 @@ func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Bra
 		writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("run exceeds server caps (%d rounds, %d blobs)", cfg.MaxRounds, cfg.MaxBlobs))
 		return
 	}
-	run, err := sim.Run(*req.Seed, req.Choices, brain)
+	run, err := sim.RunMap(req.Map, *req.Seed, req.Choices, brain)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

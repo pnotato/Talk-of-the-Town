@@ -74,19 +74,42 @@ type Pending struct {
 	Options []content.Option `json:"options"`
 }
 
+// Map names a run can walk.
+const (
+	MapCity = "city"
+	MapTown = "town"
+)
+
 // Run plays a run from seed with one option id per moment, in order, with
 // the blobs walking the city between rounds. It stops before the first
 // moment with no choice yet and reports it in RunLog.Next.
 func Run(seed uint64, choices []string, brain Brain) (RunLog, error) {
+	return RunMap(MapCity, seed, choices, brain)
+}
+
+// RunMap is Run on the named map: the city or the town. An empty name means
+// the city, so older requests keep working.
+func RunMap(mapName string, seed uint64, choices []string, brain Brain) (RunLog, error) {
 	a, err := content.LoadAnnouncements()
 	if err != nil {
 		return RunLog{}, err
 	}
-	g, err := citymap.Graph()
+	g, err := mapGraph(mapName)
 	if err != nil {
 		return RunLog{}, err
 	}
 	return run(a, g, seed, choices, brain)
+}
+
+func mapGraph(name string) (*nav.Graph, error) {
+	switch name {
+	case "", MapCity:
+		return citymap.Graph()
+	case MapTown:
+		return citymap.TownGraph()
+	default:
+		return nil, fmt.Errorf("unknown map %q, want %q or %q", name, MapCity, MapTown)
+	}
 }
 
 func run(a content.Announcements, g *nav.Graph, seed uint64, choices []string, brain Brain) (RunLog, error) {

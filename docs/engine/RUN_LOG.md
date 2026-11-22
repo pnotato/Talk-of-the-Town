@@ -64,9 +64,9 @@ A full run is about 450–480 KB of compact JSON (447 KB for the startup run,
 |---|---|---|
 | `label` | string | Always `"SIMULATED"`. The UI must show it. |
 | `company` | string | The fictional company's name. |
-| `seed` | number | The run's seed, 0 to 2^53 − 1. Same seed and choices give the same log. |
+| `seed` | number | The run's seed, 0 to 2^53 − 1. Same seed, choices and map give the same log. |
 | `town` | Town | The town before round 0. |
-| `map` | WalkMap | The walk graph that `start` and `paths` index into. |
+| `map` | WalkMap | The walk graph that `start` and `paths` index into: the city's or the town's. |
 | `start` | number[] | `start[b]` is blob `b`'s node before round 0. One entry per blob. |
 | `rounds` | Round[] | One per round played: 50 for a finished run, 10 × choices for a partial one. |
 | `moments` | MomentLog[] | The announcements chosen so far, in order. |
@@ -104,11 +104,16 @@ A **Family** has `id`, `parents` (blob ids), `children` (blob ids) and
 | Field | Type | Meaning |
 |---|---|---|
 | `nodes` | [x, z][] | Position of each walk-graph node, in world units, rounded to 0.001. X points east, Z points south. |
-| `stand` | number | `nodes[0:stand]` are the standing spots, in the city's gathering order (752 in the current city). The rest are extra walking nodes on crosswalks, in front of doors and round corners. |
+| `stand` | number | `nodes[0:stand]` are the standing spots, in the map's gathering order (752 in the city, 122 in the town). The rest are extra walking nodes on crosswalks, in front of doors and round corners. |
 | `ticksPerRound` | number | Moves per round, 10. Each path has `ticksPerRound + 1` entries. |
 
 The graph's edges are not in the log. Every move in a path is along an edge
 or a stay, so consecutive entries are always neighbours or equal.
+
+`POST /api/run` takes an optional `"map"` of `"city"` (the default) or
+`"town"`, so the same seed and choices can be watched on either map. The map
+changes only the paths and the `map` object; the social step, scores and
+announcements are the same.
 
 ### `rounds[]`
 

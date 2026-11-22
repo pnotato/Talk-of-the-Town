@@ -38,6 +38,29 @@ export function boxCorners(b: Box): Point[] {
 
 const boxOf = ({ x, z, width, depth, rotationY }: Box): Box => ({ x, z, width, depth, rotationY });
 
+/**
+ * What a walking blob must go round on the square: the screen, the benches, lamps and flower
+ * beds, and the canopies of the square's trees. The same list decides where spots are, so the
+ * walk map and the scene always agree.
+ */
+export function townWalkObstacles(town: TownLayout): { what: string; obstacle: Obstacle }[] {
+  const { square } = town;
+  const near = Math.max(square.width, square.depth) / 2 + 2 * TREE_RADIUS;
+  return [
+    { what: "screen", obstacle: { kind: "box", ...town.screen.footprint } },
+    ...town.props.map((p) => ({
+      what: p.kind,
+      obstacle: { kind: "box" as const, ...boxOf(p) },
+    })),
+    ...town.trees
+      .filter((t) => Math.abs(t.x - square.x) < near && Math.abs(t.z - square.z) < near)
+      .map((t) => ({
+        what: "tree",
+        obstacle: { kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size },
+      })),
+  ];
+}
+
 function treeSolid(t: TownTree): Solid {
   const span = 2 * TREE_RADIUS * t.size;
   return { x: t.x, z: t.z, width: span, depth: span, rotationY: 0, height: TREE_HEIGHT * t.size };
@@ -61,14 +84,7 @@ export function townMap(town: TownLayout): MapLayout {
   // Blobs stand anywhere on the square's paving clear of the screen, the benches, the lamps
   // and the trees' canopies.
   const outline = boxCorners({ ...square, rotationY: 0 });
-  const near = Math.max(square.width, square.depth) / 2 + 2 * TREE_RADIUS;
-  const obstacles: Obstacle[] = [
-    { kind: "box", ...screen.footprint },
-    ...town.props.map((p) => ({ kind: "box" as const, ...boxOf(p) })),
-    ...town.trees
-      .filter((t) => Math.abs(t.x - square.x) < near && Math.abs(t.z - square.z) < near)
-      .map((t) => ({ kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size })),
-  ];
+  const obstacles: Obstacle[] = townWalkObstacles(town).map((o) => o.obstacle);
 
   // The default view shows every block to its corners and everything taller than a tree.
   const frame = [

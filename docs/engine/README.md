@@ -33,21 +33,22 @@ score, and who talks to whom doesn't depend on where blobs stand.
 ## The pipeline
 
 ```
-web/src/scene/            the city layout in TypeScript: areas, standing
-     |                    spots, crosswalks, obstacles
-     |  make citymap      (web/scripts/export-city-map.ts)
+web/src/scene/            the city and town layouts in TypeScript: areas,
+     |                    standing spots, crosswalks, obstacles
+     |  make maps        (web/scripts/export-city-map.ts, export-town-map.ts)
      v
-internal/sim/citymap/city.json      committed; make check fails if it is stale
-     |  citymap.Graph() = Load + nav.Build, once per process (~195 ms)
+internal/sim/citymap/{city,town}.json   committed; make check fails if stale
+     |  citymap.Graph() or citymap.TownGraph() = Load + nav.Build,
+     |  once per process per map (~195 ms for the city)
      v
-nav.Graph                 1,054 nodes, 1,954 edges, plus the hop matrix
-     |                    and the move-conflict table
+nav.Graph                 1,054 nodes for the city; 126 for the town, plus
+     |                    the hop matrix and the move-conflict table
      |  walker (sim/walk.go): goals, dwell times, priorities
      v
 nav.Planner.Step (PIBT)   once per tick, 10 ticks per round
      |
      v
-sim.Run -> RunLog         town, map, start, and per round: paths, talk
+sim.Run / sim.RunMap      town, map, start, and per round: paths, talk
      |                    events, scores, averages; moments
      |  internal/server encodes it once
      +---------------->  POST /api/run response  ->  the web client replays it

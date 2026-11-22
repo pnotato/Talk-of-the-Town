@@ -15,6 +15,10 @@
 
 import { type Box, distanceToBox, type Point, seededRandom, type Solid } from "./mapLayout.ts";
 
+// docs/MODEL.md: 53 homes dealt round-robin into 5 neighbourhoods.
+export const TOWN_HOMES = 53;
+export const TOWN_NEIGHBOURHOODS = 5;
+
 /** A home's size before its seeded variety: width along the street, depth front to back. */
 export const HOME_WIDTH = 2.8;
 export const HOME_DEPTH = 2.4;

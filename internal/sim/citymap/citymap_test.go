@@ -50,7 +50,7 @@ const tinyCity = `{"version":1,"layout":{"homeCount":1,"neighbourhoodCount":1},"
 `
 
 func TestParseTiny(t *testing.T) {
-	m, err := parse([]byte(tinyCity))
+	m, err := parse("city", []byte(tinyCity))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestParseRejects(t *testing.T) {
 		if data == tinyCity {
 			t.Fatalf("%s: fixture text %q not found", tc.name, tc.old)
 		}
-		_, err := parse([]byte(data))
+		_, err := parse("city", []byte(data))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: err = %v, want it to mention %q", tc.name, err, tc.want)
 		}
@@ -201,6 +201,68 @@ func TestGraphIsCached(t *testing.T) {
 	g2, err2 := Graph()
 	if g1 != g2 || err1 != err2 {
 		t.Error("Graph built twice")
+	}
+	t1, err1 := TownGraph()
+	t2, err2 := TownGraph()
+	if t1 != t2 || err1 != err2 {
+		t.Error("TownGraph built twice")
+	}
+}
+
+// townFingerprint pins the real town's walk graph. It changes whenever the
+// town (make townmap) or the build changes; update it deliberately, after
+// looking at the new graph, and say why in the commit.
+const townFingerprint = 0x2ae23bfaa54eea4
+
+func TestLoadTown(t *testing.T) {
+	m, err := LoadTown()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spots := 0
+	for _, a := range m.Areas {
+		spots += len(a.Spots)
+	}
+	got := []int{len(m.Areas), spots, len(m.Crosswalks), len(m.Discs), len(m.Boxes)}
+	want := []int{1, 122, 0, 6, 9}
+	for i, name := range []string{"areas", "spots", "crosswalks", "discs", "boxes"} {
+		if got[i] != want[i] {
+			t.Errorf("%d %s, want %d", got[i], name, want[i])
+		}
+	}
+	if m.Areas[0].Name != "square" {
+		t.Errorf("first area %q, want square", m.Areas[0].Name)
+	}
+}
+
+func TestTownGraph(t *testing.T) {
+	g, err := TownGraph()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadTown()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := nav.DefaultParams()
+	if err := nav.Check(g, p, &m); err != nil {
+		t.Fatal(err)
+	}
+	if g.NumStand != 122 {
+		t.Errorf("%d Stand nodes, want 122", g.NumStand)
+	}
+	goals := 0
+	for u := range g.NumStand {
+		if g.GoalOK(u) {
+			goals++
+		}
+	}
+	t.Logf("%d nodes (%d stand), %d goals, fingerprint %#x", g.Len(), g.NumStand, goals, g.Fingerprint())
+	if goals < 100 {
+		t.Errorf("only %d goal nodes, want at least 100 for the town's blobs", goals)
+	}
+	if got := g.Fingerprint(); got != townFingerprint {
+		t.Errorf("fingerprint %#x, want %#x: the town graph changed; if that's intended, look at it and update townFingerprint", got, uint64(townFingerprint))
 	}
 }
 
