@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import BlobInspector from "../inspector/BlobInspector.tsx";
 import { BlobSelectionProvider } from "../inspector/BlobSelection.tsx";
+import { FOCUS_INSET_TOP } from "../inspector/focusInset.ts";
 import ShapesScene from "../scene/ShapesScene.tsx";
 
 // The provider lives here, so leaving the page drops the selection.
 export default function ShapesPage() {
-  const [focusInset, setFocusInset] = useState({ top: 112, bottom: 0 });
+  const [focusInset, setFocusInset] = useState({ top: FOCUS_INSET_TOP, bottom: 0 });
   const reportInset = useCallback((next: { top: number; bottom: number }) => {
     setFocusInset((previous) =>
       previous.top === next.top && previous.bottom === next.bottom ? previous : next,

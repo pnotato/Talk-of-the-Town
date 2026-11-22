@@ -1,7 +1,8 @@
-import { type CSSProperties, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { RunLog } from "../generated/types.ts";
 import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
+import "./cityPage.css";
 
 const FIRST_SEED = 1;
 const SPEEDS = [1, 2, 4] as const;
@@ -40,70 +41,6 @@ async function fetchRun(seed: number, signal: AbortSignal): Promise<RunLog> {
   }
   throw new RunRefused("the sim kept asking for announcements");
 }
-
-// Bottom right, over the fields at the city's edge and clear of the app shell's SIMULATED badge
-// and nav at the top left, even on a phone.
-const corner: CSSProperties = {
-  position: "absolute",
-  bottom: 16,
-  right: 16,
-  maxWidth: "min(560px, calc(100% - 32px))",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-end",
-  gap: 8,
-  font: "14px/1.3 system-ui, sans-serif",
-};
-
-const card: CSSProperties = {
-  boxSizing: "border-box",
-  maxWidth: "100%",
-  margin: 0,
-  padding: "6px 10px",
-  borderRadius: 8,
-  background: "rgb(255 255 255 / 0.9)",
-  boxShadow: "0 1px 2px rgb(0 0 0 / 0.15)",
-};
-
-const panel: CSSProperties = {
-  ...card,
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: 12,
-};
-
-// Over the middle of the city while there is nothing to replay.
-const notice: CSSProperties = {
-  ...card,
-  position: "absolute",
-  top: "50%",
-  left: "50%",
-  transform: "translate(-50%, -50%)",
-  maxWidth: "calc(100% - 32px)",
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 12,
-  padding: "10px 14px",
-  font: "15px/1.4 system-ui, sans-serif",
-};
-
-const MUTED = "#57606a"; // 6:1 on the white panels
-
-const button: CSSProperties = { font: "inherit", padding: "2px 10px", cursor: "pointer" };
-
-// The chosen speed is bold and outlined, not only a different colour.
-const speedButton = (chosen: boolean): CSSProperties => ({
-  ...button,
-  padding: "2px 8px",
-  fontWeight: chosen ? 700 : 400,
-  border: chosen ? "2px solid #1f2328" : "1px solid #8c959f",
-  borderRadius: 4,
-  background: chosen ? "#d8dee4" : "#fff",
-  color: "#1f2328",
-});
 
 type Result = { key: string; run: RunLog } | { key: string; error: string };
 
@@ -172,62 +109,57 @@ export default function CityPage() {
         onEnd={handleEnd}
       />
       {!current && (
-        <p role="status" style={notice}>
+        <p role="status" className="city-notice">
           Simulating…
         </p>
       )}
       {error && (
-        <div role="alert" style={notice}>
+        <div role="alert" className="city-notice">
           <span>{error}</span>
-          <button type="button" style={button} onClick={() => setAttempt((a) => a + 1)}>
+          <button type="button" className="city-button" onClick={() => setAttempt((a) => a + 1)}>
             Retry
           </button>
         </div>
       )}
-      <div style={corner}>
+      <div className="city-hud">
         {run && (
-          <p style={card}>
+          <p className="city-news">
             {headline && (
               <>
                 <strong>News:</strong> {headline}
                 <br />
               </>
             )}
-            <span style={{ color: MUTED }}>
+            <span className="city-news-note">
               Announcements are auto-picked (the first option) until the newsroom exists.
             </span>
           </p>
         )}
-        <div role="group" aria-label="Replay" style={panel}>
-          <button
-            type="button"
-            style={{ ...button, minWidth: "5.5em" }}
-            disabled={!run}
-            onClick={togglePlay}
-          >
+        <div className="city-controls" role="group" aria-label="Replay">
+          <button type="button" className="city-button" disabled={!run} onClick={togglePlay}>
             {ended ? "Replay" : playing ? "Pause" : "Play"}
           </button>
-          <span aria-live="polite" style={{ fontVariantNumeric: "tabular-nums" }}>
+          <span className="city-seed" aria-live="polite">
             {run ? `Round ${round + 1} / ${run.rounds.length}` : ""}
           </span>
-          <span role="group" aria-label="Speed" style={{ display: "flex", gap: 4 }}>
+          <span className="city-speeds" role="group" aria-label="Speed">
             {SPEEDS.map((s) => (
               <button
                 key={s}
                 type="button"
+                className="city-speed"
                 aria-pressed={speed === s}
-                style={speedButton(speed === s)}
                 onClick={() => setSpeed(s)}
               >
                 {s}×
               </button>
             ))}
           </span>
-          <button type="button" style={button} onClick={newSeed}>
+          <button type="button" className="city-button" onClick={newSeed}>
             New seed
           </button>
-          <span style={{ color: MUTED }}>Seed {seed}</span>
-          <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+          <span className="city-seed">Seed {seed}</span>
+          <label className="city-toggle">
             <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} />
             Grid
           </label>

@@ -2,7 +2,6 @@ import { Grid, OrbitControls, type OrbitControlsChangeEvent } from "@react-three
 import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import {
   type ComponentRef,
-  type CSSProperties,
   type RefObject,
   useCallback,
   useEffect,
@@ -32,6 +31,7 @@ import BlobScenario from "./BlobScenario.tsx";
 import { SCENARIOS } from "./blobScenarios.ts";
 import FocusFlight from "./FocusFlight.tsx";
 import { RenderResolution } from "./RenderResolution.tsx";
+import "./shapesScene.css";
 import { shapesFixture } from "./shapesFixture.ts";
 import {
   FOV,
@@ -43,8 +43,8 @@ import {
   fitDistance,
 } from "./shapesLayout.ts";
 
-const SKY = "#d4e2ee";
-const GROUND = "#9cad93";
+const SKY = "#dbe8ef";
+const GROUND = "#a4b79a";
 
 const panBefore = new Vector3();
 
@@ -149,12 +149,12 @@ function Stage({
         position-y={0.002}
         infiniteGrid
         cellSize={1}
-        cellThickness={0.6}
-        cellColor="#90a488"
+        cellThickness={0.45}
+        cellColor="#9db093"
         sectionSize={5}
-        sectionThickness={1}
-        sectionColor="#8a9e82"
-        fadeStrength={1.5}
+        sectionThickness={0.85}
+        sectionColor="#93a689"
+        fadeStrength={2.1}
       />
     </>
   );
@@ -185,9 +185,22 @@ function KeyLight({ view }: { view: View }) {
   );
 }
 
-/** Pins a label element to a point in the canvas (centred on it, or on top of it), or hides it. */
-function pin(element: HTMLElement, x: number, y: number, above: boolean, visible: boolean) {
-  element.style.visibility = visible ? "visible" : "hidden";
+/** Pins a label element to a point in the canvas, or hides it if it is off screen or clipped. */
+function pin(
+  element: HTMLElement,
+  x: number,
+  y: number,
+  above: boolean,
+  visible: boolean,
+  width: number,
+  height: number,
+) {
+  const boxWidth = element.offsetWidth;
+  const boxHeight = element.offsetHeight;
+  const left = x - boxWidth / 2;
+  const top = above ? y - boxHeight : y - boxHeight / 2;
+  const fits = left >= 0 && top >= 0 && left + boxWidth <= width && top + boxHeight <= height;
+  element.style.visibility = visible && fits ? "visible" : "hidden";
   element.style.transform = `translate(${x}px, ${y}px) translate(-50%, ${above ? -100 : -50}%)`;
 }
 
@@ -229,29 +242,11 @@ function PinLabels({
       const visible = Math.abs(ndc.z) < 1;
       const x = ((ndc.x + 1) / 2) * size.width;
       const y = ((1 - ndc.y) / 2) * size.height;
-      pin(element, x, y, labels[i].above ?? false, visible);
+      pin(element, x, y, labels[i].above ?? false, visible, size.width, size.height);
     }
   });
   return null;
 }
-
-const labelStyle: CSSProperties = {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  visibility: "hidden", // until PinLabels places it
-  pointerEvents: "none",
-  padding: "2px 6px",
-  borderRadius: 6,
-  background: "rgb(255 255 255 / 0.85)",
-  boxShadow: "0 1px 2px rgb(0 0 0 / 0.15)",
-  color: "#1f2328",
-  font: "500 12px/1.3 system-ui, sans-serif",
-  textAlign: "center",
-  // Long meanings wrap onto a second line instead of running into the next label.
-  maxWidth: 78,
-  width: "max-content",
-};
 
 /** Every blob shape at child, adult and elder size, on an empty ground. */
 export default function ShapesScene({ focusInset }: { focusInset?: Partial<Inset> }) {
@@ -269,7 +264,7 @@ export default function ShapesScene({ focusInset }: { focusInset?: Partial<Inset
   return (
     <section
       aria-label="Blob shapes sandbox"
-      // isolation keeps the labels below the app shell, which overlays the page.
+      // Keep the labels above the scene but below the inspector controls.
       style={{ position: "relative", height: "100%", overflow: "hidden", isolation: "isolate" }}
     >
       <Canvas
@@ -336,13 +331,12 @@ export default function ShapesScene({ focusInset }: { focusInset?: Partial<Inset
           ref={(element) => {
             labels.current[i] = element;
           }}
-          style={labelStyle}
+          className={`scene-label scene-label-${label.kind}`}
         >
           {label.detail ? (
             <>
               <strong>{label.title}</strong>
-              <br />
-              {label.detail}
+              <span>{label.detail}</span>
             </>
           ) : (
             label.title
