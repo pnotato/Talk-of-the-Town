@@ -25,6 +25,8 @@ export interface RunLog {
   company: string;
   seed: number;
   town: Town;
+  map: WalkMap;
+  start: number[];
   rounds: Round[];
   moments: MomentLog[];
   next: Pending | null;
@@ -57,6 +59,12 @@ export interface Home {
   residents: number[];
 }
 
+export interface WalkMap {
+  nodes: number[][];
+  stand: number;
+  ticksPerRound: number;
+}
+
 export interface Round {
   i: number;
   events: RunEvent[];
@@ -64,6 +72,7 @@ export interface Round {
   interest: number[];
   avgPerception: number;
   avgInterest: number;
+  paths: number[][];
 }
 
 export interface MomentLog {
