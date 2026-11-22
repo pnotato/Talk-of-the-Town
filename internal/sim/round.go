@@ -345,6 +345,7 @@ type Round struct {
 	Interest      []float64  `json:"interest"`
 	AvgPerception float64    `json:"avgPerception"`
 	AvgInterest   float64    `json:"avgInterest"`
+	Paths         [][]int    `json:"paths"` // paths[b][k] = blob b's node after k ticks; k = 0 is where the round starts
 }
 
 // RunLog is the replay contract with the client.
@@ -352,7 +353,9 @@ type RunLog struct {
 	Label   string      `json:"label"`   // always "SIMULATED"; the UI must show it
 	Company string      `json:"company"` // fictional company name
 	Seed    uint64      `json:"seed"`
-	Town    Town        `json:"town"` // initial town
+	Town    Town        `json:"town"`  // initial town
+	Map     WalkMap     `json:"map"`   // the walk graph paths index into
+	Start   []int       `json:"start"` // node per blob before round 0
 	Rounds  []Round     `json:"rounds"`
 	Moments []MomentLog `json:"moments"` // chosen announcements, in order
 	Next    *Pending    `json:"next"`    // next moment to choose, or null when the run is over
@@ -360,15 +363,17 @@ type RunLog struct {
 
 // NewRunLog starts an empty log for town.
 func NewRunLog(seed uint64, t Town) RunLog {
-	return RunLog{Label: ContentLabel, Seed: seed, Town: t, Rounds: []Round{}, Moments: []MomentLog{}}
+	return RunLog{Label: ContentLabel, Seed: seed, Town: t, Map: WalkMap{Nodes: [][2]float64{}}, Start: []int{},
+		Rounds: []Round{}, Moments: []MomentLog{}}
 }
 
 func round1(x float64) float64 { return math.Round(x*10) / 10 }
 
 // Step plays one round: actions by id, then decay, then records scores.
-// Announce and ship (#15) run on the State before Step, per MODEL.md#round-order.
+// Announce, ship and movement run before Step, per MODEL.md#round-order;
+// Step is social only and leaves Paths empty for the caller to fill.
 func (s *State) Step(rng *rand.Rand) Round {
-	r := Round{Index: s.Round, Events: []RunEvent{}}
+	r := Round{Index: s.Round, Events: []RunEvent{}, Paths: [][]int{}}
 	for i, B := range s.Town.Blobs {
 		b := s.blobs[i]
 		if !b.hasHeard || rng.Float64() >= s.pActive(i) {

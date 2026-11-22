@@ -3,8 +3,11 @@ package sim
 import (
 	"fmt"
 	"math"
+	"slices"
 
+	"talkofthetown/internal/sim/citymap"
 	"talkofthetown/internal/sim/content"
+	"talkofthetown/internal/sim/nav"
 )
 
 // MODEL.md#round-order
@@ -71,17 +74,22 @@ type Pending struct {
 	Options []content.Option `json:"options"`
 }
 
-// Run plays a run from seed with one option id per moment, in order. It stops
-// before the first moment with no choice yet and reports it in RunLog.Next.
+// Run plays a run from seed with one option id per moment, in order, with
+// the blobs walking the city between rounds. It stops before the first
+// moment with no choice yet and reports it in RunLog.Next.
 func Run(seed uint64, choices []string, brain Brain) (RunLog, error) {
 	a, err := content.LoadAnnouncements()
 	if err != nil {
 		return RunLog{}, err
 	}
-	return run(a, seed, choices, brain)
+	g, err := citymap.Graph()
+	if err != nil {
+		return RunLog{}, err
+	}
+	return run(a, g, seed, choices, brain)
 }
 
-func run(a content.Announcements, seed uint64, choices []string, brain Brain) (RunLog, error) {
+func run(a content.Announcements, g *nav.Graph, seed uint64, choices []string, brain Brain) (RunLog, error) {
 	if n := RunRounds / MomentEvery; len(a.Moments) != n {
 		return RunLog{}, fmt.Errorf("content has %d moments, want %d", len(a.Moments), n)
 	}
@@ -111,8 +119,16 @@ func run(a content.Announcements, seed uint64, choices []string, brain Brain) (R
 	rng := NewRNG(seed)
 	town := NewTown(rng)
 	st := NewState(town, brain)
+	// Movement has its own RNG, so it never shifts the social draws and
+	// does not depend on the choices (MODEL.md#movement-rng).
+	walk, err := newWalker(g, len(town.Blobs), NewMoveRNG(seed))
+	if err != nil {
+		return RunLog{}, err
+	}
 	log := NewRunLog(seed, town)
 	log.Label, log.Company, log.Moments = a.Label, a.Company.Name, []MomentLog{}
+	// Before the loop, so a run that stops at round 0 still places the blobs.
+	log.Map, log.Start = newWalkMap(g), slices.Clone(walk.at)
 	for r := range RunRounds {
 		k := r / MomentEvery
 		switch r % MomentEvery {
@@ -132,7 +148,10 @@ func run(a content.Announcements, seed uint64, choices []string, brain Brain) (R
 			m := &log.Moments[k]
 			m.Shipped, m.ShippedRound, m.Broken, m.Credibility = true, r, st.Broken > before, st.Credibility
 		}
-		log.Rounds = append(log.Rounds, st.Step(rng))
+		paths := walk.round(TicksPerRound) // MODEL.md#round-order: movement, then actions
+		round := st.Step(rng)
+		round.Paths = paths
+		log.Rounds = append(log.Rounds, round)
 	}
 	return log, nil
 }
