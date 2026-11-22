@@ -1,0 +1,106 @@
+/* Floating labels that sit over the 3D scene, like small notes pinned to the board. */
+
+.scene-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: max-content;
+  max-width: 124px;
+  padding: 3px 7px 4px;
+  border: 1px solid rgb(82 98 70 / 0.16);
+  border-radius: 8px;
+  background: rgb(255 250 240 / 0.88);
+  box-shadow: 0 1px 3px rgb(58 67 46 / 0.14);
+  color: #35382f;
+  font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.18;
+  text-align: center;
+  pointer-events: none;
+}
+
+.scene-label strong {
+  font-weight: 560;
+}
+
+.scene-label span {
+  display: block;
+  color: #6b7361;
+  font-size: 9.5px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.scene-label-column,
+.scene-label-section {
+  gap: 0;
+  padding: 2px 6px;
+  border: 1px solid rgb(82 98 70 / 0.12);
+  border-radius: 6px;
+  background: rgb(255 250 240 / 0.74);
+  box-shadow: 0 1px 2px rgb(58 67 46 / 0.1);
+  color: #4f5949;
+  font-size: 9.5px;
+  font-weight: 560;
+  letter-spacing: 0.1em;
+  text-shadow: none;
+  text-transform: uppercase;
+}
+
+.scene-label-section {
+  background: rgb(255 250 240 / 0.84);
+  letter-spacing: 0.14em;
+}
+
+.scene-label-group {
+  padding: 2px 7px 3px;
+  border-color: rgb(82 98 70 / 0.2);
+  background: rgb(255 250 240 / 0.8);
+  font-size: 10.5px;
+}
+
+.scene-label-group strong {
+  color: #4f5949;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scene-label-item {
+  max-width: 116px;
+  padding: 3px 7px 4px;
+  font-size: 10.5px;
+}
+
+.scene-label-item strong {
+  color: #3b3c34;
+  text-transform: capitalize;
+}
+
+@media (max-height: 560px) {
+  .scene-label {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .scene-label {
+    max-width: 104px;
+  }
+
+  .scene-label-item {
+    max-width: 96px;
+    padding: 2px 5px 3px;
+    font-size: 10px;
+  }
+
+  .scene-label-item span {
+    display: none;
+  }
+}
