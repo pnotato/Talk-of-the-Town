@@ -7,7 +7,7 @@ it. The Go structs in `internal/sim` (`RunLog` in `round.go`, `WalkMap` in
 `walk.go`) are the source of truth. The TypeScript types in
 `web/src/generated/types.ts` are generated from them with `make types`.
 
-Everything in a run log is SIMULATED: the company (Tallowick AI), its
+Everything in a run log is SIMULATED: the company (Outrage AI Company), its
 announcements and every blob are fictional. `label` is always `"SIMULATED"`,
 and the UI must show it.
 
@@ -176,7 +176,7 @@ no comments):
 ```
 {
   "label": "SIMULATED",
-  "company": "Tallowick AI",
+  "company": "Outrage AI Company",
   "seed": 1,
   "town": { "blobs": [
     { "id": 0, "name": "Opal Oysterbed", "shape": "tear", "age": 50,
@@ -203,7 +203,7 @@ no comments):
     ... ],
   "moments": [
     { "id": "m0-assistant", "round": 0, "optionId": "m0-honest",
-      "headline": "Tallowick launches Wick, a chat assistant in beta",
+      "headline": "Outrage AI Company launches Wick, a chat assistant in beta",
       "claimed": 40, "delivered": 40, "shipped": true, "shippedRound": 8,
       "broken": false, "credibility": 1 }, ... ],
   "next": null

@@ -1,7 +1,7 @@
 {
   "label": "SIMULATED",
   "company": {
-    "name": "Tallowick AI",
+    "name": "Outrage AI Company",
     "tagline": "A fictional AI company. Not a real business."
   },
   "moments": [
@@ -10,7 +10,7 @@
       "round": 0,
       "feature": "Wick, a chat assistant for everyday questions",
       "options": [
-        { "id": "m0-honest", "headline": "Tallowick launches Wick, a chat assistant in beta", "text": "Wick answers everyday questions and drafts short emails. It still makes mistakes, so check anything important.", "claimed": 40, "delivered": 40 },
+        { "id": "m0-honest", "headline": "Outrage AI Company launches Wick, a chat assistant in beta", "text": "Wick answers everyday questions and drafts short emails. It still makes mistakes, so check anything important.", "claimed": 40, "delivered": 40 },
         { "id": "m0-upbeat", "headline": "Meet Wick: your smart new helper", "text": "Wick handles your questions and emails so you can get on with your day.", "claimed": 55, "delivered": 40 },
         { "id": "m0-bold", "headline": "Wick is the last assistant you will ever need", "text": "A revolutionary AI that knows everything and never gets it wrong. The future starts today.", "claimed": 85, "delivered": 40 }
       ]
