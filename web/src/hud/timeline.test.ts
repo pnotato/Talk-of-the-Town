@@ -2,12 +2,14 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  heightShare,
   markersAt,
   pulseAt,
   pulseDomain,
   pulseSeries,
   roundShare,
   roundsDoneAt,
+  sparkArea,
   sparkPath,
   type PulseRun,
 } from "./timeline.ts";
@@ -109,6 +111,32 @@ describe("sparkPath", () => {
 
   test("maps a narrower domain onto the full height", () => {
     assert.equal(sparkPath([40, 50, 60], 2, 2, 20, 10, [40, 60]), "M0 10 L10 5 L20 0");
+  });
+});
+
+describe("sparkArea", () => {
+  test("closes the line down to the floor and back to the start", () => {
+    assert.equal(
+      sparkArea([0, 50, 100, 25], 2, 4, 400, 20),
+      "M0 20 L100 10 L200 0 L200 20 L0 20 Z",
+    );
+  });
+
+  test("is empty when there is no line", () => {
+    assert.equal(sparkArea([], 3, 4, 400, 20), "");
+  });
+});
+
+describe("heightShare", () => {
+  test("places a score within the domain, clamped to it", () => {
+    assert.equal(heightShare(50), 0.5);
+    assert.equal(heightShare(45, [40, 60]), 0.25);
+    assert.equal(heightShare(80, [40, 60]), 1);
+    assert.equal(heightShare(10, [40, 60]), 0);
+  });
+
+  test("is 0 for an empty domain", () => {
+    assert.equal(heightShare(50, [50, 50]), 0);
   });
 });
 

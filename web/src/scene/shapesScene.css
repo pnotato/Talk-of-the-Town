@@ -17,7 +17,7 @@
   background: rgb(255 250 240 / 0.88);
   box-shadow: 0 1px 3px rgb(58 67 46 / 0.14);
   color: #35382f;
-  font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-size: 11px;
   font-weight: 450;
   line-height: 1.18;

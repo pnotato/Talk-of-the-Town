@@ -17,11 +17,9 @@
   justify-content: flex-start;
   align-items: flex-start;
   gap: 7px;
-  color: #302d27;
+  color: var(--ink);
   font:
-    12.5px/1.3 "Fredoka",
-    ui-rounded,
-    system-ui,
+    12.5px/1.3 var(--font-ui),
     sans-serif;
   /* Only the panels take the pointer, so the scene stays draggable around them. */
   pointer-events: none;
@@ -31,15 +29,10 @@
   pointer-events: auto;
 }
 
+/* The dock's bar and directory float on the HUD's glass (hud-glass and hud-sheet). */
 .inspector-surface {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid #e0d4c0;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fffdf8, #fff9ee);
-  box-shadow:
-    0 8px 24px -10px rgb(73 54 25 / 0.22),
-    0 1px 2px rgb(73 54 25 / 0.06);
 }
 
 .inspector-dock :where(button) {
@@ -48,11 +41,11 @@
 }
 
 .inspector-dock .inspector-primary {
-  color: #fffaf0;
+  color: var(--on-solid);
 }
 
 .inspector-dock :focus-visible {
-  outline: 2px solid #63518c;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -69,7 +62,7 @@
 
 .inspector-eyebrow {
   margin: 0;
-  color: #696358;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   line-height: 1.3;
@@ -85,7 +78,7 @@
   width: auto;
   max-width: 100%;
   padding: 5px;
-  border-radius: 15px;
+  border-radius: calc(var(--radius-s) + 5px);
 }
 
 .inspector-button {
@@ -95,46 +88,36 @@
   gap: 7px;
   min-height: 33px;
   padding: 0 12px;
-  border: 1px solid #e2d7c5;
-  border-radius: 10px;
-  background: #f6eedf;
-  color: #4b453a;
+  border: 0;
+  border-radius: calc(var(--radius-s) - 1px);
+  background: var(--fill);
+  color: var(--ink-soft);
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
   cursor: pointer;
   transition:
     background 140ms ease,
-    border-color 140ms ease,
     color 140ms ease;
 }
 
 .inspector-button:hover {
-  border-color: #d6c7af;
-  background: #efe4d2;
+  background: var(--fill-strong);
+  color: var(--ink);
 }
 
 .inspector-primary {
   padding: 0 13px;
-  border-color: #9e4117;
-  background: #b95323;
-  color: #fffaf0;
-  font-weight: 550;
-  box-shadow:
-    0 2px 5px rgb(112 41 12 / 0.24),
-    inset 0 1px 0 rgb(255 255 255 / 0.16);
+  background: var(--solid);
+  color: var(--on-solid);
+  font-weight: 600;
 }
 
 .inspector-primary:hover,
 .inspector-primary[aria-expanded="true"] {
-  border-color: #8d3812;
-  background: #a7471b;
-}
-
-.inspector-primary:active {
-  background: #973e16;
+  background: color-mix(in srgb, var(--solid) 84%, var(--accent));
+  color: var(--on-solid);
 }
 
 .inspector-primary svg {
@@ -155,19 +138,20 @@
 
 .bar-hint {
   padding: 0 10px 0 8px;
-  color: #7b7262;
+  color: var(--muted);
   font-size: 11.5px;
   white-space: nowrap;
 }
 
 /*
- * Selected blob: one compact card. The portrait sits beside the name, then family, the meters in a
- * soft well, traits and the current action. The card scrolls when the room runs short.
+ * Selected blob: one compact card on the HUD's frosted sheet (hud-sheet). The portrait sits beside
+ * the name, then family, the meters in a soft well, traits and the current action. The card
+ * scrolls when the room runs short.
  */
 .inspector-card {
   box-sizing: border-box;
   flex: 0 1 auto;
-  width: 340px;
+  width: 360px;
   max-width: 100%;
   min-height: 0;
   display: flex;
@@ -177,19 +161,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-radius: 20px;
-  background: rgb(255 252 247 / 0.93);
-  box-shadow:
-    0 0 0 1px rgb(92 72 42 / 0.09),
-    0 1px 2px rgb(60 44 20 / 0.08),
-    0 12px 32px -12px rgb(60 44 20 / 0.34);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  color: #2f2b25;
+  color: var(--ink);
   font:
-    12.5px/1.35 "Fredoka",
-    ui-rounded,
-    system-ui,
+    12.5px/1.35 var(--font-ui),
     sans-serif;
   animation: inspector-in 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
@@ -207,7 +181,7 @@
 }
 
 .inspector-card :focus-visible {
-  outline: 2px solid #63518c;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -215,7 +189,7 @@
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px 12px;
 }
 
 .card-portrait {
@@ -231,10 +205,10 @@
   overflow: hidden;
   border: 2px solid;
   border-radius: 50%;
-  background: radial-gradient(circle at 45% 30%, #fffaf0, #e9dfcd);
+  background: var(--portrait-bg);
   box-shadow:
-    0 0 0 3px #fffaf0,
-    0 4px 10px rgb(57 46 29 / 0.18);
+    0 0 0 3px var(--surface),
+    0 6px 14px -4px color-mix(in srgb, var(--ink) 30%, transparent);
   pointer-events: none;
   transition:
     border-color 300ms,
@@ -273,13 +247,13 @@
   min-width: 0;
 }
 
+/* Names break between words; a surname too long for the line is hyphenated, never chopped. */
 .card-identity h2 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
+  font-size: 21px;
+  line-height: 1.1;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .card-identity h2:focus {
@@ -287,13 +261,13 @@
 }
 
 .card-identity h2:focus-visible {
-  outline: 2px solid #63518c;
+  outline: 2px solid var(--focus);
 }
 
 .card-meta,
 .card-mood {
-  margin: 2px 0 0;
-  color: #776e60;
+  margin: 3px 0 0;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -302,7 +276,7 @@
   align-items: center;
   gap: 6px;
   margin-top: 4px;
-  color: #564f43;
+  color: var(--ink-soft);
 }
 
 .card-mood-dot {
@@ -327,15 +301,15 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 9px;
+  border-radius: calc(var(--radius-s) - 2px);
   background: transparent;
-  color: #776e60;
+  color: var(--muted);
   cursor: pointer;
 }
 
 .card-icon-button:hover {
-  background: rgb(108 86 52 / 0.08);
-  color: #2f2b25;
+  background: var(--fill);
+  color: var(--ink);
 }
 
 /* Family: "Child of" and "Parent of", each with the named blobs as links. */
@@ -346,7 +320,7 @@
   align-items: center;
   gap: 4px 12px;
   margin-top: -4px;
-  color: #776e60;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -363,12 +337,12 @@
   min-width: 0;
   max-width: 100%;
   border-radius: 6px;
-  color: #2f2b25;
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 550;
 }
 
 .blob-chip:hover {
-  background: rgb(108 86 52 / 0.08);
+  background: var(--fill);
 }
 
 .chip-visual {
@@ -392,7 +366,7 @@
   overflow: hidden;
   border: 1.5px solid;
   border-radius: 50%;
-  background: #f1e8d8;
+  background: var(--portrait-bg);
   pointer-events: none;
 }
 
@@ -403,8 +377,8 @@
   flex-direction: column;
   gap: 10px;
   padding: 11px 12px 12px;
-  border-radius: 14px;
-  background: rgb(108 86 52 / 0.055);
+  border-radius: calc(var(--radius-s) + 3px);
+  background: var(--fill);
 }
 
 .meter {
@@ -423,19 +397,19 @@
 }
 
 .meter-label {
-  color: #2f2b25;
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .meter-words {
-  color: #776e60;
+  color: var(--muted);
 }
 
 .meter-track {
-  height: 7px;
+  height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgb(108 86 52 / 0.12);
+  background: var(--fill-strong);
 }
 
 .meter-fill {
@@ -444,12 +418,21 @@
   transition: width 400ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
+/* Each bar brightens towards its end, so a full bar reads as the score's own colour lit up. */
 .meter-perception .meter-fill {
-  background: #148e84;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--perception) 70%, var(--tint-base)),
+    var(--perception)
+  );
 }
 
 .meter-interest .meter-fill {
-  background: #cb651b;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--interest) 70%, var(--tint-base)),
+    var(--interest)
+  );
 }
 
 /* Traits: special tags first, then personality, as pills. */
@@ -477,31 +460,30 @@
   overflow-wrap: anywhere;
 }
 
-/* Sunny special tags and pastel personality tints, always with dark, readable text. */
-.tag-special {
-  background: #ffe3a0;
-  color: #6c4b16;
+/*
+ * Tags: a tint of their hue with deep, readable text in it, mixed per theme. Special tags are
+ * sunny; personality tags take their category's hue, always with the word, so colour is never the
+ * only cue.
+ */
+.tag {
+  background: color-mix(in srgb, var(--tag-hue) calc(var(--tint) + 10%), var(--tint-base));
+  color: color-mix(in srgb, var(--tag-hue) var(--deep), var(--deep-base));
 }
 
-/* Personality tags: tinted by category, always with the word, so colour is never the only cue. */
-.tag-personality {
-  background: var(--tag-tint);
-  color: var(--tag-ink);
+.tag-special {
+  --tag-hue: #e0a000;
 }
 
 .tag-credulity {
-  --tag-tint: #d4f0fa;
-  --tag-ink: #245c73;
+  --tag-hue: #2f9fd0;
 }
 
 .tag-socialness {
-  --tag-tint: #ffe1c2;
-  --tag-ink: #78431c;
+  --tag-hue: #e8772a;
 }
 
 .tag-persuasiveness {
-  --tag-tint: #e8dcff;
-  --tag-ink: #60428b;
+  --tag-hue: #8a5ce6;
 }
 
 /* The current action, with whoever the blob is talking with. */
@@ -513,8 +495,8 @@
   gap: 2px 6px;
   min-height: 24px;
   padding-top: 10px;
-  border-top: 1px solid rgb(108 86 52 / 0.13);
-  color: #564f43;
+  border-top: 1px solid var(--line);
+  color: var(--ink-soft);
   font-size: 13px;
 }
 
@@ -523,17 +505,17 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #b9ae9b;
+  background: var(--muted);
 }
 
 .action:is([data-state="talking"], [data-state="listening"]) .action-dot {
-  background: #148e84;
-  box-shadow: 0 0 0 3px rgb(20 142 132 / 0.16);
+  background: var(--perception);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--perception) 22%, transparent);
 }
 
 .action:is([data-state="posting"], [data-state="scrolling"]) .action-dot {
-  background: #d96d37;
-  box-shadow: 0 0 0 3px rgb(217 109 55 / 0.16);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 /* Directory. */
@@ -544,7 +526,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 18px;
   animation: inspector-in 160ms ease-out;
 }
 
@@ -555,7 +536,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 13px 14px 10px 16px;
-  border-bottom: 1px solid #ece1d0;
+  border-bottom: 1px solid var(--line);
 }
 
 .picker-heading {
@@ -567,16 +548,16 @@
 
 .picker-head h2 {
   margin: 0;
-  color: #302d27;
+  color: var(--ink);
   font-size: 16px;
-  font-weight: 550;
+  font-weight: 650;
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
 
 .picker-subtitle {
   margin: 0;
-  color: #786f5f;
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.3;
 }
@@ -589,7 +570,7 @@
   padding: 10px 12px 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: #d5c4aa transparent;
+  scrollbar-color: var(--fill-strong) transparent;
   scrollbar-width: thin;
 }
 
@@ -600,7 +581,7 @@
 .picker-scroll::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: #d5c4aa;
+  background: var(--fill-strong);
   background-clip: padding-box;
 }
 
@@ -619,7 +600,7 @@
   align-items: center;
   gap: 6px;
   margin: 0 0 0 5px;
-  color: #746b5b;
+  color: var(--muted);
   font-size: 9px;
   font-weight: 560;
   letter-spacing: 0.15em;
@@ -632,7 +613,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #c8b79c;
+  background: var(--fill-strong);
 }
 
 .picker-scroll ul {
@@ -662,22 +643,21 @@
 }
 
 .picker-item:hover {
-  background: #f5edde;
+  background: var(--fill);
 }
 
 .picker-item[aria-pressed="true"] {
-  border-color: #e3c8ab;
-  background: #fbe9d5;
-  box-shadow: inset 3px 0 0 #d96d37;
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .picker-swatch {
   flex: none;
   width: 12px;
   height: 12px;
-  border: 2px solid rgb(255 253 248 / 0.9);
+  border: 2px solid var(--surface);
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgb(90 75 52 / 0.13);
+  box-shadow: 0 0 0 1px var(--line);
 }
 
 .picker-text {
@@ -689,7 +669,7 @@
 
 .picker-name {
   overflow: hidden;
-  color: #38342d;
+  color: var(--ink);
   font-size: 12.5px;
   font-weight: 500;
   text-overflow: ellipsis;
@@ -698,7 +678,7 @@
 
 .picker-detail {
   overflow: hidden;
-  color: #746b5b;
+  color: var(--muted);
   font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -112,6 +112,27 @@ export function sparkPath(
   return points.join(" ");
 }
 
+/** The area under sparkPath's line, closed along the chart's floor, for a soft fill beneath it. */
+export function sparkArea(
+  values: readonly number[],
+  done: number,
+  total: number,
+  width: number,
+  height: number,
+  domain: PulseDomain = [0, 100],
+): string {
+  const line = sparkPath(values, done, total, width, height, domain);
+  if (!line) return "";
+  const end = twoPlaces((Math.min(done, values.length - 1) / total) * width);
+  return `${line} L${end} ${height} L0 ${height} Z`;
+}
+
+/** How far up the chart `value` sits, from 0 at the floor to 1 at the top of `domain`. */
+export function heightShare(value: number, domain: PulseDomain = [0, 100]): number {
+  const [low, high] = domain;
+  return high <= low ? 0 : (clamp(value, low, high) - low) / (high - low);
+}
+
 /**
  * Every announcement on the bar while round index `round` plays: the ones made, with their
  * headlines, and the ones still to come (including the pending one), without.

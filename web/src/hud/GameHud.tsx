@@ -45,10 +45,10 @@ function SidePanel({
   children: ReactNode;
 }) {
   return (
-    <aside id={id} className="hud-panel" aria-labelledby={`${id}-title`}>
+    <aside id={id} className="hud-panel hud-sheet" aria-labelledby={`${id}-title`}>
       <header className="panel-head">
         <div>
-          <h2 id={`${id}-title`} ref={heading} tabIndex={-1}>
+          <h2 id={`${id}-title`} className="display" ref={heading} tabIndex={-1}>
             {title}
           </h2>
           <p>{subtitle}</p>
@@ -214,7 +214,9 @@ export default function GameHud({
         <div className="hud-brand hud-glass">
           <BrandMark />
           <span className="brand-text">
-            <span className="brand-title">Talk of the Town</span>
+            <span className="brand-title display">
+              Talk <em>of the</em> Town
+            </span>
             <span className="brand-kicker">
               {label}
               {run && ` · ${run.company}`}

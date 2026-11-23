@@ -19,22 +19,20 @@ function Icon({ children, filled = false }: { children: ReactNode; filled?: bool
   );
 }
 
-/** A smiling shape: the smallest possible expression of the game's cast. */
+/** A smiling shape, the smallest possible expression of the game's cast, in the theme's accent. */
 export function BrandMark() {
   return (
     <svg className="brand-mark" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
-      <rect x="2.5" y="3" width="31" height="30" rx="10.5" fill="#e6753e" />
+      <rect className="brand-mark-body" x="2.5" y="3" width="31" height="30" rx="10.5" />
       <path
+        className="brand-mark-shine"
         d="M4 12.4c3.8-5.8 9.2-8.3 15.8-7.2 4.6.8 8.1 3.3 10.3 7.2-4 2-8.8 2.7-14.1 2.1-4.8-.5-8.8-1.2-12-2.1Z"
-        fill="#f3945e"
-        opacity="0.55"
       />
-      <circle cx="13" cy="18" r="1.7" fill="#fffaf0" />
-      <circle cx="23" cy="18" r="1.7" fill="#fffaf0" />
+      <circle className="brand-mark-face" cx="13" cy="18" r="1.7" />
+      <circle className="brand-mark-face" cx="23" cy="18" r="1.7" />
       <path
+        className="brand-mark-smile"
         d="M13 23c2.7 2.1 7.3 2.1 10 0"
-        fill="none"
-        stroke="#fffaf0"
         strokeWidth="2.1"
         strokeLinecap="round"
       />

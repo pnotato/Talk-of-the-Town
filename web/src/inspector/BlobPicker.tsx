@@ -43,7 +43,11 @@ export default function BlobPicker({
   }, [takeFocus]);
 
   return (
-    <section id={id} className="inspector-surface inspector-picker" aria-label="Browse blobs">
+    <section
+      id={id}
+      className="inspector-surface inspector-picker hud-sheet"
+      aria-label="Browse blobs"
+    >
       <header className="picker-head">
         <div className="picker-heading">
           <h2>Blob directory</h2>

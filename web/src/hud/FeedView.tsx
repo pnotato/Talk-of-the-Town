@@ -47,12 +47,12 @@ export default function FeedView({ run, round }: { run: RunLog | null; round: nu
             <span className="panel-empty-icon">
               <ChatIcon />
             </span>
-            <p className="panel-empty-title">No posts yet</p>
+            <p className="panel-empty-title display">No posts yet</p>
             <p>What the town posts about {company} will show up here.</p>
           </div>
         ) : shown.length === 0 ? (
           <div className="panel-empty">
-            <p className="panel-empty-title">Quiet for now</p>
+            <p className="panel-empty-title display">Quiet for now</p>
             <p>The first announcement lands when the run starts.</p>
           </div>
         ) : (

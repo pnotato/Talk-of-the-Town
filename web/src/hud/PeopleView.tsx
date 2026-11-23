@@ -83,7 +83,7 @@ export default function PeopleView() {
       <div className="panel-scroll">
         {shown.length === 0 ? (
           <div className="panel-empty">
-            <p className="panel-empty-title">
+            <p className="panel-empty-title display">
               {people.length === 0 ? "Waiting for the town" : "Nobody matches"}
             </p>
             {people.length > 0 && (

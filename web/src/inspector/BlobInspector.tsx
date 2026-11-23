@@ -179,7 +179,7 @@ export default function BlobInspector({
 
   return (
     <aside ref={dock} className="inspector-dock" aria-label="Blob inspector">
-      <div className="inspector-surface inspector-bar">
+      <div className="inspector-surface inspector-bar hud-glass">
         <button
           ref={browse}
           type="button"

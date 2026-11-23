@@ -7,6 +7,7 @@ import { useBlobSelection } from "./BlobSelection.tsx";
 import { capitalise, describeAction, interestLabel, perceptionLabel } from "./inspectorModel.ts";
 import Meter from "./Meter.tsx";
 import { personalityTags, specialTags } from "./traitGroups.ts";
+import "./inspector.css";
 
 // Portraits are live WebGL canvases, so only so many relatives get one: the card shows at most
 // this many thumbnails of family, plus the main portrait and the conversation partner's.
@@ -177,7 +178,7 @@ export default function BlobCard({
 
   return (
     <section
-      className="inspector-card"
+      className="inspector-card hud-sheet"
       aria-label={`Selected blob: ${profile.name}`}
       aria-describedby={descriptionId}
     >
@@ -201,7 +202,7 @@ export default function BlobCard({
         </div>
 
         <div className="card-identity">
-          <h2 ref={heading} tabIndex={-1}>
+          <h2 className="display" ref={heading} tabIndex={-1}>
             {profile.name}
           </h2>
           <p className="card-meta">

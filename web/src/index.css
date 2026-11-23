@@ -1,41 +1,228 @@
-/* Self-hosted Fredoka variable, SIL OFL 1.1; license alongside the font in public/fonts. */
+/*
+ * Self-hosted, SIL OFL 1.1, licences alongside the fonts in public/fonts. Fraunces is pinned to
+ * its soft cut and Bricolage Grotesque keeps its width axis; both are subset to Latin.
+ */
 @font-face {
-  font-family: "Fredoka";
-  src: url("/fonts/Fredoka-Variable.ttf") format("truetype");
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-Soft.woff2") format("woff2");
   font-style: normal;
-  font-weight: 300 700;
-  font-stretch: 75% 125%;
+  font-weight: 300 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-SoftItalic.woff2") format("woff2");
+  font-style: italic;
+  font-weight: 300 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/fonts/BricolageGrotesque.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
   font-display: swap;
 }
 
 /*
- * One warm, paper-like language for everything floating over the 3D stage: frosted paper glass,
- * ink text, one orange accent, and the two score colours the meters and the chart share.
+ * Themes. Everything floating over the 3D stage is drawn from these tokens: frosted glass, ink,
+ * one accent, a signature play colour, and the two score colours the meters and the chart share.
+ * A theme applies to whatever carries its data-theme, so the settings can preview one in a swatch.
+ * Sherbet is the default and the base the others override: milky pink glass, aubergine ink,
+ * watermelon and tangerine.
  */
-:root {
-  --paper: #fffaf0;
-  --ink: #2f2b25;
-  --ink-soft: #564f43;
-  --muted: #776e60;
-  --line: rgb(108 86 52 / 0.13);
-  --fill: rgb(108 86 52 / 0.07);
-  --fill-strong: rgb(108 86 52 / 0.12);
-  --accent: #d96d37;
-  --accent-strong: #b4501f;
-  --accent-soft: #fbe5d2;
-  --perception: #148e84;
-  --interest: #cb651b;
-  --focus: #63518c;
+:root,
+[data-theme] {
+  --ink: #2a1838;
+  --ink-soft: #4d3b5c;
+  --muted: #5a4766;
+  --accent: #ff4f79;
+  --accent-strong: #d42a5b;
+  --on-accent: #fff;
+  --perception: #08a197;
+  --interest: #ff8a1f;
+  --good: #08a197;
+  --bad: #e5484d;
+  --focus: #7a5af8;
+  --solid: #2a1838;
+  --on-solid: #fff6fb;
+  --raised: #fff;
+  /* An opaque stand-in for the sheet, for rings that cut a dot out of it. */
+  --surface: #fff6fa;
+  --pick: var(--raised);
+  --pick-shadow: 0 1px 2px rgb(60 20 70 / 0.16), 0 0 0 1px rgb(60 20 70 / 0.05);
+  --play: linear-gradient(135deg, #ff8a5c, #ff3d7f 58%, #e2358f);
+  --play-ring: 0 0 0 0 transparent;
+  --select: var(--accent-soft);
+  --on-play: #fff;
+  --play-glow: rgb(255 61 127 / 0.5);
+  --glass: linear-gradient(140deg, rgb(255 255 255 / 0.78), rgb(255 236 243 / 0.6));
+  --glass-strong: linear-gradient(160deg, rgb(255 255 255 / 0.84), rgb(255 240 246 / 0.7));
+  --glass-filter: blur(22px) saturate(1.8);
+  /* Light caught in the glass: two soft glows in the theme's colours. */
+  --glow:
+    radial-gradient(90% 130% at 0% 0%, rgb(255 110 150 / 0.2), transparent 62%),
+    radial-gradient(80% 130% at 100% 100%, rgb(255 170 90 / 0.16), transparent 62%);
+  --edge: rgb(110 40 120 / 0.13);
+  --edge-width: 1px;
+  --rim: rgb(255 255 255 / 0.8);
+  --shadow-float: 0 1px 2px rgb(70 20 80 / 0.08), 0 16px 36px -16px rgb(90 20 100 / 0.42);
+  --portrait-bg: radial-gradient(circle at 45% 30%, #fff, #f7e4ee);
+  /* Tints mix a hue into --tint-base; deep text mixes it into --deep-base. */
+  --tint-base: #fff;
+  --tint: 18%;
+  --deep-base: #000;
+  --deep: 56%;
+  --radius-s: 11px;
+  --radius-m: 18px;
+  --radius-l: 22px;
+  --pill: 999px;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --display-weight: 600;
+  --display-stretch: 100%;
+  --display-case: none;
+  --display-tracking: -0.015em;
   --sky: #d4e2ee;
-  --glass: rgb(255 251 244 / 0.8);
-  --glass-strong: rgb(255 252 247 / 0.93);
-  --shadow-float:
-    0 0 0 1px rgb(92 72 42 / 0.09), 0 1px 2px rgb(60 44 20 / 0.08),
-    0 12px 32px -12px rgb(60 44 20 / 0.34);
+  color-scheme: light;
+}
+
+/* Midnight: smoked plum glass with acid lime, aqua and bubblegum. */
+[data-theme="midnight"] {
+  --ink: #f6f1ff;
+  --ink-soft: #d8cfec;
+  --muted: #c0b4da;
+  --accent: #c8f545;
+  --accent-strong: #c8f545;
+  --on-accent: #16111f;
+  --perception: #45e0cf;
+  --interest: #ff7eb3;
+  --good: #45e0cf;
+  --bad: #ff6b6b;
+  --focus: #b9a1ff;
+  --solid: #f6f1ff;
+  --on-solid: #16111f;
+  --raised: rgb(255 255 255 / 0.14);
+  --surface: #251c3a;
+  --select: rgb(255 255 255 / 0.1);
+  --pick-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12);
+  --play: linear-gradient(135deg, #ecff8a, #a3f53f);
+  --on-play: #16111f;
+  --play-glow: rgb(190 245 63 / 0.45);
+  --glass: linear-gradient(140deg, rgb(44 33 70 / 0.74), rgb(18 13 32 / 0.64));
+  --glass-strong: linear-gradient(160deg, rgb(38 29 62 / 0.86), rgb(18 13 32 / 0.8));
+  --glass-filter: blur(22px) saturate(1.6) brightness(0.92);
+  --glow:
+    radial-gradient(90% 130% at 0% 0%, rgb(150 95 255 / 0.3), transparent 62%),
+    radial-gradient(80% 130% at 100% 100%, rgb(69 224 207 / 0.14), transparent 62%);
+  --edge: rgb(255 255 255 / 0.11);
+  --rim: rgb(255 255 255 / 0.12);
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.3), 0 18px 40px -16px rgb(12 0 34 / 0.75);
+  --portrait-bg: radial-gradient(circle at 45% 30%, #4d4070, #231a39);
+  --tint-base: transparent;
+  --tint: 24%;
+  --deep-base: #fff;
+  --deep: 58%;
+  color-scheme: dark;
+}
+
+/* Tabloid: newsprint, black rules, hard shadows and a highlighter; headlines shout condensed. */
+[data-theme="tabloid"] {
+  --ink: #121212;
+  --ink-soft: #2f2f2f;
+  --muted: #575757;
+  --accent: #ffd60a;
+  --accent-strong: #d8002a;
+  --on-accent: #121212;
+  --perception: #1f4bff;
+  --interest: #ff2d55;
+  --good: #1f4bff;
+  --bad: #d8002a;
+  --focus: #1f4bff;
+  --solid: #121212;
+  --on-solid: #fff;
+  --raised: #fff;
+  --surface: #fffdf4;
+  --pick: var(--accent);
+  --pick-shadow: 0 0 0 2px #121212;
+  --play: #ffd60a;
+  --play-ring: 0 0 0 2px #121212, 3px 3px 0 2px #121212;
+  --on-play: #121212;
+  --play-glow: transparent;
+  --glass: rgb(255 253 244 / 0.9);
+  --glass-strong: rgb(255 253 244 / 0.96);
+  --glass-filter: blur(6px);
+  --glow: linear-gradient(transparent, transparent);
+  --edge: #121212;
+  --edge-width: 2px;
+  --rim: transparent;
+  --shadow-float: 4px 4px 0 #121212;
+  --portrait-bg: #fff;
+  --tint-base: #fff;
+  --tint: 30%;
+  --deep-base: #000;
+  --deep: 62%;
+  --radius-s: 3px;
+  --radius-m: 4px;
+  --radius-l: 6px;
+  --pill: 4px;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --display-weight: 800;
+  --display-stretch: 75%;
+  --display-case: uppercase;
+  --display-tracking: 0;
+  color-scheme: light;
+}
+
+/* Matcha: pale green glass that settles into the fields, deep forest ink and persimmon. */
+[data-theme="matcha"] {
+  --ink: #1b2b20;
+  --ink-soft: #384b3d;
+  --muted: #405246;
+  --accent: #ff7a45;
+  --accent-strong: #bf4716;
+  --on-accent: #fff;
+  --perception: #17876b;
+  --interest: #e09a00;
+  --good: #17876b;
+  --bad: #d4442f;
+  --focus: #3a62ff;
+  --solid: #1b2b20;
+  --on-solid: #f3f8ec;
+  --raised: #fbfdf7;
+  --surface: #f5f9ef;
+  --play: linear-gradient(135deg, #ffa45c, #ff6a3d);
+  --on-play: #fff;
+  --play-glow: rgb(255 106 61 / 0.42);
+  --glass: linear-gradient(140deg, rgb(251 253 245 / 0.78), rgb(224 238 212 / 0.6));
+  --glass-strong: linear-gradient(160deg, rgb(251 253 245 / 0.86), rgb(230 242 220 / 0.74));
+  --glass-filter: blur(22px) saturate(1.5);
+  --glow:
+    radial-gradient(90% 130% at 0% 0%, rgb(200 235 150 / 0.32), transparent 62%),
+    radial-gradient(80% 130% at 100% 100%, rgb(255 150 90 / 0.14), transparent 62%);
+  --edge: rgb(30 70 30 / 0.13);
+  --rim: rgb(255 255 255 / 0.75);
+  --shadow-float: 0 1px 2px rgb(20 50 20 / 0.08), 0 16px 36px -16px rgb(20 60 20 / 0.4);
+  --portrait-bg: radial-gradient(circle at 45% 30%, #fff, #e3eed6);
+  color-scheme: light;
+}
+
+/* Derived from each theme's own tokens, so they follow whichever theme an element is in. */
+:root,
+[data-theme] {
+  --line: color-mix(in srgb, var(--ink) 12%, transparent);
+  --fill: color-mix(in srgb, var(--ink) 7%, transparent);
+  --fill-strong: color-mix(in srgb, var(--ink) 13%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) var(--tint), var(--tint-base));
+  --highlight: color-mix(in srgb, var(--accent) 32%, transparent);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.07'/%3E%3C/svg%3E");
+  --font-ui: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --gutter: 16px;
   --bar: 48px;
   color: var(--ink);
-  font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
+  font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -51,8 +238,6 @@ body,
 body {
   overflow: hidden;
   background: var(--sky);
-  color: var(--ink);
-  font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
 }
 
 /*
@@ -69,16 +254,42 @@ body {
   height: 100%;
 }
 
-/* A floating surface: frosted paper with a hairline edge and a soft lift. */
-.hud-glass {
+/*
+ * Floating surfaces: frosted glass with a fine grain, a lit top edge and a soft lift. Sheets hold
+ * reading (the drawer, the card, the settings), so they frost a little more.
+ */
+.hud-glass,
+.hud-sheet {
   box-sizing: border-box;
-  border-radius: 16px;
-  background: var(--glass);
+  border-radius: var(--radius-m);
+  background: var(--grain), var(--glow), var(--glass);
   box-shadow:
-    var(--shadow-float),
-    inset 0 1px 0 rgb(255 255 255 / 0.7);
-  backdrop-filter: blur(18px) saturate(1.5);
-  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+    0 0 0 var(--edge-width) var(--edge),
+    inset 0 1px 0 var(--rim),
+    var(--shadow-float);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+}
+
+.hud-sheet {
+  border-radius: var(--radius-l);
+  background: var(--grain), var(--glow), var(--glass-strong);
+}
+
+/* A new theme spreads out from the swatch that chose it (see SettingsMenu); no cross-fade. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Titles speak in the theme's display face. */
+.display {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-stretch: var(--display-stretch);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
 }
 
 :where(.app) :focus-visible {
@@ -98,9 +309,10 @@ body {
   left: 50%;
   z-index: 10;
   padding: 5px 9px;
-  border-radius: 8px;
-  background: #2f2b25;
-  color: var(--paper);
+  border-radius: min(8px, var(--radius-s));
+  background: var(--solid);
+  color: var(--on-solid);
+  font-family: var(--font-ui);
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.2;
@@ -124,6 +336,25 @@ body {
   transition-delay: 0ms;
 }
 
+/* The brand: a smiling shape in the theme's accent. */
+.brand-mark-body {
+  fill: var(--accent);
+}
+
+.brand-mark-shine {
+  fill: #fff;
+  opacity: 0.28;
+}
+
+.brand-mark-face {
+  fill: var(--on-accent);
+}
+
+.brand-mark-smile {
+  fill: none;
+  stroke: var(--on-accent);
+}
+
 /* Over a sandbox: which one, and the way back. */
 .sandbox-bar {
   position: absolute;
@@ -135,7 +366,7 @@ body {
   gap: 4px;
   height: 44px;
   padding: 0 12px 0 6px;
-  border-radius: 999px;
+  border-radius: var(--pill);
   font-size: 13px;
   transform: translateX(-50%);
 }
@@ -146,16 +377,16 @@ body {
   gap: 6px;
   height: 32px;
   padding: 0 12px 0 10px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--paper);
+  border-radius: var(--pill);
+  background: var(--solid);
+  color: var(--on-solid);
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .sandbox-back:hover {
-  background: #45403a;
+  background: color-mix(in srgb, var(--solid) 84%, var(--accent));
 }
 
 .sandbox-back .hud-icon {

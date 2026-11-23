@@ -1,14 +1,16 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import type { RunLog } from "../generated/types.ts";
 import { PauseIcon, PlayIcon, ReplayIcon } from "./icons.tsx";
 import { nextSpeed } from "./settings.ts";
 import {
+  heightShare,
   markersAt,
   pulseAt,
   pulseDomain,
   pulseSeries,
   roundShare,
   roundsDoneAt,
+  sparkArea,
   sparkPath,
 } from "./timeline.ts";
 
@@ -48,6 +50,9 @@ export default function Transport({
   const markers = run ? markersAt(run, round) : [];
   const head = `${roundShare(done, total) * 100}%`;
   const playLabel = ended ? "Replay from the start" : playing ? "Pause" : "Play";
+  // Gradient ids for the fills; useId's punctuation would break a url() reference.
+  const fill = `fill${useId().replace(/[^\w-]/g, "")}`;
+  const at = series ? Math.min(done, series.perception.length - 1) : 0;
 
   return (
     <div className="hud-transport hud-glass" role="group" aria-label="Playback">
@@ -106,6 +111,24 @@ export default function Transport({
               preserveAspectRatio="none"
               aria-hidden
             >
+              <defs>
+                {(["perception", "interest"] as const).map((key) => (
+                  <linearGradient key={key} id={`${fill}-${key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" className={`stop-${key}`} stopOpacity="0.42" />
+                    <stop offset="1" className={`stop-${key}`} stopOpacity="0" />
+                  </linearGradient>
+                ))}
+              </defs>
+              <path
+                className="spark-area"
+                fill={`url(#${fill}-interest)`}
+                d={sparkArea(series.interest, done, total, CHART_WIDTH, CHART_HEIGHT, domain)}
+              />
+              <path
+                className="spark-area"
+                fill={`url(#${fill}-perception)`}
+                d={sparkArea(series.perception, done, total, CHART_WIDTH, CHART_HEIGHT, domain)}
+              />
               <path
                 className="spark spark-interest"
                 d={sparkPath(series.interest, done, total, CHART_WIDTH, CHART_HEIGHT, domain)}
@@ -129,6 +152,17 @@ export default function Transport({
             />
           ))}
           {run && <span className="track-head" style={{ left: head }} aria-hidden />}
+          {series && (
+            <span className="track-dots" aria-hidden>
+              {(["interest", "perception"] as const).map((key) => (
+                <span
+                  key={key}
+                  className={`track-dot track-dot-${key}`}
+                  style={{ left: head, bottom: `${heightShare(series[key][at], domain) * 100}%` }}
+                />
+              ))}
+            </span>
+          )}
         </div>
       </div>
 

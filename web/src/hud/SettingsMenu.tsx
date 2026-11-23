@@ -1,6 +1,8 @@
-import { useId, useState } from "react";
+import { type MouseEvent, useId, useState } from "react";
+import { flushSync } from "react-dom";
 import { ArrowIcon, ShuffleIcon, SlidersIcon } from "./icons.tsx";
 import { MAPS, type MapName } from "./settings.ts";
+import { applyTheme, currentTheme, revealRadius, THEMES, type ThemeName } from "./theme.ts";
 
 export type Connection = "pending" | "online" | "offline";
 
@@ -11,8 +13,8 @@ const CONNECTION_TEXT: Record<Connection, string> = {
 };
 
 /**
- * The settings button and its popover: which map the run walks, the seed, the walkable grid, the
- * developer sandboxes and the server's status. It is a native popover, so a press outside it or
+ * The settings button and its popover: the look, which map the run walks, the seed, the walkable
+ * grid, the developer sandboxes and the server's status. It is a native popover, so a press outside it or
  * Escape closes it, and it sits above everything else on the page.
  */
 export default function SettingsMenu({
@@ -37,6 +39,37 @@ export default function SettingsMenu({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeName>(currentTheme);
+
+  // The new theme spreads out in a circle from the swatch that chose it, where the browser can.
+  function chooseTheme(next: ThemeName, event: MouseEvent<HTMLButtonElement>) {
+    const change = () => {
+      flushSync(() => setTheme(next));
+      applyTheme(next, true);
+    };
+    if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      change();
+      return;
+    }
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const radius = revealRadius(x, y, innerWidth, innerHeight);
+    document
+      .startViewTransition(change)
+      .ready.then(() => {
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+          {
+            duration: 600,
+            easing: "cubic-bezier(0.2, 0.8, 0.3, 1)",
+            pseudoElement: "::view-transition-new(root)",
+          },
+        );
+      })
+      // A skipped transition (another one started) has already applied the theme.
+      .catch(() => {});
+  }
 
   return (
     <>
@@ -55,13 +88,39 @@ export default function SettingsMenu({
       <div
         id={`${id}-menu`}
         popover="auto"
-        className="hud-settings"
+        className="hud-settings hud-sheet"
         aria-labelledby={`${id}-title`}
         onToggle={(event) => setOpen(event.newState === "open")}
       >
-        <h2 id={`${id}-title`} className="settings-title">
+        <h2 id={`${id}-title`} className="settings-title display">
           Settings
         </h2>
+
+        <section className="settings-group" aria-labelledby={`${id}-look`}>
+          <h3 id={`${id}-look`}>Look</h3>
+          <div className="theme-picker" role="group" aria-label="Theme">
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="theme-option"
+                aria-pressed={theme === t.id}
+                onClick={(event) => chooseTheme(t.id, event)}
+              >
+                {/* Drawn in its own theme: glass, display face, play colour and score colours. */}
+                <span className="theme-swatch" data-theme={t.id} aria-hidden>
+                  <span className="swatch-type">Aa</span>
+                  <span className="swatch-play" />
+                  <span className="swatch-lines">
+                    <span />
+                    <span />
+                  </span>
+                </span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="settings-group" aria-labelledby={`${id}-world`}>
           <h3 id={`${id}-world`}>World</h3>
