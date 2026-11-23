@@ -53,21 +53,23 @@ describe("townMap", () => {
     });
   });
 
-  test("the square is the gathering place, with room for 100 blobs clear of everything", () => {
+  test("the square comes first, then greens and streets, every cell clear of everything", () => {
     const [square, ...others] = map.gathering.areas;
     assert.equal(square.name, "square");
-    assert.equal(others.length, 0);
     assert.ok(square.spots.length >= 100, `only ${square.spots.length} spots`);
+    assert.ok(others.every((a) => a.name === "park" || a.name === "street"));
+    assert.ok(others.some((a) => a.name === "street"));
     const blockers: Box[] = [town.screen.footprint, ...town.props];
-    for (const p of square.spots) {
-      assert.ok(insidePolygon(p, square.outline));
-      assert.ok(distanceToOutline(p, square.outline) >= BLOB_RADIUS - EPS);
-      for (const b of blockers) assert.ok(distanceToBox(p.x, p.z, b) >= BLOB_REACH - EPS);
-      for (const t of town.trees) {
-        const d = Math.hypot(p.x - t.x, p.z - t.z) - TREE_RADIUS * t.size;
-        assert.ok(d >= BLOB_REACH - EPS, "a spot is under a tree");
+    for (const area of map.gathering.areas)
+      for (const p of area.spots) {
+        assert.ok(insidePolygon(p, area.outline));
+        assert.ok(distanceToOutline(p, area.outline) >= BLOB_RADIUS - EPS);
+        for (const b of blockers) assert.ok(distanceToBox(p.x, p.z, b) >= BLOB_REACH - EPS);
+        for (const t of town.trees) {
+          const d = Math.hypot(p.x - t.x, p.z - t.z) - TREE_RADIUS * t.size;
+          assert.ok(d >= BLOB_REACH - EPS, "a spot is under a tree");
+        }
       }
-    }
   });
 
   test("the whole crowd stands in front of the screen, which faces the square's middle", () => {
@@ -130,9 +132,9 @@ describe("townMap", () => {
     [200, 2],
     [200, 8],
   ]) {
-    test(`${homes} homes in ${hoods}: 4 cells each for 100 blobs, 1 each for 2 a home`, () => {
+    test(`${homes} homes in ${hoods}: the square stands 2 blobs a home and 100 at least`, () => {
       const spots = townMap(layoutTown(homes, hoods)).gathering.areas[0].spots;
-      assert.ok(spots.length >= Math.max(4 * 100, 2 * homes), `only ${spots.length} spots`);
+      assert.ok(spots.length >= Math.max(100, 2 * homes), `only ${spots.length} spots`);
     });
   }
 

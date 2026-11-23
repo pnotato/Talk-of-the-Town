@@ -53,11 +53,9 @@ const SETBACK = 0.9; // a home's front to the sidewalk, at least
 const SETBACK_SPREAD = 0.4;
 const TURN = 0.04; // radians a home may sit off square to its street
 
-// The square's base size gives the town's 100 blobs (docs/MODEL.md) about 4 cells each: room
-// to walk about, not only to stand. A town of many more homes grows it past that, to keep
-// standing room for 2 blobs a home.
-const SQUARE_X = 46;
-const SQUARE_Z = 35;
+// The square grows past its base size so there is standing room for 2 blobs per home.
+const SQUARE_X = 28;
+const SQUARE_Z = 20;
 const SQUARE_AREA_PER_HOME = 10;
 /** How far the rows of trees and benches stand in from the square's east and west edges. */
 export const SQUARE_TREE_INSET = 2.2;
