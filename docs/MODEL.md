@@ -289,7 +289,7 @@ Then every blob moves at once, in one PIBT planner step ([engine/PIBT.md](./engi
 - On announce, every blob's `heard` and `sources` reset *(design)*. Old stories live on only in perception, interest and `credibility`.
 - The company reaches directly: all 6 leaders, plus each other blob with probability 0.30 *(design)*. Leaders "share news from outlets" ([BLOBS.md](./BLOBS.md#special-traits)), [18]. Expect about 34 of 100 blobs.
 - A direct hearing is `hear(b, c = claimed, tone = 50 + claimed/2, k = cred(b) × credibility)`. See [#influence](#influence).
-- Content lives in `internal/sim/content/announcements.json`, loaded by `content.LoadAnnouncements()`. Company: Tallowick AI (fictional).
+- Content lives in `internal/sim/content/announcements.json`, loaded by `content.LoadAnnouncements()`. Company: Outrage AI Company (fictional).
 - The file has `"label": "SIMULATED"`. The UI must show this label wherever content appears.
 - An option counts as honest when `|claimed − delivered| ≤ 5` *(design)*.
 

@@ -1,8 +1,8 @@
 // Placeholder art for the city's screens until real content plugs in: news panels for the
-// game's made-up Tallowick AI, and playful ads for made-up products. All fictional.
+// game's made-up Outrage AI Company, and playful ads for made-up products. All fictional.
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
 
-const COMPANY = "TALLOWICK AI";
+const COMPANY = "OUTRAGE AI COMPANY";
 const NAVY = "#14213d";
 const INK = "#1f2328";
 
