@@ -217,7 +217,7 @@ func TestGraphIsCached(t *testing.T) {
 // townFingerprint pins the real town's walk graph. It changes whenever the
 // town (make townmap) or the build changes; update it deliberately, after
 // looking at the new graph, and say why in the commit.
-const townFingerprint = 0x2ae23bfaa54eea4
+const townFingerprint = 0xc39294705074354b
 
 func TestLoadTown(t *testing.T) {
 	m, err := LoadTown()
@@ -229,7 +229,7 @@ func TestLoadTown(t *testing.T) {
 		spots += len(a.Spots)
 	}
 	got := []int{len(m.Areas), spots, len(m.Crosswalks), len(m.Discs), len(m.Boxes)}
-	want := []int{1, 122, 0, 6, 9}
+	want := []int{1, 412, 0, 12, 15}
 	for i, name := range []string{"areas", "spots", "crosswalks", "discs", "boxes"} {
 		if got[i] != want[i] {
 			t.Errorf("%d %s, want %d", got[i], name, want[i])
@@ -253,8 +253,8 @@ func TestTownGraph(t *testing.T) {
 	if err := nav.Check(g, p, &m); err != nil {
 		t.Fatal(err)
 	}
-	if g.NumStand != 122 {
-		t.Errorf("%d Stand nodes, want 122", g.NumStand)
+	if g.NumStand != 412 {
+		t.Errorf("%d Stand nodes, want 412", g.NumStand)
 	}
 	goals := 0
 	for u := range g.NumStand {

@@ -20,6 +20,7 @@ import {
   insidePolygon,
   type Point,
   type Solid,
+  SPOT_SPACING,
 } from "./mapLayout.ts";
 import { boxCorners, townMap } from "./townMap.ts";
 
@@ -129,9 +130,31 @@ describe("townMap", () => {
     [200, 2],
     [200, 8],
   ]) {
-    test(`${homes} homes in ${hoods}: standing room for 2 blobs a home, and at least 100`, () => {
+    test(`${homes} homes in ${hoods}: 4 cells each for 100 blobs, 1 each for 2 a home`, () => {
       const spots = townMap(layoutTown(homes, hoods)).gathering.areas[0].spots;
-      assert.ok(spots.length >= Math.max(100, 2 * homes), `only ${spots.length} spots`);
+      assert.ok(spots.length >= Math.max(4 * 100, 2 * homes), `only ${spots.length} spots`);
     });
   }
+
+  // The square grows with the town, which slides its grid across the rows of trees and
+  // benches; whatever its size, no cell may be boxed in behind them.
+  test("every cell on the square steps to every other, whatever the town's size", () => {
+    for (let homes = 0; homes <= 240; homes++) {
+      const spots = townMap(layoutTown(homes, 5)).gathering.areas[0].spots;
+      const seen = new Set([0]);
+      const queue = [0];
+      while (queue.length > 0) {
+        const a = spots[queue.pop() as number];
+        spots.forEach((b, j) => {
+          const step = Math.hypot(a.x - b.x, a.z - b.z);
+          if (!seen.has(j) && Math.abs(step - SPOT_SPACING) < EPS) {
+            seen.add(j);
+            queue.push(j);
+          }
+        });
+      }
+      const cut = spots.filter((_, j) => !seen.has(j));
+      assert.equal(cut.length, 0, `${homes} homes: cut off at ${JSON.stringify(cut[0])}`);
+    }
+  });
 });

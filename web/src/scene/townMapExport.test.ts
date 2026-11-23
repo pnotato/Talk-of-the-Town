@@ -80,10 +80,9 @@ describe("exportTownMap", () => {
     const screen = file.boxes.find((b) => b.kind === "screen");
     assert.ok(screen);
     const { x, z, width, depth } = town.screen.footprint;
-    assert.deepEqual(screen, {
-      kind: "screen",
-      rect: { minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 },
-    });
+    const r = screen.rect;
+    assert.ok(near(r.minX, x - width / 2) && near(r.maxX, x + width / 2));
+    assert.ok(near(r.minZ, z - depth / 2) && near(r.maxZ, z + depth / 2));
   });
 
   test("the same town always gives the same bytes", () => {

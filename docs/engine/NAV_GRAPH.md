@@ -70,13 +70,15 @@ internal/sim/citymap/town.json   committed; make check fails if it is stale
 
 `town.json` (version 1) holds:
 
-- **1 area**, the town square: **122 spots** as Stand nodes 0..121.
+- **1 area**, the town square between its two rows of trees: **412 spots** as
+  Stand nodes 0..411.
 - **no crosswalks**: every goal is on the square, so the crowd never leaves it.
-- **6 discs** (the square's trees) and **9 boxes** (the screen, two flower
-  beds, four benches and two lamps).
+- **12 discs** (the square's trees) and **15 boxes** (the screen, two flower
+  beds, ten benches and two lamps).
 
-The town graph has 126 nodes (122 stand, 4 grid-fill) and 118 goal nodes, enough
-for the 100-blob town. `POST /api/run` with `"map": "town"` walks this graph;
+The town graph has 426 nodes (412 stand, 14 grid-fill) and 412 goal nodes,
+about four for each of the town's 100 blobs, so the crowd has room to walk
+about rather than only to stand. `POST /api/run` with `"map": "town"` walks this graph;
 the social simulation is the same as on the city.
 
 ### The harbour

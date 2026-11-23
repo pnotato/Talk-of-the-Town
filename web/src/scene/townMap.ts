@@ -4,6 +4,7 @@ import {
   HOME_TOP,
   LAMP_HEIGHT,
   ROOF_PLANT,
+  SQUARE_TREE_INSET,
   TREE_HEIGHT,
   TREE_RADIUS,
   type TownLayout,
@@ -45,19 +46,18 @@ const boxOf = ({ x, z, width, depth, rotationY }: Box): Box => ({ x, z, width, d
  */
 export function townWalkObstacles(town: TownLayout): { what: string; obstacle: Obstacle }[] {
   const { square } = town;
-  const near = Math.max(square.width, square.depth) / 2 + 2 * TREE_RADIUS;
+  const onSquare = (t: TownTree) =>
+    Math.abs(t.x - square.x) < square.width / 2 && Math.abs(t.z - square.z) < square.depth / 2;
   return [
     { what: "screen", obstacle: { kind: "box", ...town.screen.footprint } },
     ...town.props.map((p) => ({
       what: p.kind,
       obstacle: { kind: "box" as const, ...boxOf(p) },
     })),
-    ...town.trees
-      .filter((t) => Math.abs(t.x - square.x) < near && Math.abs(t.z - square.z) < near)
-      .map((t) => ({
-        what: "tree",
-        obstacle: { kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size },
-      })),
+    ...town.trees.filter(onSquare).map((t) => ({
+      what: "tree",
+      obstacle: { kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size },
+    })),
   ];
 }
 
@@ -81,9 +81,11 @@ export function townMap(town: TownLayout): MapLayout {
     ...town.trees.map(treeSolid),
   ];
 
-  // Blobs stand anywhere on the square's paving clear of the screen, the benches, the lamps
-  // and the trees' canopies.
-  const outline = boxCorners({ ...square, rotationY: 0 });
+  // Blobs stand on the square's paving between its rows of trees, clear of the screen, the
+  // benches, the lamps and the trees' canopies. Outside a row the paving is too narrow to walk,
+  // and a blob that fit between a bench and a tree there would be boxed in.
+  const width = square.width - 2 * SQUARE_TREE_INSET;
+  const outline = boxCorners({ ...square, width, rotationY: 0 });
   const obstacles: Obstacle[] = townWalkObstacles(town).map((o) => o.obstacle);
 
   // The default view shows every block to its corners and everything taller than a tree.
