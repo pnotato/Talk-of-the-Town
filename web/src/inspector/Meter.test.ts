@@ -7,7 +7,7 @@ import { createServer } from "vite";
 
 // Node's type stripping doesn't handle JSX; use the app's existing Vite transform, without a
 // listening server or a browser, to exercise the actual meter markup.
-test("meters show only labels while preserving accessible scores and descriptions", async (t) => {
+test("meters show their label and words while keeping accessible scores and descriptions", async (t) => {
   const server = await createServer({
     root: fileURLToPath(new URL("../../", import.meta.url)),
     configFile: false,
@@ -27,7 +27,7 @@ test("meters show only labels while preserving accessible scores and description
   ] as const) {
     await t.test(`${props.label}: ${props.score}`, () => {
       const html = renderToStaticMarkup(createElement(Meter, props));
-      assert.equal(html.replace(/<[^>]*>/g, ""), props.label);
+      assert.equal(html.replace(/<[^>]*>/g, ""), `${props.label}${props.words}`);
       assert.ok(html.includes(`role="meter" aria-label="${props.label}"`));
       assert.ok(html.includes('aria-valuemin="0" aria-valuemax="100"'));
       assert.ok(html.includes(`aria-valuenow="${props.score}"`));

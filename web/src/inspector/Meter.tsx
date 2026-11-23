@@ -1,6 +1,10 @@
 import { displayScore } from "./inspectorModel.ts";
 
-/** A labelled score bar; its numeric and qualitative values remain available to assistive tech. */
+/**
+ * A labelled score bar with its words ("Mildly interested") beside the label. The number and the
+ * words both stay on the accessible meter; the visible text is hidden from assistive tech so it
+ * isn't read twice.
+ */
 export default function Meter({
   label,
   score,
@@ -15,8 +19,9 @@ export default function Meter({
   const value = displayScore(score);
   return (
     <div className="meter">
-      <span className="meter-label" aria-hidden>
-        {label}
+      <span className="meter-head" aria-hidden>
+        <span className="meter-label">{label}</span>
+        <span className="meter-words">{words}</span>
       </span>
       <div
         className={`meter-track meter-${tone}`}

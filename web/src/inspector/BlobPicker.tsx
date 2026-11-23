@@ -1,27 +1,9 @@
-import { type KeyboardEvent, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { MOOD_COLOR } from "../scene/blobMood.ts";
 import { ageGroup } from "../scene/blobSize.ts";
 import { useBlobSelection } from "./BlobSelection.tsx";
 import { capitalise } from "./inspectorModel.ts";
-
-// Up and down arrows (and Home and End) move between the blobs, so a long list is quick to walk.
-function moveFocus(event: KeyboardEvent<HTMLElement>) {
-  const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
-  if (!keys.includes(event.key)) return;
-  const items = Array.from(event.currentTarget.querySelectorAll(".picker-item"));
-  const at = items.findIndex((item) => item === document.activeElement);
-  const last = items.length - 1;
-  const next =
-    event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? last
-        : event.key === "ArrowDown"
-          ? Math.min(last, at + 1)
-          : Math.max(0, at - 1);
-  event.preventDefault();
-  if (items[next] instanceof HTMLElement) items[next].focus();
-}
+import { moveListFocus } from "./listKeys.ts";
 
 /**
  * Every blob in the page's catalog as a button, so the scene isn't the only way to pick one. It
@@ -71,7 +53,11 @@ export default function BlobPicker({
           Done
         </button>
       </header>
-      <div ref={list} className="picker-scroll" onKeyDown={moveFocus}>
+      <div
+        ref={list}
+        className="picker-scroll"
+        onKeyDown={(event) => moveListFocus(event, ".picker-item")}
+      >
         {catalog.groups.map((group) => (
           <section key={group.key} aria-labelledby={`${id}-${group.key}`}>
             <h3 id={`${id}-${group.key}`} className="picker-group-title">
