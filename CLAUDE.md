@@ -60,15 +60,18 @@ The **RunLog JSON** is the contract between Go and TS. Go structs in `internal/s
 
 ## Git and PR workflow
 
-- **Never commit to `main` directly.** Every task gets its own branch and its own git worktree:
+Use common sense about how much process a change needs.
+
+- **Docs, notes and other changes that touch no code or config** (anything under `docs/`, this file, a README tweak): commit straight to `main` and push. No branch, worktree or PR.
+- **Code, tests, content data, build or CI changes:** use a branch, a worktree and a PR. Other agents are working in parallel, so don't commit these to `main`.
   ```
   git fetch origin
   git worktree add ../tot-<short-slug> -b <short-slug> origin/main
   ```
-  Do all work inside that worktree, push the branch, and open a PR with `gh pr create`.
+  Do the work inside that worktree, push the branch and open a PR with `gh pr create`.
 - **One task per branch and PR.** Keep PRs small and reviewable. Don't touch files outside your task.
 - Stage only the files you changed. Leave other uncommitted work alone.
-- Before pushing, run the checks (`make check`). Write tests first for sim logic.
+- Before opening a PR, run `make check`. Write tests first for sim logic.
 - Remove your worktree after the PR is merged or closed (`git worktree remove ../tot-<short-slug>`).
 
 ## Commands
