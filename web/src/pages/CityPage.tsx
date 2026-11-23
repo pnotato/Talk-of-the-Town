@@ -1,24 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RunLog } from "../generated/types.ts";
-import BlobInspector from "../inspector/BlobInspector.tsx";
+import GameHud from "../hud/GameHud.tsx";
+import type { MapName } from "../hud/settings.ts";
 import { BlobSelectionProvider, useBlobSelection } from "../inspector/BlobSelection.tsx";
 import { cityCatalog, EMPTY_CITY_CATALOG } from "../inspector/cityProfiles.ts";
 import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
 import TownScene from "../scene/TownScene.tsx";
-import "./cityPage.css";
 
 const FIRST_SEED = 1;
-const SPEEDS = [1, 2, 4] as const;
 // A run asks for one announcement every 10 rounds, so a server still asking after this many is
 // broken; stop rather than ask forever.
 const MAX_ANNOUNCEMENTS = 50;
-
-type MapName = "city" | "town";
-const MAPS: { id: MapName; label: string }[] = [
-  { id: "city", label: "City" },
-  { id: "town", label: "Town" },
-];
 
 const UNREACHABLE = "Can't reach the sim server. Start it with make dev.";
 
@@ -150,7 +143,6 @@ export default function CityPage() {
     setPlaying(!reduceMotion);
   };
 
-  const headline = run?.moments.findLast((m) => m.round <= round)?.headline;
   // The inspector's blob directory for this run; empty until the run arrives.
   const catalog = useMemo(() => (run ? cityCatalog(run) : EMPTY_CITY_CATALOG), [run]);
 
@@ -169,78 +161,24 @@ export default function CityPage() {
           onRound={setRound}
           onEnd={handleEnd}
         />
-        <BlobInspector />
+        <GameHud
+          run={run}
+          error={error}
+          onRetry={() => setAttempt((a) => a + 1)}
+          round={round}
+          ended={ended}
+          playing={playing}
+          onTogglePlay={togglePlay}
+          speed={speed}
+          onSpeed={setSpeed}
+          map={map}
+          onMap={chooseMap}
+          seed={seed}
+          onNewSeed={newSeed}
+          grid={grid}
+          onGrid={setGrid}
+        />
       </BlobSelectionProvider>
-      {!current && (
-        <p role="status" className="city-notice">
-          Simulating…
-        </p>
-      )}
-      {error && (
-        <div role="alert" className="city-notice">
-          <span>{error}</span>
-          <button type="button" className="city-button" onClick={() => setAttempt((a) => a + 1)}>
-            Retry
-          </button>
-        </div>
-      )}
-      <div className="city-hud">
-        {run && (
-          <p className="city-news">
-            {headline && (
-              <>
-                <strong>News:</strong> {headline}
-                <br />
-              </>
-            )}
-            <span className="city-news-note">
-              Announcements are auto-picked (the first option) until the newsroom exists.
-            </span>
-          </p>
-        )}
-        <div className="city-controls" role="group" aria-label="Replay">
-          <span className="city-speeds" role="group" aria-label="Map">
-            {MAPS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                className="city-speed"
-                aria-pressed={map === m.id}
-                onClick={() => chooseMap(m.id)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </span>
-          <button type="button" className="city-button" disabled={!run} onClick={togglePlay}>
-            {ended ? "Replay" : playing ? "Pause" : "Play"}
-          </button>
-          <span className="city-seed" aria-live="polite">
-            {run ? `Round ${round + 1} / ${run.rounds.length}` : ""}
-          </span>
-          <span className="city-speeds" role="group" aria-label="Speed">
-            {SPEEDS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="city-speed"
-                aria-pressed={speed === s}
-                onClick={() => setSpeed(s)}
-              >
-                {s}×
-              </button>
-            ))}
-          </span>
-          <button type="button" className="city-button" onClick={newSeed}>
-            New seed
-          </button>
-          <span className="city-seed">Seed {seed}</span>
-          <label className="city-toggle">
-            <input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} />
-            Grid
-          </label>
-        </div>
-      </div>
     </section>
   );
 }

@@ -6,7 +6,7 @@ export type FocusInset = { top: number; bottom: number };
 
 /**
  * The top inset: breathing room below the stage's top edge, so a focused blob never crowds the
- * rounded frame. The app header now lives outside the stage, so this is only visual clearance.
+ * window's edge. It also clears the sandbox bar floating at the top of the Shapes sandbox.
  */
 export const FOCUS_INSET_TOP = 64;
 

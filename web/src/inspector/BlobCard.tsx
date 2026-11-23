@@ -7,6 +7,7 @@ import { useBlobSelection } from "./BlobSelection.tsx";
 import { capitalise, describeAction, interestLabel, perceptionLabel } from "./inspectorModel.ts";
 import Meter from "./Meter.tsx";
 import { personalityTags, specialTags } from "./traitGroups.ts";
+import "./inspector.css";
 
 // Portraits are live WebGL canvases, so only so many relatives get one: the card shows at most
 // this many thumbnails of family, plus the main portrait and the conversation partner's.
@@ -116,11 +117,30 @@ function Tags({
   );
 }
 
+function CardIcon({ path }: { path: string }) {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden focusable="false">
+      <path
+        d={path}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const PREVIOUS_PATH = "M12 4.8 6.8 10l5.2 5.2";
+const NEXT_PATH = "m8 4.8 5.2 5.2L8 15.2";
+const CLOSE_PATH = "m5.6 5.6 8.8 8.8M14.4 5.6l-8.8 8.8";
+
 /**
- * The selected blob's profile: a wide, low panel with the blob's portrait overlapping its left
- * edge. Top to bottom: name, age and family, the two meters, grouped trait lists, and
- * the current action with whoever the blob is talking with. The portrait and every named blob are
- * buttons that take the camera to that blob.
+ * The selected blob's profile, as one compact card. Top to bottom: the portrait beside the name,
+ * age, shape and what the blob's face says; family; the two meters; traits; and the current action
+ * with whoever the blob is talking with. The portrait and every named blob are buttons that take
+ * the camera to that blob. `onStep`, when given, adds previous and next buttons beside close.
  *
  * The profile comes from the page's catalog; the face, action, partner and live scores come from
  * the scene's activity report, falling back to the profile's resting values.
@@ -128,10 +148,13 @@ function Tags({
 export default function BlobCard({
   profile,
   onClose,
+  onStep,
   takeFocus,
 }: {
   profile: BlobProfile;
   onClose: () => void;
+  /** Step to the previous (-1) or next (1) blob in the catalog. */
+  onStep?: (direction: 1 | -1) => void;
   /** Asked once when the card appears: true puts keyboard focus on the name (a keyboard pick). */
   takeFocus?: () => boolean;
 }) {
@@ -155,118 +178,120 @@ export default function BlobCard({
 
   return (
     <section
-      className="inspector-card"
+      className="inspector-card hud-sheet"
       aria-label={`Selected blob: ${profile.name}`}
       aria-describedby={descriptionId}
     >
       <p id={descriptionId} className="inspector-sr">
         {catalog.description}
       </p>
-      {/* Sticks to the top of the scrolling card, so closing is always in reach. */}
-      <div className="card-close-anchor">
-        <button
-          type="button"
-          className="inspector-close"
-          aria-label="Close inspector"
-          onClick={onClose}
-        >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden focusable="false">
-            <path
-              d="M3 3l10 10M13 3L3 13"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
-      </div>
 
-      <div className="card-portrait">
-        {/* The button lies over the portrait: a canvas can't sit inside a button. */}
-        <button
-          type="button"
-          className="portrait-hit"
-          aria-label={`Go to ${profile.name}`}
-          aria-description={`${capitalise(mood)} expression. ${MOOD_MEANING[mood]}`}
-          onClick={() => focusBlob(profile.id)}
-        />
-        <div className="portrait" style={{ borderColor: MOOD_COLOR[mood] }} aria-hidden>
-          <BlobPortrait shape={profile.shape} age={profile.age} mood={mood} />
+      <header className="card-top">
+        <div className="card-portrait">
+          {/* The button lies over the portrait: a canvas can't sit inside a button. */}
+          <button
+            type="button"
+            className="portrait-hit"
+            aria-label={`Go to ${profile.name}`}
+            aria-description={`${capitalise(mood)} expression. ${MOOD_MEANING[mood]}`}
+            onClick={() => focusBlob(profile.id)}
+          />
+          <div className="portrait" style={{ borderColor: MOOD_COLOR[mood] }} aria-hidden>
+            <BlobPortrait shape={profile.shape} age={profile.age} mood={mood} />
+          </div>
         </div>
-      </div>
 
-      <div className="inspector-surface card-panel">
         <div className="card-identity">
-          <header className="card-head">
-            <h2 ref={heading} tabIndex={-1}>
-              {profile.name}
-            </h2>
-          </header>
-
-          <div className="card-meta">
-            <p>
-              Age {profile.age} · {capitalise(ageGroup(profile.age))} · {capitalise(profile.shape)}
-            </p>
-            {(profile.parentIds.length > 0 || profile.childIds.length > 0) && (
-              <div className="family">
-                <Family profile={profile} fallback={heading} />
-              </div>
-            )}
-          </div>
+          <h2 className="display" ref={heading} tabIndex={-1}>
+            {profile.name}
+          </h2>
+          <p className="card-meta">
+            Age {profile.age} · {capitalise(ageGroup(profile.age))} · {capitalise(profile.shape)}
+          </p>
+          <p className="card-mood">
+            <span className="card-mood-dot" style={{ background: MOOD_COLOR[mood] }} aria-hidden />
+            {capitalise(MOOD_MEANING[mood])}
+          </p>
         </div>
 
-        <div className="meters">
-          <Meter
-            label="Interest"
-            score={interest}
-            words={interestLabel(interest)}
-            tone="interest"
-          />
-          <Meter
-            label="Perception"
-            score={perception}
-            words={perceptionLabel(perception)}
-            tone="perception"
-          />
+        <div className="card-actions">
+          {onStep && (
+            <>
+              <button
+                type="button"
+                className="card-icon-button"
+                aria-label="Previous blob"
+                onClick={() => onStep(-1)}
+              >
+                <CardIcon path={PREVIOUS_PATH} />
+              </button>
+              <button
+                type="button"
+                className="card-icon-button"
+                aria-label="Next blob"
+                onClick={() => onStep(1)}
+              >
+                <CardIcon path={NEXT_PATH} />
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="card-icon-button"
+            aria-label="Close inspector"
+            onClick={onClose}
+          >
+            <CardIcon path={CLOSE_PATH} />
+          </button>
         </div>
+      </header>
 
-        {(special.length > 0 || personality.length > 0) && (
-          <div className="card-traits">
-            <span className="traits-label">Traits:</span>
-            <Tags kind="special" label="Special tags">
-              {special.map((tag) => (
-                <li
-                  key={tag.kind}
-                  className={`tag tag-special tag-${tag.kind}`}
-                  title={tag.meaning}
-                >
-                  {tag.label}
-                </li>
-              ))}
-            </Tags>
-            <Tags kind="personality" label="Personality">
-              {personality.map((tag) => (
-                <li
-                  key={tag.trait}
-                  className={`tag tag-personality tag-${tag.category}`}
-                  title={tag.meaning}
-                >
-                  {tag.trait}
-                </li>
-              ))}
-            </Tags>
-          </div>
+      {(profile.parentIds.length > 0 || profile.childIds.length > 0) && (
+        <div className="family">
+          <Family profile={profile} fallback={heading} />
+        </div>
+      )}
+
+      <div className="meters">
+        <Meter label="Interest" score={interest} words={interestLabel(interest)} tone="interest" />
+        <Meter
+          label="Perception"
+          score={perception}
+          words={perceptionLabel(perception)}
+          tone="perception"
+        />
+      </div>
+
+      {(special.length > 0 || personality.length > 0) && (
+        <div className="card-traits">
+          <Tags kind="special" label="Special tags">
+            {special.map((tag) => (
+              <li key={tag.kind} className={`tag tag-special tag-${tag.kind}`} title={tag.meaning}>
+                {tag.label}
+              </li>
+            ))}
+          </Tags>
+          <Tags kind="personality" label="Personality">
+            {personality.map((tag) => (
+              <li
+                key={tag.trait}
+                className={`tag tag-personality tag-${tag.category}`}
+                title={tag.meaning}
+              >
+                {tag.trait}
+              </li>
+            ))}
+          </Tags>
+        </div>
+      )}
+
+      <div className="action" data-state={activity?.state ?? "idle"}>
+        <span className="action-dot" aria-hidden />
+        <h3 className="inspector-sr">Current action</h3>
+        <span>{action.text}</span>
+        {action.partnerId !== undefined && (
+          <BlobChip id={action.partnerId} thumbnail fallback={heading} />
         )}
-
-        <div className="action">
-          <h3 className="inspector-eyebrow">Current action:</h3>
-          <div className="action-line">
-            <span>{action.text}</span>
-            {action.partnerId !== undefined && (
-              <BlobChip id={action.partnerId} thumbnail fallback={heading} />
-            )}
-          </div>
-        </div>
       </div>
     </section>
   );
