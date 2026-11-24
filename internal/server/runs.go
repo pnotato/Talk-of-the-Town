@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,9 +62,10 @@ func runFileName(l sim.RunLog) string {
 	return b.String()
 }
 
-// WriteSampleRun plays SampleSeed with the first option of every moment and
-// writes it to dir with WriteRun, so a dev server always has a log to open.
-// The bytes are what POST /api/run returns for the same request.
+// WriteSampleRun plays SampleSeed with the first option of every moment, narrates
+// it with the stub voice, and writes it to dir with WriteRun, so a dev server always
+// has a log to open. The bytes are what POST /api/run returns for the same request
+// with the stub voice.
 func WriteSampleRun(dir string, brain sim.Brain) (string, error) {
 	a, err := content.LoadAnnouncements()
 	if err != nil {
@@ -78,6 +80,9 @@ func WriteSampleRun(dir string, brain sim.Brain) (string, error) {
 	}
 	l, err := sim.Run(SampleSeed, choices, brain)
 	if err != nil {
+		return "", err
+	}
+	if err := sim.Narrate(context.Background(), &l, sim.StubVoice{}); err != nil {
 		return "", err
 	}
 	body, err := encodeJSON(l)

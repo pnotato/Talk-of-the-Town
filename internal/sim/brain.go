@@ -24,15 +24,14 @@ type Retelling struct {
 // NoListener marks a Retelling that is a post with many readers.
 const NoListener = -1
 
-// Told is a brain's output: the strength passed on, plus optional flavour text.
+// Told is a brain's output: the claim strength passed on.
 type Told struct {
 	Strength float64
-	Text     string
 }
 
 // Brain retells the current story. Implementations must return Strength from
-// MODEL.md#drift; Text is flavour only. Brains must be deterministic and
-// must not touch the sim's rng.
+// MODEL.md#drift. Brains must be deterministic and must not touch the sim's
+// rng. What blobs think and say is written afterwards by a Voice (voice.go).
 type Brain interface {
 	Retell(Retelling) Told
 }

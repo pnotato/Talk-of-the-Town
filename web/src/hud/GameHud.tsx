@@ -206,7 +206,7 @@ export default function GameHud({
   const subtitle =
     view === "people"
       ? `${catalog.order.length} residents · live moods`
-      : `What ${run?.company ?? "the company"} has said and shipped`;
+      : `What ${run?.company ?? "the company"} has said and shipped, and what the town posts`;
 
   return (
     <div className="hud" data-panel={view ? "open" : "closed"}>

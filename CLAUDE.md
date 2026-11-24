@@ -42,7 +42,7 @@ Names are fictional. All companies are fictional.
 cmd/server/        HTTP server entrypoint (serves /api, plus web/dist when built)
 internal/sim/      Pure, deterministic simulation. Standard library only, no I/O.
 internal/server/   HTTP routes; thin, calls into sim + provider
-internal/provider/ Model providers: stub (default), anthropic
+internal/provider/ Model providers: anthropic (the stub brain and voice live in internal/sim)
 web/               React + Vite + TS client (own package.json)
 ```
 

@@ -14,8 +14,9 @@ import (
 	"talkofthetown/internal/sim"
 )
 
-// Config holds the spend caps (CLAUDE.md hard rule 5), which refuse runs past
-// them, and where finished runs are written.
+// Config holds the spend caps (CLAUDE.md hard rule 4), which refuse runs past
+// them, and where finished runs are written. A model-backed voice has its own caps
+// (internal/provider).
 type Config struct {
 	MaxRounds int    // rounds one request may simulate
 	MaxBlobs  int    // blobs one run may contain
@@ -45,15 +46,19 @@ func ConfigFromEnv() (Config, error) {
 	return c, nil
 }
 
-// New returns the API handler. brain retells stories in /api/run. If static is
-// non-nil it serves the built client at /.
-func New(cfg Config, brain sim.Brain, static http.Handler) http.Handler {
+// New returns the API handler. brain retells stories in /api/run, and newVoice gives each run
+// the voice that writes what blobs think and say (nil: sim.StubVoice). If static is non-nil it
+// serves the built client at /.
+func New(cfg Config, brain sim.Brain, newVoice func() sim.Voice, static http.Handler) http.Handler {
+	if newVoice == nil {
+		newVoice = func() sim.Voice { return sim.StubVoice{} }
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	mux.HandleFunc("GET /api/town", handleTown)
-	mux.HandleFunc("POST /api/run", func(w http.ResponseWriter, r *http.Request) { handleRun(w, r, cfg, brain) })
+	mux.HandleFunc("POST /api/run", func(w http.ResponseWriter, r *http.Request) { handleRun(w, r, cfg, brain, newVoice()) })
 	if static != nil {
 		mux.Handle("/", static)
 	}
@@ -76,9 +81,10 @@ type runRequest struct {
 	Map     string   `json:"map"` // "city" or "town"; empty means city
 }
 
-// handleRun serves POST /api/run. Stateless: the run is replayed from the seed.
-// A finished run is also written to cfg.RunsDir, as the same bytes.
-func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Brain) {
+// handleRun serves POST /api/run. Stateless: the run is replayed from the seed, then voice writes
+// what the blobs think and say (a model-backed voice remembers what it already wrote, so the
+// replayed rounds cost nothing). A finished run is also written to cfg.RunsDir, as the same bytes.
+func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Brain, voice sim.Voice) {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
 	var req runRequest
@@ -99,6 +105,13 @@ func handleRun(w http.ResponseWriter, r *http.Request, cfg Config, brain sim.Bra
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if err := sim.Narrate(r.Context(), &run, voice); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not narrate the run")
+		return
+	}
+	if s, ok := voice.(interface{ Summary() string }); ok && len(run.Rounds) > 0 {
+		log.Printf("voice: %s", s.Summary())
 	}
 	body, err := encodeJSON(run)
 	if err != nil {

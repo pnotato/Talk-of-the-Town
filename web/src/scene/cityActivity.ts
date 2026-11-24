@@ -2,7 +2,8 @@
 // (rounds[].events and paths), never invented: a blob talks when it is an event's speaker, listens
 // when it is an in-person listener, posts when it holds the phone, scrolls when it reads a post,
 // and walks when its path moves. Scores and moods come from the same replay helpers the blobs
-// themselves use.
+// themselves use. What blobs say, hear and think comes from the events' words (w, t, r), which the
+// server's voice wrote for the same events.
 import type { RunLog } from "../generated/types.ts";
 import type { BlobActivity } from "../inspector/inspectorModel.ts";
 import { moodAt } from "./replay.ts";
@@ -23,17 +24,39 @@ export function cityActivities(
   const scrolling = new Uint8Array(count);
   const speakerPartner = new Int32Array(count).fill(-1);
   const listenerPartner = new Int32Array(count).fill(-1);
+  const says: (string | undefined)[] = new Array(count);
+  const heard: (string | undefined)[] = new Array(count);
+  const spoke: (string | undefined)[] = new Array(count); // thought behind its own talk or post
+  const took: (string | undefined)[] = new Array(count); // thought on what it heard first
+  const inTown = (b: number) => b >= 0 && b < count;
 
   const roundIndex =
     run.rounds.length === 0 ? -1 : Math.min(Math.max(round, 0), run.rounds.length - 1);
   const events = roundIndex < 0 ? [] : run.rounds[roundIndex].events;
   for (const event of events) {
+    // Words first: every event's, whether or not it decides the blob's activity below.
+    if (inTown(event.f)) {
+      if (event.s) {
+        heard[event.f] ??= event.w || undefined;
+        took[event.f] ??= event.t || undefined;
+      } else {
+        says[event.f] ??= event.w || undefined;
+        spoke[event.f] ??= event.t || undefined;
+      }
+    }
+    if (!event.s) {
+      event.to.forEach((b, k) => {
+        if (!inTown(b)) return;
+        heard[b] ??= event.w || undefined;
+        took[b] ??= event.r?.[k] || undefined;
+      });
+    }
     if (event.p) {
-      if (event.f >= 0 && event.f < count) posting[event.f] = 1;
+      if (inTown(event.f)) posting[event.f] = 1;
       continue;
     }
     if (event.s) {
-      if (event.f >= 0 && event.f < count) scrolling[event.f] = 1;
+      if (inTown(event.f)) scrolling[event.f] = 1;
       continue;
     }
     if (event.to.length !== 1) continue;
@@ -98,6 +121,11 @@ export function cityActivities(
     } else {
       activity = { state: "idle", mood, perception, interest };
     }
+    // Only the fields the run has, so a run without words reports exactly what it did before.
+    const thought = spoke[b] ?? took[b];
+    if (says[b] !== undefined) activity.says = says[b];
+    if (heard[b] !== undefined) activity.heard = heard[b];
+    if (thought !== undefined) activity.thought = thought;
     activities[b] = activity;
   }
   return activities;

@@ -141,6 +141,12 @@ A **RunEvent** is one conversation, one post, or one scroll:
 | `c` | number | Claim strength told or read, 0–100, rounded to 0.1. Retellings drift upward. |
 | `dp` | number[] | Perception change for each blob in `to`, same order. For a scroll, the reader's change. |
 | `di` | number[] | Interest change for each blob in `to`, same order. For a scroll, the reader's change. |
+| `w` | string | What `f` said or posted. For a scroll, the post `f` read. Written after the run by the voice ([THINKING.md](../THINKING.md)); empty in `sim.Run`'s own output. |
+| `t` | string | What `f` thought: why it spoke, or how it took the post it scrolled to. |
+| `r` | string[] | What each blob in `to` thought on hearing it, same order. Empty for a scroll. |
+
+The words never change a number: the formulas decide every event and score, then the voice
+(`BRAIN=stub` templates by default, or a model with `BRAIN=anthropic`) explains them in character.
 
 ### `moments[]`
 

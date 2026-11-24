@@ -103,6 +103,9 @@ export interface RunEvent {
   c: number;
   dp: number[];
   di: number[];
+  w: string;
+  t: string;
+  r: string[];
 }
 
 export interface Option {

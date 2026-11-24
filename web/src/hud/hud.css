@@ -663,6 +663,57 @@
   color: color-mix(in srgb, var(--bad) var(--deep), var(--deep-base));
 }
 
+/* A blob's post: its own initial on a plain tile, the post in the body face, and readers' takes. */
+.feed-item[data-kind="post"] .feed-avatar {
+  background: var(--fill);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.feed-post {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.feed-thought {
+  margin-top: 6px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  font-style: italic;
+}
+
+.feed-thought span {
+  margin-right: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feed-replies {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--line);
+  list-style: none;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.feed-replies strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.feed-replies-more {
+  color: var(--muted);
+}
+
 /* People: the town's mood mix, a search, and everyone. */
 
 .mood-mix {

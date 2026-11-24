@@ -344,14 +344,20 @@ func (s *State) readers(sp int, rng *rand.Rand) []int {
 
 // RunEvent is one talk (one listener), one post (several readers) or one scroll (one reader of
 // an older post). JSON keys are short because the whole log goes to the browser.
+//
+// Words, Thought and Replies are written after the run by a Voice (Narrate in voice.go). They
+// never change a number; Step leaves them empty.
 type RunEvent struct {
-	From   int       `json:"f"`
-	To     []int     `json:"to"`
-	Post   bool      `json:"p"`
-	Scroll bool      `json:"s,omitempty"` // true for a scroll: From read To[0]'s post
-	Claim  float64   `json:"c"`           // strength told, 0–100
-	DP     []float64 `json:"dp"`          // perception change per To, same order
-	DI     []float64 `json:"di"`          // interest change per To, same order
+	From    int       `json:"f"`
+	To      []int     `json:"to"`
+	Post    bool      `json:"p"`
+	Scroll  bool      `json:"s,omitempty"` // true for a scroll: From read To[0]'s post
+	Claim   float64   `json:"c"`           // strength told, 0–100
+	DP      []float64 `json:"dp"`          // perception change per To, same order
+	DI      []float64 `json:"di"`          // interest change per To, same order
+	Words   string    `json:"w"`           // what From said or posted; for a scroll, the post From read
+	Thought string    `json:"t"`           // what From thought
+	Replies []string  `json:"r"`           // what each To thought on hearing it, same order; empty for a scroll
 }
 
 // Round is one played round. Perception/Interest are indexed by blob id,
@@ -441,7 +447,7 @@ func (s *State) act(i int, B Blob, r *Round, rng *rand.Rand) bool {
 	}
 	c := s.brain.Retell(Retelling{Teller: i, Listener: listener, TellerPerception: b.perception, Heard: b.heard, Channel: ch}).Strength
 	tone := retellTone(b.perception, c)
-	e := RunEvent{From: i, To: to, Post: posting, Claim: round1(c), DP: []float64{}, DI: []float64{}}
+	e := RunEvent{From: i, To: to, Post: posting, Claim: round1(c), DP: []float64{}, DI: []float64{}, Replies: []string{}}
 	for _, l := range to {
 		p0, i0 := s.blobs[l].perception, s.blobs[l].interest
 		s.hear(l, i, c, tone, ch)
@@ -482,11 +488,12 @@ func (s *State) scroll(i int, r *Round, rng *rand.Rand) {
 	p0, i0 := s.blobs[i].perception, s.blobs[i].interest
 	s.hear(i, chosen.from, chosen.claim, chosen.tone, ChannelPost)
 	r.Events = append(r.Events, RunEvent{
-		From:   i,
-		To:     []int{chosen.from},
-		Scroll: true,
-		Claim:  round1(chosen.claim),
-		DP:     []float64{round1(s.blobs[i].perception - p0)},
-		DI:     []float64{round1(s.blobs[i].interest - i0)},
+		From:    i,
+		To:      []int{chosen.from},
+		Scroll:  true,
+		Claim:   round1(chosen.claim),
+		DP:      []float64{round1(s.blobs[i].perception - p0)},
+		DI:      []float64{round1(s.blobs[i].interest - i0)},
+		Replies: []string{},
 	})
 }
