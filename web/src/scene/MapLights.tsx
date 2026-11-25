@@ -151,8 +151,23 @@ function fitShadow(light: DirectionalLight, camera: Camera, whole: Sphere) {
   cam.updateProjectionMatrix();
 }
 
+/** The light's colours, for a map that wants its own weather. */
+export interface LightColours {
+  sky: string;
+  ground: string;
+  sun: string;
+}
+
+const DEFAULT_COLOURS: LightColours = { sky: SKY_LIGHT, ground: GROUND_LIGHT, sun: SUN };
+
 /** Soft sky fill plus one shadow-casting sun whose shadow camera follows the view. */
-export function MapLights({ map }: { map: MapLayout }) {
+export function MapLights({
+  map,
+  colours = DEFAULT_COLOURS,
+}: {
+  map: MapLayout;
+  colours?: LightColours;
+}) {
   const sun = useRef<DirectionalLight>(null);
 
   // A sphere around everything that casts a shadow.
@@ -191,10 +206,10 @@ export function MapLights({ map }: { map: MapLayout }) {
 
   return (
     <>
-      <hemisphereLight args={[SKY_LIGHT, GROUND_LIGHT, 0.45]} />
+      <hemisphereLight args={[colours.sky, colours.ground, 0.45]} />
       <directionalLight
         ref={sun}
-        color={SUN}
+        color={colours.sun}
         intensity={3}
         castShadow
         shadow-mapSize={[SHADOW_MAP_SIZE, SHADOW_MAP_SIZE]}

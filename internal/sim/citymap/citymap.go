@@ -1,6 +1,6 @@
 // Package citymap embeds the walkable geometry of the game's maps, exported
-// from the TypeScript scenes (make citymap, make townmap), and builds their
-// walk graphs.
+// from the TypeScript scenes (make citymap, make townmap, make harbourmap),
+// and builds their walk graphs.
 //
 // Standard library only. Loading and building are pure and deterministic.
 package citymap
@@ -23,6 +23,9 @@ var cityJSON []byte
 
 //go:embed town.json
 var townJSON []byte
+
+//go:embed harbour.json
+var harbourJSON []byte
 
 // Version is the map file format this package reads.
 const Version = 1
@@ -81,6 +84,9 @@ func Load() (nav.Map, error) { return parse("city", cityJSON) }
 
 // LoadTown decodes the embedded town.json into a nav.Map.
 func LoadTown() (nav.Map, error) { return parse("town", townJSON) }
+
+// LoadHarbour decodes the embedded harbour.json into a nav.Map.
+func LoadHarbour() (nav.Map, error) { return parse("harbour", harbourJSON) }
 
 // parse decodes and validates city.json strictly: unknown fields, trailing
 // data, a different version or radius, and spots off their area's grid are
@@ -218,4 +224,24 @@ func TownGraph() (*nav.Graph, error) {
 		townGraph.g, townGraph.err = nav.Build(m, nav.DefaultParams())
 	})
 	return townGraph.g, townGraph.err
+}
+
+var harbourGraph struct {
+	once sync.Once
+	g    *nav.Graph
+	err  error
+}
+
+// HarbourGraph builds the harbour's walk graph with nav.DefaultParams on first
+// use and returns the same graph (or error) every time after.
+func HarbourGraph() (*nav.Graph, error) {
+	harbourGraph.once.Do(func() {
+		m, err := LoadHarbour()
+		if err != nil {
+			harbourGraph.err = err
+			return
+		}
+		harbourGraph.g, harbourGraph.err = nav.Build(m, nav.DefaultParams())
+	})
+	return harbourGraph.g, harbourGraph.err
 }

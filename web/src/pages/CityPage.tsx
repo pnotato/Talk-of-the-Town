@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RunLog } from "../generated/types.ts";
 import GameHud from "../hud/GameHud.tsx";
-import type { MapName } from "../hud/settings.ts";
+import { MAPS, type MapName } from "../hud/settings.ts";
 import { BlobSelectionProvider, useBlobSelection } from "../inspector/BlobSelection.tsx";
 import { cityCatalog, EMPTY_CITY_CATALOG } from "../inspector/cityProfiles.ts";
 import { useReducedMotion } from "../scene/blobMedia.ts";
 import CityScene from "../scene/CityScene.tsx";
+import HarbourScene from "../scene/HarbourScene.tsx";
 import TownScene from "../scene/TownScene.tsx";
 
 const FIRST_SEED = 1;
@@ -49,7 +50,7 @@ type Result = { key: string; run: RunLog } | { key: string; error: string };
 
 /**
  * A map replaying the run, inside the selection provider: it rings the selected blob, makes every
- * blob clickable, and reports what they are doing for the inspector. The city and the town share it.
+ * blob clickable, and reports what they are doing for the inspector. Every map shares it.
  */
 function MapStage({
   map,
@@ -80,7 +81,9 @@ function MapStage({
     onSelect: selectBlob,
     onActivities: updateActivities,
   };
-  return map === "town" ? <TownScene {...props} /> : <CityScene {...props} />;
+  if (map === "town") return <TownScene {...props} />;
+  if (map === "harbour") return <HarbourScene {...props} />;
+  return <CityScene {...props} />;
 }
 
 /**
@@ -148,7 +151,7 @@ export default function CityPage() {
 
   return (
     <section
-      aria-label={map === "town" ? "Town replay" : "City replay"}
+      aria-label={`${MAPS.find((m) => m.id === map)?.label ?? "City"} replay`}
       style={{ position: "relative", height: "100%" }}
     >
       <BlobSelectionProvider catalog={catalog}>

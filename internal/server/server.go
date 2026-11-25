@@ -73,7 +73,7 @@ func handleTown(w http.ResponseWriter, r *http.Request) {
 type runRequest struct {
 	Seed    *uint64  `json:"seed"`
 	Choices []string `json:"choices"`
-	Map     string   `json:"map"` // "city" or "town"; empty means city
+	Map     string   `json:"map"` // "city", "town" or "harbour"; empty means city
 }
 
 // handleRun serves POST /api/run. Stateless: the run is replayed from the seed.

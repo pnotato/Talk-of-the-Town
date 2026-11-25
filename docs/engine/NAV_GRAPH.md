@@ -79,6 +79,35 @@ The town graph has 126 nodes (122 stand, 4 grid-fill) and 118 goal nodes, enough
 for the 100-blob town. `POST /api/run` with `"map": "town"` walks this graph;
 the social simulation is the same as on the city.
 
+### The harbour
+
+The harbour is exported the same way, from its own layout:
+
+```
+web/src/scene/layoutHarbour.ts      the harbour: decks, green, homes, boats, trees
+web/src/scene/harbourMap.ts         its areas' standing spots and obstacles
+web/src/scene/harbourMapExport.ts   picks out what walking needs
+        │  make harbourmap  (node web/scripts/export-harbour-map.ts)
+        ▼
+internal/sim/citymap/harbour.json   committed; make check fails if it is stale
+        │  go:embed, citymap.LoadHarbour()
+        ▼
+*nav.Graph                          citymap.HarbourGraph() builds it once and caches it
+```
+
+`harbour.json` (version 1) holds:
+
+- **4 areas**, **718 spots**: the festival green (351), the boardwalk along the
+  sea wall (213), the pier (45) and the pier head (109). The green and the pier
+  each meet the boardwalk edge to edge, and the pier head meets the pier, so
+  grid fill and gap bridging join them without crosswalks.
+- **16 discs** (the carousel, eight festoon poles, the bell, two telescopes and
+  the green's four maples) and **11 boxes** (eight benches, two planters and the
+  ice cream cart).
+
+The harbour graph has 751 nodes (718 stand) and 702 goal nodes, room for the
+100-blob town to wander. `POST /api/run` with `"map": "harbour"` walks it.
+
 ## The rules a graph must keep
 
 Every edge is one step a blob may take in one tick. The planner's guarantee

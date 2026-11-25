@@ -207,6 +207,11 @@ func TestGraphIsCached(t *testing.T) {
 	if t1 != t2 || err1 != err2 {
 		t.Error("TownGraph built twice")
 	}
+	h1, err1 := HarbourGraph()
+	h2, err2 := HarbourGraph()
+	if h1 != h2 || err1 != err2 {
+		t.Error("HarbourGraph built twice")
+	}
 }
 
 // townFingerprint pins the real town's walk graph. It changes whenever the
@@ -263,6 +268,71 @@ func TestTownGraph(t *testing.T) {
 	}
 	if got := g.Fingerprint(); got != townFingerprint {
 		t.Errorf("fingerprint %#x, want %#x: the town graph changed; if that's intended, look at it and update townFingerprint", got, uint64(townFingerprint))
+	}
+}
+
+// harbourFingerprint pins the real harbour's walk graph. It changes whenever
+// the harbour (make harbourmap) or the build changes; update it deliberately,
+// after looking at the new graph, and say why in the commit.
+const harbourFingerprint = 0xbc272a4fd4c64eef
+
+func TestLoadHarbour(t *testing.T) {
+	m, err := LoadHarbour()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	spots := 0
+	for _, a := range m.Areas {
+		names = append(names, a.Name)
+		spots += len(a.Spots)
+	}
+	got := []int{len(m.Areas), spots, len(m.Crosswalks), len(m.Discs), len(m.Boxes)}
+	want := []int{4, 718, 0, 16, 11}
+	for i, name := range []string{"areas", "spots", "crosswalks", "discs", "boxes"} {
+		if got[i] != want[i] {
+			t.Errorf("%d %s, want %d", got[i], name, want[i])
+		}
+	}
+	if w := []string{"green", "boardwalk", "pier", "pierhead"}; !slices.Equal(names, w) {
+		t.Errorf("areas %q, want %q", names, w)
+	}
+}
+
+func TestHarbourGraph(t *testing.T) {
+	g, err := HarbourGraph()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadHarbour()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := nav.Check(g, nav.DefaultParams(), &m); err != nil {
+		t.Fatal(err)
+	}
+	if g.NumStand != 718 {
+		t.Errorf("%d Stand nodes, want 718", g.NumStand)
+	}
+	// One piece: the pier and the pier head are reached over the boardwalk.
+	for u := range g.Len() {
+		if g.Hops(0, u) < 0 {
+			t.Fatalf("node %d at %+v is cut off", u, g.Nodes[u])
+		}
+	}
+	goals := 0
+	for u := range g.NumStand {
+		if g.GoalOK(u) {
+			goals++
+		}
+	}
+	t.Logf("%d nodes (%d stand), %d goals, fingerprint %#x", g.Len(), g.NumStand, goals, g.Fingerprint())
+	// Room to wander: far more goals than the 100 blobs, as in the city.
+	if frac := float64(goals) / float64(g.NumStand); frac < 0.95 {
+		t.Errorf("only %.1f%% of Stand nodes may be goals, want >= 95%%", 100*frac)
+	}
+	if got := g.Fingerprint(); got != harbourFingerprint {
+		t.Errorf("fingerprint %#x, want %#x: the harbour graph changed; if that's intended, look at it and update harbourFingerprint", got, uint64(harbourFingerprint))
 	}
 }
 
