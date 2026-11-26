@@ -133,4 +133,42 @@ describe("cityActivities", () => {
       assert.equal(activities[b].perception, GOLDEN.town.blobs[b].perception, `blob ${b}`);
     }
   });
+
+  test("reports what blobs said, heard and thought, when the run has words", () => {
+    const event = { dp: [1], di: [1], c: 50, p: false, s: false };
+    const events = [
+      { ...event, f: 1, to: [2], w: "Did you hear?", t: "Must tell them.", r: ["Neat."] },
+      {
+        ...event,
+        f: 3,
+        to: [4, 5],
+        p: true,
+        dp: [1, 1],
+        di: [1, 1],
+        w: "Big news!",
+        t: "Sharing.",
+        r: ["Wow.", "Meh."],
+      },
+      { ...event, f: 6, to: [3], s: true, w: "Big news!", t: "Hm.", r: [] },
+    ];
+    const run = { ...GOLDEN, rounds: [{ ...GOLDEN.rounds[0], events }] };
+    const a = cityActivities(run, 0, 0);
+    assert.deepEqual(
+      [a[1].says, a[1].thought, a[1].heard],
+      ["Did you hear?", "Must tell them.", undefined],
+    );
+    assert.deepEqual([a[2].heard, a[2].thought, a[2].says], ["Did you hear?", "Neat.", undefined]);
+    assert.deepEqual([a[3].state, a[3].says, a[3].thought], ["posting", "Big news!", "Sharing."]);
+    assert.deepEqual([a[5].heard, a[5].thought], ["Big news!", "Meh."]);
+    assert.deepEqual([a[6].state, a[6].heard, a[6].thought], ["scrolling", "Big news!", "Hm."]);
+    assert.equal(a[7].thought, undefined);
+  });
+
+  test("adds no words for a run without them", () => {
+    const activities = cityActivities(GOLDEN, 1, 1);
+    for (let b = 0; b < COUNT; b++) {
+      const { says, heard, thought } = activities[b];
+      assert.deepEqual([says, heard, thought], [undefined, undefined, undefined], `blob ${b}`);
+    }
+  });
 });

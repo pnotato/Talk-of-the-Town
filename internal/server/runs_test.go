@@ -20,7 +20,7 @@ const (
 )
 
 func newWithRuns(dir string) http.Handler {
-	return New(Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs, RunsDir: dir}, sim.StubBrain{}, nil)
+	return New(Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs, RunsDir: dir}, sim.StubBrain{}, nil, nil)
 }
 
 // names lists dir's entries; a missing dir has none.

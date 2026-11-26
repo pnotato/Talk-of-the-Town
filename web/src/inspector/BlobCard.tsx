@@ -138,9 +138,10 @@ const CLOSE_PATH = "m5.6 5.6 8.8 8.8M14.4 5.6l-8.8 8.8";
 
 /**
  * The selected blob's profile, as one compact card. Top to bottom: the portrait beside the name,
- * age, shape and what the blob's face says; family; the two meters; traits; and the current action
- * with whoever the blob is talking with. The portrait and every named blob are buttons that take
- * the camera to that blob. `onStep`, when given, adds previous and next buttons beside close.
+ * age, shape and what the blob's face says; family; the two meters; traits; the current action
+ * with whoever the blob is talking with; and, when the run has words, what the blob heard, thought
+ * and said this round. The portrait and every named blob are buttons that take the camera to that
+ * blob. `onStep`, when given, adds previous and next buttons beside close.
  *
  * The profile comes from the page's catalog; the face, action, partner and live scores come from
  * the scene's activity report, falling back to the profile's resting values.
@@ -293,6 +294,29 @@ export default function BlobCard({
           <BlobChip id={action.partnerId} thumbnail fallback={heading} />
         )}
       </div>
+
+      {(activity?.heard || activity?.thought || activity?.says) && (
+        <dl className="voice" aria-label="This round, in their own words">
+          {activity.heard && (
+            <>
+              <dt>{activity.state === "scrolling" ? "Read" : "Heard"}</dt>
+              <dd className="voice-quote">{activity.heard}</dd>
+            </>
+          )}
+          {activity.thought && (
+            <>
+              <dt>Thinks</dt>
+              <dd className="voice-thought">{activity.thought}</dd>
+            </>
+          )}
+          {activity.says && (
+            <>
+              <dt>{activity.state === "posting" ? "Posted" : "Said"}</dt>
+              <dd className="voice-quote">{activity.says}</dd>
+            </>
+          )}
+        </dl>
+      )}
     </section>
   );
 }

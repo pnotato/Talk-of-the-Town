@@ -12,6 +12,12 @@ export type BlobActivity = {
   /** The blob's live scores, when the scene knows them (the city run does). */
   perception?: number;
   interest?: number;
+  /** What the blob said or posted this round, when the run has words. */
+  says?: string;
+  /** What reached the blob this round: what it was told, or the post it read. */
+  heard?: string;
+  /** What the blob thought this round: why it spoke, or how it took what it heard. */
+  thought?: string;
 };
 
 export function sameActivity(a: BlobActivity | undefined, b: BlobActivity): boolean {
@@ -21,7 +27,10 @@ export function sameActivity(a: BlobActivity | undefined, b: BlobActivity): bool
     a.mood === b.mood &&
     a.partnerId === b.partnerId &&
     a.perception === b.perception &&
-    a.interest === b.interest
+    a.interest === b.interest &&
+    a.says === b.says &&
+    a.heard === b.heard &&
+    a.thought === b.thought
   );
 }
 

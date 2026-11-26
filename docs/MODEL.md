@@ -443,7 +443,7 @@ c_told = clamp(s.heard + sharpen + 0.10 × (s.perception - 50), 0, 100)
 - The teller bends the story to fit their view [27]: ±5 points at perception 0 or 100.
 - Range of one step: −2 to +10 points (in person), 0 to +10 (post), before clamping.
 - Effect: after a few hops, many blobs have heard a stronger claim than the company made. That widens the shipping gap ([#shipping](#shipping)).
-- A real model (`BRAIN=anthropic`) may rewrite the text, but must still return `c_told` from this formula *(design)*. The number drives the sim; the text is flavour.
+- The number drives the sim. What a teller actually says is written after the run by a voice, which is told `c_told` and never changes it (`BRAIN=anthropic` uses a model; see [THINKING.md](./THINKING.md)).
 
 ## Social media
 

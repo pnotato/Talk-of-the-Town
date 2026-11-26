@@ -518,6 +518,45 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+/* What the blob heard, thought and said this round. */
+
+.voice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.voice dt {
+  padding-top: 1px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.voice dd {
+  margin: 0;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.voice-quote::before {
+  content: "\201C";
+}
+
+.voice-quote::after {
+  content: "\201D";
+}
+
+.voice-thought {
+  font-style: italic;
+}
+
 /* Directory. */
 
 .inspector-picker {

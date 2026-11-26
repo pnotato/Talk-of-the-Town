@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"talkofthetown/internal/sim"
@@ -63,7 +65,7 @@ func TestTownBadSeed(t *testing.T) {
 }
 
 func newTest() http.Handler {
-	return New(Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs}, sim.StubBrain{}, nil)
+	return New(Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs}, sim.StubBrain{}, nil, nil)
 }
 
 func postRun(h http.Handler, body string) *httptest.ResponseRecorder {
@@ -87,6 +89,44 @@ func TestRunHappyPath(t *testing.T) {
 	}
 	if len(log.Rounds) != 20 || log.Next == nil || log.Next.Round != 20 || log.Label != "SIMULATED" {
 		t.Fatalf("rounds=%d next=%+v label=%q", len(log.Rounds), log.Next, log.Label)
+	}
+}
+
+// recordVoice counts scenes, so a test can see that /api/run asks the voice it was given.
+type recordVoice struct{ scenes atomic.Int64 }
+
+func (v *recordVoice) Speak(ctx context.Context, s sim.Scene) sim.Lines {
+	v.scenes.Add(1)
+	return sim.Lines{Thought: "a thought", Words: "some words", Hearers: make([]string, len(s.Hearers))}
+}
+
+func TestRunIsNarrated(t *testing.T) {
+	var made atomic.Int64
+	v := &recordVoice{}
+	h := New(Config{MaxRounds: DefaultMaxRounds, MaxBlobs: DefaultMaxBlobs}, sim.StubBrain{},
+		func() sim.Voice { made.Add(1); return v }, nil)
+	rec := postRun(h, `{"seed":42,"choices":["m0-honest"]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var log sim.RunLog
+	if err := json.Unmarshal(rec.Body.Bytes(), &log); err != nil {
+		t.Fatal(err)
+	}
+	events := 0
+	for _, round := range log.Rounds {
+		for _, e := range round.Events {
+			events++
+			if e.Scroll {
+				continue // a scroll's words are the post it read
+			}
+			if e.Words != "some words" || e.Thought != "a thought" || len(e.Replies) != len(e.To) {
+				t.Fatalf("event not narrated by the voice: %+v", e)
+			}
+		}
+	}
+	if made.Load() != 1 || v.scenes.Load() != int64(events) || events == 0 {
+		t.Fatalf("voices made %d, scenes %d, events %d", made.Load(), v.scenes.Load(), events)
 	}
 }
 
@@ -175,7 +215,7 @@ func TestRunCaps(t *testing.T) {
 		{Config{MaxRounds: 10, MaxBlobs: 100}, http.StatusUnprocessableEntity},
 		{Config{MaxRounds: 50, MaxBlobs: 99}, http.StatusUnprocessableEntity},
 	} {
-		if rec := postRun(New(c.cfg, sim.StubBrain{}, nil), body); rec.Code != c.want {
+		if rec := postRun(New(c.cfg, sim.StubBrain{}, nil, nil), body); rec.Code != c.want {
 			t.Errorf("%+v: status = %d, want %d", c.cfg, rec.Code, c.want)
 		}
 	}

@@ -1,7 +1,8 @@
-// The news feed: what the company has announced and shipped by the playing round, newest first.
-// Every item comes from the RunLog's moments; the only words added here are for comparing what was
-// claimed with what was delivered.
-import type { MomentLog } from "../generated/types.ts";
+// The news feed: what the company has announced and shipped by the playing round, and what the
+// town has posted about it, newest first. Company items come from the RunLog's moments (the only
+// words added here compare what was claimed with what was delivered); posts come from its post
+// events, with the words the server's voice wrote for them.
+import type { MomentLog, RunLog } from "../generated/types.ts";
 
 export type FeedMoment = Pick<
   MomentLog,
@@ -76,4 +77,53 @@ export function headlineAt<M extends Pick<MomentLog, "round">>(
   round: number,
 ): M | undefined {
   return moments.findLast((m) => m.round <= round);
+}
+
+/** One reader's reaction to a post, shown under it like a comment. */
+export type PostReply = { id: number; name: string; thought: string };
+
+/** A blob's social media post, as the sim recorded it and the server's voice wrote it. */
+export type SocialPost = {
+  key: string;
+  /** The round it was posted in, counted from 1. */
+  round: number;
+  authorId: number;
+  author: string;
+  words: string;
+  /** Why the author posted it. */
+  thought: string;
+  replies: PostReply[];
+};
+
+/**
+ * The town's posts up to and including round index `round`, newest first, at most `limit` of them.
+ * Posts without words (a run from before the server wrote them) are left out.
+ */
+export function postsAt(
+  run: Pick<RunLog, "rounds" | "town">,
+  round: number,
+  limit = 100,
+): SocialPost[] {
+  const name = (id: number) => run.town.blobs[id]?.name ?? `Blob ${id}`;
+  const posts: SocialPost[] = [];
+  const last = Math.min(round, run.rounds.length - 1);
+  for (let r = last; r >= 0 && posts.length < limit; r--) {
+    const events = run.rounds[r].events;
+    for (let j = events.length - 1; j >= 0 && posts.length < limit; j--) {
+      const event = events[j];
+      if (!event.p || !event.w) continue;
+      posts.push({
+        key: `${r}-${j}`,
+        round: r + 1,
+        authorId: event.f,
+        author: name(event.f),
+        words: event.w,
+        thought: event.t,
+        replies: event.to
+          .map((id, k) => ({ id, name: name(id), thought: event.r?.[k] ?? "" }))
+          .filter((reply) => reply.thought !== ""),
+      });
+    }
+  }
+  return posts;
 }

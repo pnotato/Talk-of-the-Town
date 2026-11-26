@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"talkofthetown/internal/provider"
 	"talkofthetown/internal/server"
 	"talkofthetown/internal/sim"
 )
@@ -19,8 +20,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	newVoice, voice, err := provider.VoiceFromEnv(os.Getenv)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("blobs speak with the %s", voice)
 	if cfg.RunsDir != "" {
-		// Always the stub brain, so starting the server never spends.
+		// Always the stub brain and voice, so starting the server never spends.
 		if path, err := server.WriteSampleRun(cfg.RunsDir, sim.StubBrain{}); err != nil {
 			log.Printf("sample run not written: %v", err)
 		} else {
@@ -29,5 +35,5 @@ func main() {
 	}
 	addr := ":8080"
 	log.Printf("listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, server.New(cfg, sim.StubBrain{}, static)))
+	log.Fatal(http.ListenAndServe(addr, server.New(cfg, sim.StubBrain{}, newVoice, static)))
 }
