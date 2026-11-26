@@ -4,9 +4,11 @@ import {
   HOME_TOP,
   LAMP_HEIGHT,
   ROOF_PLANT,
+  SQUARE_TREE_INSET,
   TREE_HEIGHT,
   TREE_RADIUS,
   type TownLayout,
+  type TownRect,
   type TownTree,
 } from "./layoutTown.ts";
 import {
@@ -16,7 +18,9 @@ import {
   type Obstacle,
   type Point,
   type Solid,
+  SPOT_SPACING,
   standingSpots,
+  type WalkArea,
 } from "./mapLayout.ts";
 
 /** A turned box's corners on the ground. */
@@ -45,19 +49,20 @@ const boxOf = ({ x, z, width, depth, rotationY }: Box): Box => ({ x, z, width, d
  */
 export function townWalkObstacles(town: TownLayout): { what: string; obstacle: Obstacle }[] {
   const { square } = town;
-  const near = Math.max(square.width, square.depth) / 2 + 2 * TREE_RADIUS;
+  const inside = (t: TownTree, r: TownRect) =>
+    Math.abs(t.x - r.x) < r.width / 2 && Math.abs(t.z - r.z) < r.depth / 2;
+  const parks = town.blocks.filter((b) => b.kind === "park");
+  const walked = (t: TownTree) => inside(t, square) || parks.some((p) => inside(t, p));
   return [
     { what: "screen", obstacle: { kind: "box", ...town.screen.footprint } },
     ...town.props.map((p) => ({
       what: p.kind,
       obstacle: { kind: "box" as const, ...boxOf(p) },
     })),
-    ...town.trees
-      .filter((t) => Math.abs(t.x - square.x) < near && Math.abs(t.z - square.z) < near)
-      .map((t) => ({
-        what: "tree",
-        obstacle: { kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size },
-      })),
+    ...town.trees.filter(walked).map((t) => ({
+      what: "tree",
+      obstacle: { kind: "disc" as const, x: t.x, z: t.z, radius: TREE_RADIUS * t.size },
+    })),
   ];
 }
 
@@ -81,9 +86,11 @@ export function townMap(town: TownLayout): MapLayout {
     ...town.trees.map(treeSolid),
   ];
 
-  // Blobs stand anywhere on the square's paving clear of the screen, the benches, the lamps
-  // and the trees' canopies.
-  const outline = boxCorners({ ...square, rotationY: 0 });
+  // Blobs stand on the square's paving between its rows of trees, clear of the screen, the
+  // benches, the lamps and the trees' canopies. Outside a row the paving is too narrow to walk,
+  // and a blob that fit between a bench and a tree there would be boxed in.
+  const width = square.width - 2 * SQUARE_TREE_INSET;
+  const outline = boxCorners({ ...square, width, rotationY: 0 });
   const obstacles: Obstacle[] = townWalkObstacles(town).map((o) => o.obstacle);
 
   // The default view shows every block to its corners and everything taller than a tree.
@@ -115,7 +122,7 @@ export function townMap(town: TownLayout): MapLayout {
       centre: { x: n.x, z: n.z },
     })),
     gathering: {
-      areas: [{ name: "square", outline, spots: standingSpots(outline, obstacles) }],
+      areas: walkAreas(town, outline, obstacles),
     },
     bounds: town.bounds,
     roam: "box",
@@ -124,4 +131,28 @@ export function townMap(town: TownLayout): MapLayout {
     solids,
     height: town.height,
   };
+}
+
+// Where blobs walk: the square first, then the greens (lawn and sidewalk, kerb to kerb), then
+// the streets, which in this car-free town are as good as a path. The road out of town is left
+// to the fields. Where areas meet, a later one drops cells closer than the spacing to earlier
+// ones, so neighbours never crowd.
+function walkAreas(town: TownLayout, square: Point[], obstacles: Obstacle[]): WalkArea[] {
+  const area = (name: string, r: TownRect): WalkArea => {
+    const outline = boxCorners({ ...r, rotationY: 0 });
+    return { name, outline, spots: standingSpots(outline, obstacles) };
+  };
+  const areas: WalkArea[] = [
+    { name: "square", outline: square, spots: standingSpots(square, obstacles) },
+    ...town.blocks.filter((b) => b.kind === "park").map((b) => area("park", b)),
+    ...town.streets.filter((s) => !s.out).map((s) => area("street", s)),
+  ];
+  const kept: Point[] = [];
+  for (const a of areas) {
+    a.spots = a.spots.filter((p) =>
+      kept.every((q) => Math.hypot(p.x - q.x, p.z - q.z) >= SPOT_SPACING - 1e-9),
+    );
+    kept.push(...a.spots);
+  }
+  return areas;
 }

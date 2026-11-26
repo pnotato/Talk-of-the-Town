@@ -57,7 +57,8 @@ const TURN = 0.04; // radians a home may sit off square to its street
 const SQUARE_X = 28;
 const SQUARE_Z = 20;
 const SQUARE_AREA_PER_HOME = 10;
-const SQUARE_TREE_INSET = 2.2;
+/** How far the rows of trees and benches stand in from the square's east and west edges. */
+export const SQUARE_TREE_INSET = 2.2;
 const SQUARE_TREE_SPACING = 5;
 const SQUARE_TREE_SIZE = 0.85;
 const BENCH = { width: 1.8, depth: 0.7 };

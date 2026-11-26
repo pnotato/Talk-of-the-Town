@@ -104,7 +104,7 @@ A **Family** has `id`, `parents` (blob ids), `children` (blob ids) and
 | Field | Type | Meaning |
 |---|---|---|
 | `nodes` | [x, z][] | Position of each walk-graph node, in world units, rounded to 0.001. X points east, Z points south. |
-| `stand` | number | `nodes[0:stand]` are the standing spots, in the map's gathering order (752 in the city, 122 in the town). The rest are extra walking nodes on crosswalks, in front of doors and round corners. |
+| `stand` | number | `nodes[0:stand]` are the standing spots, in the map's gathering order (752 in the city, 780 in the town). The rest are extra walking nodes on crosswalks, in front of doors and round corners. |
 | `ticksPerRound` | number | Moves per round, 10. Each path has `ticksPerRound + 1` entries. |
 
 The graph's edges are not in the log. Every move in a path is along an edge
