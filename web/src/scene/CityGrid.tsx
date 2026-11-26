@@ -12,6 +12,11 @@ const TILES: Record<string, string> = {
   square: "#efe7d4",
   sidewalk: "#dcd5c6",
   park: "#9dba78",
+  // The harbour: pale boards on its decks, and a light lawn on its green.
+  boardwalk: "#e8dcc6",
+  pier: "#e8dcc6",
+  pierhead: "#e8dcc6",
+  green: "#bccf9a",
 };
 
 /**

@@ -5,7 +5,7 @@
 RUNS_DIR ?= runs/scratch
 export
 
-.PHONY: dev server web build test check fmt types citymap townmap maps
+.PHONY: dev server web build test check fmt types citymap townmap harbourmap maps
 
 # Go server + Vite dev server together (Ctrl-C stops both).
 dev:
@@ -38,6 +38,9 @@ check:
 	@mkdir -p bin && node web/scripts/export-town-map.ts $(TOWNMAP_TMP) && diff -u $(TOWNMAP) $(TOWNMAP_TMP) >/dev/null \
 		|| { diff -u $(TOWNMAP) $(TOWNMAP_TMP); rm -f $(TOWNMAP_TMP); echo "$(TOWNMAP) is stale; run: make townmap"; exit 1; }
 	@rm -f $(TOWNMAP_TMP)
+	@mkdir -p bin && node web/scripts/export-harbour-map.ts $(HARBOURMAP_TMP) && diff -u $(HARBOURMAP) $(HARBOURMAP_TMP) >/dev/null \
+		|| { diff -u $(HARBOURMAP) $(HARBOURMAP_TMP); rm -f $(HARBOURMAP_TMP); echo "$(HARBOURMAP) is stale; run: make harbourmap"; exit 1; }
+	@rm -f $(HARBOURMAP_TMP)
 	npm --prefix web run typecheck
 	npm --prefix web test
 	npm --prefix web run lint
@@ -54,6 +57,8 @@ CITYMAP     := internal/sim/citymap/city.json
 CITYMAP_TMP := bin/.city.tmp.json
 TOWNMAP     := internal/sim/citymap/town.json
 TOWNMAP_TMP := bin/.town.tmp.json
+HARBOURMAP     := internal/sim/citymap/harbour.json
+HARBOURMAP_TMP := bin/.harbour.tmp.json
 
 # Regenerate the city's walkable map for the Go path planner from web/src/scene. Commit the result.
 citymap:
@@ -63,7 +68,11 @@ citymap:
 townmap:
 	node web/scripts/export-town-map.ts $(TOWNMAP)
 
-maps: citymap townmap
+# Regenerate the harbour's walkable map for the Go path planner from web/src/scene. Commit the result.
+harbourmap:
+	node web/scripts/export-harbour-map.ts $(HARBOURMAP)
+
+maps: citymap townmap harbourmap
 
 fmt:
 	gofmt -w .

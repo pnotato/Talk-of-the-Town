@@ -120,6 +120,27 @@ func TestRunTownMap(t *testing.T) {
 	}
 }
 
+func TestRunHarbourMap(t *testing.T) {
+	rec := postRun(newTest(), `{"seed":42,"choices":[],"map":"harbour"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body)
+	}
+	var log sim.RunLog
+	if err := json.Unmarshal(rec.Body.Bytes(), &log); err != nil {
+		t.Fatal(err)
+	}
+	g, err := citymap.HarbourGraph()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(log.Map.Nodes) != g.Len() || log.Map.Stand != g.NumStand {
+		t.Fatalf("map has %d nodes (%d stand), want harbour's %d (%d)", len(log.Map.Nodes), log.Map.Stand, g.Len(), g.NumStand)
+	}
+	if len(log.Start) != len(log.Town.Blobs) {
+		t.Fatalf("%d start nodes for %d blobs", len(log.Start), len(log.Town.Blobs))
+	}
+}
+
 func TestRunBadRequests(t *testing.T) {
 	for name, body := range map[string]string{
 		"bad json":       `{"seed":`,

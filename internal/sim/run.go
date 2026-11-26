@@ -76,8 +76,9 @@ type Pending struct {
 
 // Map names a run can walk.
 const (
-	MapCity = "city"
-	MapTown = "town"
+	MapCity    = "city"
+	MapTown    = "town"
+	MapHarbour = "harbour"
 )
 
 // Run plays a run from seed with one option id per moment, in order, with
@@ -87,8 +88,8 @@ func Run(seed uint64, choices []string, brain Brain) (RunLog, error) {
 	return RunMap(MapCity, seed, choices, brain)
 }
 
-// RunMap is Run on the named map: the city or the town. An empty name means
-// the city, so older requests keep working.
+// RunMap is Run on the named map: the city, the town or the harbour. An empty
+// name means the city, so older requests keep working.
 func RunMap(mapName string, seed uint64, choices []string, brain Brain) (RunLog, error) {
 	a, err := content.LoadAnnouncements()
 	if err != nil {
@@ -107,8 +108,10 @@ func mapGraph(name string) (*nav.Graph, error) {
 		return citymap.Graph()
 	case MapTown:
 		return citymap.TownGraph()
+	case MapHarbour:
+		return citymap.HarbourGraph()
 	default:
-		return nil, fmt.Errorf("unknown map %q, want %q or %q", name, MapCity, MapTown)
+		return nil, fmt.Errorf("unknown map %q, want %q, %q or %q", name, MapCity, MapTown, MapHarbour)
 	}
 }
 

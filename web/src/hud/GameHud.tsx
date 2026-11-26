@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import type { RunLog } from "../generated/types.ts";
+import { useReducedMotion } from "../scene/blobMedia.ts";
 import BlobCard from "../inspector/BlobCard.tsx";
 import { useBlobSelection } from "../inspector/BlobSelection.tsx";
 import { stepSelection } from "../inspector/inspectorModel.ts";
@@ -141,6 +142,9 @@ export default function GameHud({
   }
   const unread = view !== "feed" && items.length > (seen.key === runKey ? seen.count : 0);
 
+  // On the harbour the hint also points out the fireworks, which only fly with motion on.
+  const reduceMotion = useReducedMotion();
+  const fireworks = map === "harbour" && !reduceMotion;
   // The hint stays until the first blob is chosen.
   const [hinted, setHinted] = useState(false);
   if (selectedId !== null && !hinted) setHinted(true);
@@ -285,7 +289,9 @@ export default function GameHud({
         !hinted && (
           <p className="hud-hint hud-glass">
             <span className="hint-dot" aria-hidden />
-            Click any blob to see what they think
+            {fireworks
+              ? "Click any blob to see what they think, or the water for fireworks"
+              : "Click any blob to see what they think"}
           </p>
         )
       )}
