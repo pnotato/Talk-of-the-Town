@@ -94,16 +94,18 @@ type blobState struct {
 	perception, interest float64
 	heard                float64
 	hasHeard             bool
+	feel                 feelings // MODEL.md#emotions
 	// sources is only looked up and counted, never iterated, so map order can't leak.
 	sources map[int]bool
 }
 
 // feedPost is one story as it appeared on social media this story cycle: who posted it, the
-// claim their readers get, and the tone that claim carries.
+// claim their readers get, and the tone and feelings that claim carries.
 type feedPost struct {
 	from  int
 	claim float64
 	tone  float64
+	feel  feelings
 }
 
 // State is a run in progress. Scores are float64 per MODEL.md#interactions.
@@ -123,7 +125,8 @@ func NewState(t Town, brain Brain) *State {
 	s := &State{Town: t, Credibility: StartCredibility, brain: brain, parentOf: map[[2]int]bool{}}
 	s.blobs = make([]blobState, len(t.Blobs))
 	for i, b := range t.Blobs {
-		s.blobs[i] = blobState{perception: float64(b.Perception), interest: float64(b.Interest), sources: map[int]bool{}}
+		s.blobs[i] = blobState{perception: float64(b.Perception), interest: float64(b.Interest),
+			feel: feelingsOf(b.Emotions), sources: map[int]bool{}}
 	}
 	for _, f := range t.Families {
 		for _, p := range f.Parents {
@@ -146,10 +149,10 @@ func (s *State) announce(claimed float64, rng *rand.Rand) {
 	// Old stories live on only in perception, interest and credibility, so their posts leave the
 	// feed at the same moment their claims leave the blobs' heads.
 	s.feed = s.feed[:0]
-	tone := 50 + claimed/2
+	tone, feel := 50+claimed/2, newsFeelings(claimed)
 	for i, b := range s.Town.Blobs {
 		if hasTrait(b, TraitLeader) || rng.Float64() < DirectReach {
-			s.hear(i, CompanyID, claimed, tone, ChannelCompany)
+			s.hear(i, CompanyID, claimed, tone, ChannelCompany, feel)
 		}
 	}
 }
@@ -267,12 +270,14 @@ func repeat(sources map[int]bool, sp int) float64 {
 	return 1.0
 }
 
-func (s *State) k(l, sp int, ch Channel) float64 {
+// kFeel is k from MODEL.md#influence without credibility, which is how hard a hearing moves
+// feelings (MODEL.md#emotions): a broken promise makes blobs doubt the company, not each other.
+func (s *State) kFeel(l, sp int, ch Channel) float64 {
 	cw := ChannelW
 	if ch == ChannelPost {
 		cw = ChannelPostW
 	}
-	return cred(s.Town.Blobs[l]) * s.pers(sp) * s.trust(l, sp) * cw * repeat(s.blobs[l].sources, sp) * s.Credibility
+	return cred(s.Town.Blobs[l]) * s.pers(sp) * s.trust(l, sp) * cw * repeat(s.blobs[l].sources, sp)
 }
 
 // retellTone is T from MODEL.md#influence.
@@ -280,12 +285,15 @@ func retellTone(tellerPerception, c float64) float64 {
 	return 0.5*tellerPerception + 0.5*(50+c/2)
 }
 
-// hear applies one hearing (MODEL.md#influence) to listener l.
-func (s *State) hear(l, sp int, c, tone float64, ch Channel) {
-	alpha := math.Min(AlphaCap, AlphaPerK*s.k(l, sp, ch))
+// hear applies one hearing (MODEL.md#influence) to listener l, and spreads the feelings it
+// carries (MODEL.md#emotions). Feelings never change a score.
+func (s *State) hear(l, sp int, c, tone float64, ch Channel, feel feelings) {
+	kf := s.kFeel(l, sp, ch)
+	alpha := math.Min(AlphaCap, AlphaPerK*(kf*s.Credibility))
 	b := &s.blobs[l]
 	b.interest = clampScore(b.interest + alpha*(c-b.interest))
 	b.perception = clampScore(b.perception + alpha*(tone-b.perception))
+	blend(&b.feel, feel, math.Min(FeelCap, FeelPerK*kf*arousal(feel)))
 	if !b.hasHeard {
 		b.heard, b.hasHeard = c, true
 	} else {
@@ -360,13 +368,14 @@ type RunEvent struct {
 	Replies []string  `json:"r"`           // what each To thought on hearing it, same order; empty for a scroll
 }
 
-// Round is one played round. Perception/Interest are indexed by blob id,
-// after decay. Score values are rounded to 0.1 for the log only.
+// Round is one played round. Perception/Interest/Emotions are indexed by blob id,
+// after decay. Score values are rounded to 0.1 for the log only, emotions to whole percent.
 type Round struct {
 	Index         int        `json:"i"`
 	Events        []RunEvent `json:"events"`
 	Perception    []float64  `json:"perception"`
 	Interest      []float64  `json:"interest"`
+	Emotions      EmotionLog `json:"emotions"` // MODEL.md#emotions
 	AvgPerception float64    `json:"avgPerception"`
 	AvgInterest   float64    `json:"avgInterest"`
 	Paths         [][]int    `json:"paths"` // paths[b][k] = blob b's node after k ticks; k = 0 is where the round starts
@@ -397,7 +406,7 @@ func round1(x float64) float64 { return math.Round(x*10) / 10 }
 // Announce, ship and movement run before Step, per MODEL.md#round-order;
 // Step is social only and leaves Paths empty for the caller to fill.
 func (s *State) Step(rng *rand.Rand) Round {
-	r := Round{Index: s.Round, Events: []RunEvent{}, Paths: [][]int{}}
+	r := Round{Index: s.Round, Events: []RunEvent{}, Emotions: newEmotionLog(len(s.blobs)), Paths: [][]int{}}
 	for i, B := range s.Town.Blobs {
 		acted := s.act(i, B, &r, rng)
 		// A blob that did nothing this round may scroll social media instead. MODEL.md#scrolling.
@@ -409,8 +418,10 @@ func (s *State) Step(rng *rand.Rand) Round {
 	for i := range s.blobs {
 		b := &s.blobs[i]
 		b.interest = clampScore(b.interest + DecayRate*(DecayTarget-b.interest))
+		blend(&b.feel, calmOnly, FeelDecay)
 		r.Perception = append(r.Perception, round1(b.perception))
 		r.Interest = append(r.Interest, round1(b.interest))
+		r.Emotions.add(b.feel)
 		r.AvgPerception += b.perception / n
 		r.AvgInterest += b.interest / n
 	}
@@ -446,17 +457,17 @@ func (s *State) act(i int, B Blob, r *Round, rng *rand.Rand) bool {
 		listener = to[0]
 	}
 	c := s.brain.Retell(Retelling{Teller: i, Listener: listener, TellerPerception: b.perception, Heard: b.heard, Channel: ch}).Strength
-	tone := retellTone(b.perception, c)
+	tone, feel := retellTone(b.perception, c), toldFeelings(b.feel, c)
 	e := RunEvent{From: i, To: to, Post: posting, Claim: round1(c), DP: []float64{}, DI: []float64{}, Replies: []string{}}
 	for _, l := range to {
 		p0, i0 := s.blobs[l].perception, s.blobs[l].interest
-		s.hear(l, i, c, tone, ch)
+		s.hear(l, i, c, tone, ch, feel)
 		e.DP = append(e.DP, round1(s.blobs[l].perception-p0))
 		e.DI = append(e.DI, round1(s.blobs[l].interest-i0))
 	}
 	r.Events = append(r.Events, e)
 	if posting {
-		s.feed = append(s.feed, feedPost{from: i, claim: c, tone: tone})
+		s.feed = append(s.feed, feedPost{from: i, claim: c, tone: tone, feel: feel})
 	}
 	return true
 }
@@ -486,7 +497,7 @@ func (s *State) scroll(i int, r *Round, rng *rand.Rand) {
 		k--
 	}
 	p0, i0 := s.blobs[i].perception, s.blobs[i].interest
-	s.hear(i, chosen.from, chosen.claim, chosen.tone, ChannelPost)
+	s.hear(i, chosen.from, chosen.claim, chosen.tone, ChannelPost, chosen.feel)
 	r.Events = append(r.Events, RunEvent{
 		From:    i,
 		To:      []int{chosen.from},

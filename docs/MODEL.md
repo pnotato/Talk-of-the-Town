@@ -184,6 +184,7 @@ Per blob: roll the tag count, choose that many distinct categories uniformly at 
 |---|---|---|---|
 | `perception` | 50 | 0–100 | *(design)*, [BLOBS.md](./BLOBS.md#properties) |
 | `interest` | 20 | 0–100 | *(design)*, [BLOBS.md](./BLOBS.md#properties) |
+| `emotions` | calm 100, every other emotion 0 | each 0–100, adding up to 100 | *(design)*, [#emotions](#emotions) |
 
 - Every blob starts with exactly these values. No noise *(design)*.
 - 50 is neutral. 20 means most blobs have heard of the company but do not care yet.
@@ -207,6 +208,7 @@ Per blob, on top of [#starting-scores](#starting-scores) *(design)*:
 |---|---|---|---|---|
 | `heard` | float or none | 0–100 | none | none at each announcement |
 | `sources` | set of speaker ids | 0–100 ids | empty | empty at each announcement |
+| `F` | emotion mix, 7 floats | each 0–100, adding up to 100 | calm 100 | never ([#emotions](#emotions)) |
 
 - `heard` is the claim strength this blob currently believes the company made. None means it has not heard the current story.
 - The company itself is source id `-1`.
@@ -228,6 +230,7 @@ if r % 10 == 8: ship(story[r/10])              // #shipping
 repeat 10 times: move every blob one tick      // #movement
 for b in blobs (by id): act(b)                 // #actions
 for b in blobs: b.interest += 0.03 * (10 - b.interest)   // #decay
+for b in blobs: b.F += 0.10 * (calm - b.F)               // #emotions
 record town averages
 ```
 
@@ -471,6 +474,99 @@ A blob who did not talk or post may still scroll social media *(design)*:
 - Every round, after all actions: `interest += 0.03 × (10 - interest)` *(design)*.
 - Interest drifts toward 10 with a half-life of about 23 rounds. Keeps interest from sitting at 100 *(design)*.
 - Perception does not decay. A debunked claim never fully wears off [32].
+
+## Emotions
+
+Every blob also has an emotion mix `F`: seven shares in percent that always add up to 100 *(design)*. Six are basic emotions from Plutchik's wheel [42]; disgust and anticipation are left out, folded into anger and surprise *(design)*. The seventh, calm, is the part of the blob nothing has stirred.
+
+| Emotion | Face and colour in the scene |
+|---|---|
+| `calm` | flat, grey |
+| `joy` | smile, gold |
+| `trust` | sleepy, green |
+| `surprise` | o, orange |
+| `fear` | worried, purple |
+| `sadness` | frown, blue |
+| `anger` | angry, red |
+
+- Every blob starts at calm 100 ([#starting-scores](#starting-scores)).
+- Emotions change no score, event or draw *(design)*. Every perception, interest, event and path is exactly what it was before emotions existed; they are a layer on top that the player watches spread.
+- A blob wears the face and colour of its biggest share. Calm wins ties, so a blob only changes colour once a feeling outweighs its calm *(design)*. That rule lives in the client (`moodForEmotions` in `web/src/scene/blobMood.ts`), since the sim only logs the mix.
+- The log records each blob's mix after every round, each share rounded to a whole percent (`Round.emotions`), and the starting mix on `Blob.emotions`.
+
+### What a hearing carries
+
+Every hearing carries an emotion mix `M`, the same way it carries a claim and a tone *(design)*:
+
+```
+news(c)  = (1 − c/100) × honest + (c/100) × bold
+honest   = trust 60, joy 20, calm 20
+bold     = surprise 50, joy 30, fear 20
+
+company announcement:  M = news(claimed)
+retelling by s:        M[e]    = s.F[e] + s.F[calm]/100 × news(c_told)[e]    for e ≠ calm
+                       M[calm] = s.F[calm]/100 × news(c_told)[calm]
+post readers and scrollers get the poster's M as it was when posted
+```
+
+- Bold, novel claims stir surprise and fear; honest ones trust and joy. False news online inspires fear and surprise, true news trust and joy [25].
+- A teller passes on what they feel. Whatever share of them is calm, the story speaks for itself *(design)*. Because drift sharpens `c_told` ([#drift](#drift)), a story grows more startling as it spreads.
+- `M` adds up to 100 whenever `s.F` does.
+
+### Spreading
+
+```
+k_feel     = cred(l) × pers(s) × trust(l, s) × channel × repeat(l, s)    // k from #influence, without credibility
+arousal(M) = Σ w[e] × M[e] / 100
+a          = min(0.60, 0.40 × k_feel × arousal(M))
+l.F        = l.F + a × (M − l.F)
+```
+
+| Emotion | Arousal weight `w` | Source |
+|---|---|---|
+| `calm`, `joy`, `trust` | 1.0 | *(design)* |
+| `surprise`, `fear` | 1.5 | *(design)*, [39] |
+| `sadness` | 0.5 | *(design)*, [39] |
+| `anger` | 2.0 | *(design)*, [40], [41] |
+
+- Feelings pass from person to person [37], online as well as face to face [38].
+- High-arousal feelings (awe, anger, anxiety) get shared more and sadness less [39]. Anger spreads further than joy [40], and moral outrage further still [41]. So a hearing of pure rage moves feelings 2× as far as a calm one and pure sadness 0.5× *(design values)*.
+- Typical `a` (average blobs, trust 1, a calm hearing): 0.40. Cap 0.60 *(design)*.
+- A blend never overshoots: nobody catches more of a feeling than the hearing carries. Rage spreads but never snowballs by itself *(design)*. An earlier draft weighted each emotion separately and rescaled; anger then grew without limit, and honest runs ended all red.
+- Credibility is left out of `k_feel`: a broken promise makes blobs doubt the company, not each other *(design)*.
+- Computed in the same `hear` as [#influence](#influence), with `repeat` taken before `s` joins `l.sources`.
+
+### Shipping feelings
+
+At each ship, after the scores move ([#shipping](#shipping)), with the same `h`, `w` and `gap = delivered − h`:
+
+```
+if gap >= 0: M = joy 70, trust 30
+else:        d = −gap;  M = anger 100 × d/(d + 20), sadness the rest
+b.F += w × min(0.60, 0.015 × |gap|) × (M − b.F)
+```
+
+- Small let-downs disappoint, big ones enrage *(design)*: a gap of −10 is 33% anger, −20 is 50%, −45 is 69%.
+- Getting more than you heard brings joy and trust *(design)*.
+- 0.015 per point of gap, capped at 0.60 *(design)*. Blobs who never heard react at half weight, as with perception.
+
+### Calming down
+
+- Every round, after all actions: `F += 0.10 × (calm 100 − F)` *(design)*. Feelings fade back to calm with a half-life of about 6.6 rounds, so each story's mood mostly fades by the next.
+
+### Check
+
+Go engine, seeds 1–5, stub brain. Blobs by the colour they show (biggest share), mean of 5 seeds:
+
+| Strategy (all 5 stories) | Round 4 | Round 9 (after the first ship) | Round 18 (after the second) |
+|---|---|---|---|
+| Honest | 83 calm, 17 trust | 66 calm, 31 trust, 2 surprise | 60 calm, 40 surprise |
+| Bold | 42 calm, 58 surprise | 96 anger, 3 surprise, 1 calm | 100 anger |
+
+- Town average anger at round 9: honest 6%, bold 35%.
+- Honest stories warm the town (trust), bold ones excite it (surprise) and then turn it red at the ship.
+- Later honest stories (claims 60–70) read as surprise, because they are big claims too.
+- `TestBrokenPromisesSpreadRage` checks bold against honest on seeds 1–10. These are design checks, not calibration.
 
 ## Claim scale
 

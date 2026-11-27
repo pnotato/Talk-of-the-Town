@@ -2,12 +2,14 @@
 // Run: node --experimental-strip-types --test web/src/inspector/*.test.ts (Node strips the types natively).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import type { Emotions } from "../generated/types.ts";
 import { moodFor } from "../scene/blobMood.ts";
 import {
   activityText,
   capitalise,
   describeAction,
   displayScore,
+  emotionShares,
   interestLabel,
   perceptionLabel,
   sameActivity,
@@ -71,6 +73,53 @@ describe("activities", () => {
     assert.ok(!sameActivity({ ...a, perception: 51 }, a));
     assert.ok(!sameActivity({ ...a, interest: 21 }, a));
     assert.ok(sameActivity({ state: "idle", mood: "flat" }, { state: "idle", mood: "flat" }));
+  });
+
+  test("counts an emotion change as a new activity, comparing shares rather than objects", () => {
+    const a = { state: "idle", mood: "flat", emotions: { ...CALM } } as const;
+    assert.ok(sameActivity({ ...a, emotions: { ...CALM } }, a));
+    assert.ok(!sameActivity({ ...a, emotions: { ...CALM, calm: 90, anger: 10 } }, a));
+    assert.ok(!sameActivity({ state: "idle", mood: "flat" }, a));
+  });
+});
+
+const CALM: Emotions = { calm: 100, joy: 0, trust: 0, surprise: 0, fear: 0, sadness: 0, anger: 0 };
+
+describe("emotionShares", () => {
+  test("lists the shares biggest first, leaving out the empty ones", () => {
+    assert.deepEqual(emotionShares({ ...CALM, calm: 20, anger: 50, sadness: 30 }), [
+      { emotion: "anger", percent: 50 },
+      { emotion: "sadness", percent: 30 },
+      { emotion: "calm", percent: 20 },
+    ]);
+    assert.deepEqual(emotionShares(CALM), [{ emotion: "calm", percent: 100 }]);
+  });
+
+  test("always adds up to 100, though the logged shares are each rounded", () => {
+    for (const mix of [
+      { ...CALM, calm: 34, joy: 33, trust: 34 }, // 101
+      { ...CALM, calm: 33, joy: 33, trust: 33 }, // 99
+      { ...CALM, calm: 14, joy: 15, trust: 14, surprise: 15, fear: 14, sadness: 14, anger: 15 },
+    ]) {
+      const shares = emotionShares(mix);
+      assert.equal(
+        shares.reduce((sum, s) => sum + s.percent, 0),
+        100,
+        JSON.stringify(mix),
+      );
+    }
+  });
+
+  test("breaks ties in the emotions' own order, and is empty for an empty mix", () => {
+    assert.deepEqual(
+      emotionShares({ ...CALM, calm: 50, anger: 50 }).map((s) => s.emotion),
+      ["calm", "anger"],
+    );
+    assert.deepEqual(
+      emotionShares({ ...CALM, calm: 0, joy: 50, trust: 50 }).map((s) => s.emotion),
+      ["joy", "trust"],
+    );
+    assert.deepEqual(emotionShares({ ...CALM, calm: 0 }), []);
   });
 });
 

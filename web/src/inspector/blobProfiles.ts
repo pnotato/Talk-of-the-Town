@@ -1,3 +1,4 @@
+import type { Emotions } from "../generated/types.ts";
 import type { Shape } from "../scene/blobGeometry.ts";
 import { MOODS, type Mood, moodFor } from "../scene/blobMood.ts";
 import { SCENARIOS } from "../scene/blobScenarios.ts";
@@ -84,7 +85,9 @@ export type BlobProfile = {
   /** Demo scores, 0–100. */
   perception: number;
   interest: number;
-  /** The face those scores give at rest, for before the scene reports a mood. */
+  /** The blob's emotion mix in percent, when it comes from a run; the sandboxes have none. */
+  emotions?: Emotions;
+  /** The face it has at rest, for before the scene reports a mood. */
   mood: Mood;
   group: ProfileGroup;
   /** Where the blob stands in the sandbox, for the picker, e.g. "Talking scene". */

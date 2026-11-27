@@ -5,6 +5,7 @@ import BlobPortrait from "../scene/BlobPortrait.tsx";
 import type { BlobProfile } from "./blobProfiles.ts";
 import { useBlobSelection } from "./BlobSelection.tsx";
 import { capitalise, describeAction, interestLabel, perceptionLabel } from "./inspectorModel.ts";
+import EmotionMix from "./EmotionMix.tsx";
 import Meter from "./Meter.tsx";
 import { personalityTags, specialTags } from "./traitGroups.ts";
 import "./inspector.css";
@@ -173,6 +174,7 @@ export default function BlobCard({
   const mood = activity?.mood ?? profile.mood;
   const perception = activity?.perception ?? profile.perception;
   const interest = activity?.interest ?? profile.interest;
+  const emotions = activity?.emotions ?? profile.emotions;
   const action = describeAction(activity);
   const special = specialTags(profile);
   const personality = personalityTags(profile);
@@ -261,6 +263,7 @@ export default function BlobCard({
           words={perceptionLabel(perception)}
           tone="perception"
         />
+        {emotions && <EmotionMix emotions={emotions} />}
       </div>
 
       {(special.length > 0 || personality.length > 0) && (

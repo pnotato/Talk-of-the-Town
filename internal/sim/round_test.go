@@ -231,14 +231,14 @@ func TestWorkedExample(t *testing.T) {
 		got, want float64
 	}{
 		{"tone", retellTone(60, 94), 78.5},
-		{"k", st.k(1, 0, ChannelTalk), 4.5},
+		{"k", st.kFeel(1, 0, ChannelTalk) * st.Credibility, 4.5},
 	}
 	for _, c := range cases {
 		if !near(c.got, c.want) {
 			t.Errorf("%s = %v, want %v", c.name, c.got, c.want)
 		}
 	}
-	st.hear(1, 0, 94, 78.5, ChannelTalk)
+	st.hear(1, 0, 94, 78.5, ChannelTalk, calmOnly)
 	b := st.blobs[1]
 	for _, c := range []struct {
 		name      string

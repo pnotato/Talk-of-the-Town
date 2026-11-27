@@ -25,6 +25,7 @@ There's no win or lose. The player aims for both **perception** and **interest**
   - Persuasiveness: `unconvincing` / `charismatic` (how much others believe them)
   - Special: `family-oriented`, `recluse`, `leader`
 - `perception` (starts 50) and `interest` (starts 20) are separate scores, 0–100. A blob can talk about the company a lot while thinking little of it.
+- `emotions`: shares in percent adding up to 100 (calm, joy, trust, surprise, fear, sadness, anger), starting all calm. They spread with the story, anger fastest, and set the blob's colour and face (its biggest share). They never change a score. See `docs/MODEL.md#emotions`.
 
 Names are fictional. All companies are fictional.
 

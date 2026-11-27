@@ -4,8 +4,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import type { RunLog } from "../generated/types.ts";
-import { moodFor } from "./blobMood.ts";
+import { moodForEmotions } from "./blobMood.ts";
 import { cityActivities } from "./cityActivity.ts";
+import { emotionsAt } from "./replay.ts";
 
 const GOLDEN = JSON.parse(
   readFileSync(new URL("../../../internal/sim/testdata/golden_run.json", import.meta.url), "utf8"),
@@ -89,7 +90,8 @@ describe("cityActivities", () => {
       const blob = GOLDEN.town.blobs[b];
       assert.equal(activities[b].perception, blob.perception, `blob ${b}`);
       assert.equal(activities[b].interest, blob.interest, `blob ${b}`);
-      assert.equal(activities[b].mood, moodFor(blob.perception, blob.interest), `blob ${b}`);
+      assert.deepEqual(activities[b].emotions, blob.emotions, `blob ${b}`);
+      assert.equal(activities[b].mood, moodForEmotions(blob.emotions), `blob ${b}`);
     }
   });
 
@@ -99,11 +101,9 @@ describe("cityActivities", () => {
     for (let b = 0; b < COUNT; b++) {
       assert.equal(activities[b].perception, completed.perception[b], `blob ${b}`);
       assert.equal(activities[b].interest, completed.interest[b], `blob ${b}`);
-      assert.equal(
-        activities[b].mood,
-        moodFor(completed.perception[b], completed.interest[b]),
-        `blob ${b}`,
-      );
+      assert.equal(activities[b].emotions?.anger, completed.emotions.anger[b], `blob ${b}`);
+      assert.deepEqual(activities[b].emotions, emotionsAt(GOLDEN, b, 1), `blob ${b}`);
+      assert.equal(activities[b].mood, moodForEmotions(emotionsAt(GOLDEN, b, 1)), `blob ${b}`);
     }
   });
 
