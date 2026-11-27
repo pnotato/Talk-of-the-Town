@@ -39,7 +39,7 @@ func TestBlobJSONShape(t *testing.T) {
 	if err := json.Unmarshal(mustJSON(t, townFor(1).Blobs[0]), &raw); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"id", "name", "shape", "age", "traits", "perception", "interest", "familyId", "homeId", "neighbourhoodId"} {
+	for _, k := range []string{"id", "name", "shape", "age", "traits", "perception", "interest", "emotions", "familyId", "homeId", "neighbourhoodId"} {
 		if _, ok := raw[k]; !ok {
 			t.Errorf("blob JSON missing %q", k)
 		}

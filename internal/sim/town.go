@@ -115,16 +115,17 @@ const (
 
 // Blob is one townsperson. FamilyID is NoFamily (-1) when not in a family.
 type Blob struct {
-	ID              int     `json:"id"`
-	Name            string  `json:"name"`
-	Shape           Shape   `json:"shape"`
-	Age             int     `json:"age"`
-	Traits          []Trait `json:"traits"`
-	Perception      int     `json:"perception"`
-	Interest        int     `json:"interest"`
-	FamilyID        int     `json:"familyId"`
-	HomeID          int     `json:"homeId"`
-	NeighbourhoodID int     `json:"neighbourhoodId"`
+	ID              int      `json:"id"`
+	Name            string   `json:"name"`
+	Shape           Shape    `json:"shape"`
+	Age             int      `json:"age"`
+	Traits          []Trait  `json:"traits"`
+	Perception      int      `json:"perception"`
+	Interest        int      `json:"interest"`
+	Emotions        Emotions `json:"emotions"`
+	FamilyID        int      `json:"familyId"`
+	HomeID          int      `json:"homeId"`
+	NeighbourhoodID int      `json:"neighbourhoodId"`
 }
 
 // Family is parents and children sharing a shape and home.
@@ -343,11 +344,12 @@ func NewTown(rng *rand.Rand) Town {
 		}
 	}
 
-	// 8. Starting scores, then names (MODEL.md#names; not in the order list, so last).
+	// 8. Starting scores and emotions, then names (MODEL.md#names; not in the order list, so last).
 	nameOrder := rng.Perm(len(names))
 	for i := range blobs {
 		blobs[i].Perception = StartPerception
 		blobs[i].Interest = StartInterest
+		blobs[i].Emotions = Emotions{Calm: StartCalm}
 		blobs[i].Name = names[nameOrder[i]]
 	}
 

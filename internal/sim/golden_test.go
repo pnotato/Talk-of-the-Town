@@ -358,6 +358,22 @@ func checkRunLog(t *testing.T, l RunLog, choices []string) {
 			sp += r.Perception[b]
 			si += r.Interest[b]
 		}
+		for k, list := range r.Emotions.fields() {
+			if len(*list) != 100 {
+				t.Fatalf("round %d: emotion %d has %d blobs, want 100", i, k, len(*list))
+			}
+		}
+		for b := range 100 {
+			total := 0.0
+			for k, list := range r.Emotions.fields() {
+				score(t, fmt.Sprintf("round %d blob %d emotion %d", i, b, k), (*list)[b])
+				total += (*list)[b]
+			}
+			// Seven shares, each rounded to a whole percent.
+			if math.Abs(total-100) > 3.5 {
+				t.Errorf("round %d blob %d: emotions add up to %v, want 100", i, b, total)
+			}
+		}
 		score(t, fmt.Sprintf("round %d avgPerception", i), r.AvgPerception)
 		score(t, fmt.Sprintf("round %d avgInterest", i), r.AvgInterest)
 		// Per-blob values and averages are each rounded to 0.1, so allow 0.1.

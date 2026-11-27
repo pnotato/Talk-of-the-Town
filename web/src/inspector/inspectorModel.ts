@@ -1,4 +1,5 @@
-import type { Mood } from "../scene/blobMood.ts";
+import type { Emotions } from "../generated/types.ts";
+import { type Emotion, EMOTIONS, type Mood } from "../scene/blobMood.ts";
 
 // Pure helpers for the blob inspector: wording for scores and activities, and selection stepping.
 // No sim rules live here. Everything the inspector shows is either authored sandbox data or
@@ -9,9 +10,10 @@ export type BlobActivity = {
   state: "idle" | "talking" | "listening" | "posting" | "scrolling" | "walking";
   mood: Mood;
   partnerId?: number;
-  /** The blob's live scores, when the scene knows them (the city run does). */
+  /** The blob's live scores and emotion mix, when the scene knows them (the city run does). */
   perception?: number;
   interest?: number;
+  emotions?: Emotions;
   /** What the blob said or posted this round, when the run has words. */
   says?: string;
   /** What reached the blob this round: what it was told, or the post it read. */
@@ -28,10 +30,44 @@ export function sameActivity(a: BlobActivity | undefined, b: BlobActivity): bool
     a.partnerId === b.partnerId &&
     a.perception === b.perception &&
     a.interest === b.interest &&
+    sameEmotions(a.emotions, b.emotions) &&
     a.says === b.says &&
     a.heard === b.heard &&
     a.thought === b.thought
   );
+}
+
+function sameEmotions(a: Emotions | undefined, b: Emotions | undefined): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  return EMOTIONS.every((emotion) => a[emotion] === b[emotion]);
+}
+
+/**
+ * An emotion mix as whole percents that add up to exactly 100, biggest first, leaving out
+ * any that round to 0. The sim logs each share rounded on its own, so the logged shares
+ * can add up to a point or so either side of 100; this hands the difference out by largest
+ * remainder. Ties keep EMOTIONS order.
+ */
+export function emotionShares(emotions: Emotions): { emotion: Emotion; percent: number }[] {
+  const total = EMOTIONS.reduce((sum, emotion) => sum + Math.max(0, emotions[emotion]), 0);
+  if (total <= 0) return [];
+  const exact = EMOTIONS.map((emotion) => ({
+    emotion,
+    raw: (Math.max(0, emotions[emotion]) * 100) / total,
+  }));
+  const shares = exact.map(({ emotion, raw }) => ({ emotion, percent: Math.floor(raw), raw }));
+  let left = 100 - shares.reduce((sum, s) => sum + s.percent, 0);
+  const byRemainder = [...shares].sort((a, b) => b.raw - b.percent - (a.raw - a.percent));
+  for (const share of byRemainder) {
+    if (left <= 0) break;
+    share.percent += 1;
+    left -= 1;
+  }
+  return shares
+    .filter((s) => s.percent > 0)
+    .sort((a, b) => b.percent - a.percent)
+    .map(({ emotion, percent }) => ({ emotion, percent }));
 }
 
 /**

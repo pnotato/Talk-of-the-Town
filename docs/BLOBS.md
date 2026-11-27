@@ -14,7 +14,8 @@ Master document for blob properties and interactions. Every rule is either cited
   "age": 20,
   "traits": ["skeptic", "recluse"],
   "perception": 50,
-  "interest": 20
+  "interest": 20,
+  "emotions": { "calm": 100, "joy": 0, "trust": 0, "surprise": 0, "fear": 0, "sadness": 0, "anger": 0 }
 }
 ```
 
@@ -25,6 +26,7 @@ Master document for blob properties and interactions. Every rule is either cited
 - `traits`: personality tags. See Traits.
 - `perception`: 0–100. What the blob thinks of the company. Starts at 50 *(design)*.
 - `interest`: 0–100. How much the blob cares. Starts at 20 *(design)*.
+- `emotions`: how the blob feels, as shares in percent that add up to 100: calm, joy, trust, surprise, fear, sadness and anger. Starts all calm *(design)*. The blob's colour and face show its biggest share. See [MODEL.md](./MODEL.md#emotions).
 
 No win or lose. Aim for both scores high by the end.
 
@@ -102,6 +104,12 @@ Each round a blob talks, posts, scrolls social media, or idles.
 - Chance to share = socialness + interest, not perception [1], [2].
 - Retellings drift: details drop, the striking parts grow, and the story bends to fit the teller [27].
 - Bridges between shapes (border blobs, mixed neighbours) carry news between groups [28].
+
+**Feeling it**
+- Feelings pass from person to person, online as well as face to face [37], [38]. They never change what a blob believes; they ride along with the story.
+- Bold, surprising claims stir surprise and fear; honest ones trust and joy [25].
+- High-arousal feelings spread most and sadness least [39]. Anger spreads furthest of all [40], [41].
+- A small let-down disappoints; a big one enrages *(design)*.
 
 **When the product ships**
 - Perception moves by the gap between what was claimed and what was delivered [29].
@@ -183,3 +191,15 @@ Each round a blob talks, posts, scrolls social media, or idles.
 [35] MediaSmarts, "Young Canadians in a wireless world, phase III: Life online," Ottawa, ON, Canada, 2014. [Online]. Available: https://mediasmarts.ca/sites/default/files/pdfs/publication-report/summary/YCWWIII_Life_Online_ExecutiveSummary.pdf
 
 [36] Pew Research Center, "Teens, social media and AI chatbots 2025," Washington, DC, USA, Dec. 2025. [Online]. Available: https://www.pewresearch.org
+
+[37] E. Hatfield, J. T. Cacioppo, and R. L. Rapson, "Emotional contagion," *Curr. Dir. Psychol. Sci.*, vol. 2, no. 3, pp. 96–99, Jun. 1993, doi: 10.1111/1467-8721.ep10770953.
+
+[38] A. D. I. Kramer, J. E. Guillory, and J. T. Hancock, "Experimental evidence of massive-scale emotional contagion through social networks," *Proc. Natl. Acad. Sci. USA*, vol. 111, no. 24, pp. 8788–8790, Jun. 2014, doi: 10.1073/pnas.1320040111.
+
+[39] J. Berger and K. L. Milkman, "What makes online content viral?," *J. Marketing Res.*, vol. 49, no. 2, pp. 192–205, Apr. 2012, doi: 10.1509/jmr.10.0353.
+
+[40] R. Fan, J. Zhao, Y. Chen, and K. Xu, "Anger is more influential than joy: Sentiment correlation in Weibo," *PLoS ONE*, vol. 9, no. 10, Art. no. e110184, Oct. 2014, doi: 10.1371/journal.pone.0110184.
+
+[41] W. J. Brady, J. A. Wills, J. T. Jost, J. A. Tucker, and J. J. Van Bavel, "Emotion shapes the diffusion of moralized content in social networks," *Proc. Natl. Acad. Sci. USA*, vol. 114, no. 28, pp. 7313–7318, Jul. 2017, doi: 10.1073/pnas.1618923114.
+
+[42] R. Plutchik, *Emotion: A Psychoevolutionary Synthesis*. New York, NY, USA: Harper & Row, 1980.

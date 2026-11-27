@@ -1,5 +1,7 @@
-// A blob's mood: what its face and body colour show about its scores. Pure data and maths, so the
-// scene and the tests share it.
+// A blob's mood: what its face and body colour show. In the game that is the blob's strongest
+// emotion; in the sandboxes, whose blobs have authored scores and no emotions, it comes from the
+// scores. Pure data and maths, so the scene and the tests share it.
+import type { Emotions } from "../generated/types.ts";
 
 /** Happiest first. */
 export const MOODS = ["smile", "sleepy", "flat", "o", "frown", "worried", "angry"] as const;
@@ -18,16 +20,46 @@ export const MOOD_COLOR: Record<Mood, string> = {
   angry: "#ae3935",
 };
 
-/** A few words on what each mood says about the blob, for labels. */
-export const MOOD_MEANING: Record<Mood, string> = {
-  smile: "likes the company",
-  sleepy: "doesn't care",
-  flat: "undecided",
-  o: "intrigued",
-  frown: "doubts it",
-  worried: "doubts it, cares",
-  angry: "angry at it",
+/** An emotion the sim tracks for every blob, as a share of its emotion mix. */
+export type Emotion = keyof Emotions;
+
+/** Emotions in the same order as their moods in MOODS, happiest first. */
+export const EMOTIONS = ["joy", "trust", "calm", "surprise", "sadness", "fear", "anger"] as const;
+
+/** The face and colour each emotion wears: one mood each, so every emotion reads at a glance. */
+export const EMOTION_MOOD: Record<Emotion, Mood> = {
+  joy: "smile",
+  trust: "sleepy",
+  calm: "flat",
+  surprise: "o",
+  sadness: "frown",
+  fear: "worried",
+  anger: "angry",
 };
+
+/** A word for how a blob wearing each mood feels, for labels. */
+export const MOOD_MEANING: Record<Mood, string> = {
+  smile: "joyful",
+  sleepy: "trusting",
+  flat: "calm",
+  o: "surprised",
+  frown: "sad",
+  worried: "afraid",
+  angry: "angry",
+};
+
+/**
+ * The game's mood for an emotion mix: its biggest share, so the face and colour show what the blob
+ * feels most. Calm wins ties, so a blob only changes colour once a feeling outweighs it; between
+ * two feelings, the one earlier in EMOTIONS wins.
+ */
+export function moodForEmotions(emotions: Emotions): Mood {
+  let best: Emotion = "calm";
+  for (const emotion of EMOTIONS) {
+    if (emotions[emotion] > emotions[best]) best = emotion;
+  }
+  return EMOTION_MOOD[best];
+}
 
 export type EyeStyle = "open" | "shut";
 export type BrowStyle = "worried" | "angry";
@@ -48,7 +80,7 @@ export const MOOD_FACE: Record<Mood, { eyes: EyeStyle; brows?: BrowStyle; mouth:
 };
 
 /**
- * The one place that turns a blob's perception and interest (0–100) into a mood. Perception picks
+ * The sandboxes' mood for authored perception and interest (0–100). Perception picks
  * the band: likes the company, undecided, doubts it, or angry. Interest picks within a band:
  * undecided blobs who don't care doze off and ones who care a lot look intrigued; doubters who
  * care look worried.

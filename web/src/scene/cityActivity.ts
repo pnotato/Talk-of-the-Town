@@ -1,18 +1,19 @@
 // What every city blob is doing in a round, for the inspector. Derived from what the sim recorded
 // (rounds[].events and paths), never invented: a blob talks when it is an event's speaker, listens
 // when it is an in-person listener, posts when it holds the phone, scrolls when it reads a post,
-// and walks when its path moves. Scores and moods come from the same replay helpers the blobs
-// themselves use. What blobs say, hear and think comes from the events' words (w, t, r), which the
+// and walks when its path moves. Scores, emotions and moods come from the same replay helpers the
+// blobs themselves use. What blobs say, hear and think comes from the events' words (w, t, r), which the
 // server's voice wrote for the same events.
 import type { RunLog } from "../generated/types.ts";
 import type { BlobActivity } from "../inspector/inspectorModel.ts";
-import { moodAt } from "./replay.ts";
+import { moodForEmotions } from "./blobMood.ts";
+import { emotionsAt } from "./replay.ts";
 
 /**
  * Every blob's activity in `round` (an index into the run's rounds) after `done` rounds have
  * completed. Posting wins over scrolling, then talking, listening and walking, because those are
- * what the blob visibly does. The scores are the ones the replay shows at that point: the town's
- * starting values before round 0 is done, then the completed round's scores.
+ * what the blob visibly does. The scores and emotions are the ones the replay shows at that
+ * point: the town's starting values before round 0 is done, then the completed round's.
  */
 export function cityActivities(
   run: RunLog,
@@ -81,7 +82,8 @@ export function cityActivities(
 
   const activities: Record<number, BlobActivity> = {};
   for (let b = 0; b < count; b++) {
-    const mood = moodAt(run, b, done);
+    const emotions = emotionsAt(run, b, done);
+    const mood = moodForEmotions(emotions);
     const perception = scores ? scores.perception[b] : run.town.blobs[b].perception;
     const interest = scores ? scores.interest[b] : run.town.blobs[b].interest;
     let walking = false;
@@ -121,6 +123,7 @@ export function cityActivities(
     } else {
       activity = { state: "idle", mood, perception, interest };
     }
+    activity.emotions = emotions;
     // Only the fields the run has, so a run without words reports exactly what it did before.
     const thought = spoke[b] ?? took[b];
     if (says[b] !== undefined) activity.says = says[b];

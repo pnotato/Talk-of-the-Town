@@ -40,6 +40,7 @@ export interface Blob {
   traits: Trait[];
   perception: number;
   interest: number;
+  emotions: Emotions;
   familyId: number;
   homeId: number;
   neighbourhoodId: number;
@@ -70,6 +71,7 @@ export interface Round {
   events: RunEvent[];
   perception: number[];
   interest: number[];
+  emotions: EmotionLog;
   avgPerception: number;
   avgInterest: number;
   paths: number[][];
@@ -95,6 +97,16 @@ export interface Pending {
   options: Option[];
 }
 
+export interface Emotions {
+  calm: number;
+  joy: number;
+  trust: number;
+  surprise: number;
+  fear: number;
+  sadness: number;
+  anger: number;
+}
+
 export interface RunEvent {
   f: number;
   to: number[];
@@ -106,6 +118,16 @@ export interface RunEvent {
   w: string;
   t: string;
   r: string[];
+}
+
+export interface EmotionLog {
+  calm: number[];
+  joy: number[];
+  trust: number[];
+  surprise: number[];
+  fear: number[];
+  sadness: number[];
+  anger: number[];
 }
 
 export interface Option {

@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import type { RunLog } from "../generated/types.ts";
-import { moodFor } from "./blobMood.ts";
+import type { Emotions, RunLog } from "../generated/types.ts";
 import {
+  emotionsAt,
   headingAt,
   moodAt,
   positionAt,
@@ -22,12 +22,13 @@ import {
 //   z = 1.8   3  4  5
 //   z = 0     0  1  2
 //             x = 0, 1.8, 3.6
+const CALM: Emotions = { calm: 100, joy: 0, trust: 0, surprise: 0, fear: 0, sadness: 0, anger: 0 };
 const FIXTURE: ReplayRun = {
   town: {
     blobs: [
-      { perception: 50, interest: 20 },
-      { perception: 50, interest: 20 },
-      { perception: 50, interest: 20 },
+      { perception: 50, interest: 20, emotions: CALM },
+      { perception: 50, interest: 20, emotions: CALM },
+      { perception: 50, interest: 20, emotions: CALM },
     ],
   },
   map: {
@@ -48,6 +49,16 @@ const FIXTURE: ReplayRun = {
       events: [],
       perception: [70, 30, 10],
       interest: [40, 60, 5],
+      // Joyful, afraid, angry.
+      emotions: {
+        calm: [40, 30, 0],
+        joy: [60, 0, 0],
+        trust: [0, 0, 0],
+        surprise: [0, 0, 0],
+        fear: [0, 50, 0],
+        sadness: [0, 20, 30],
+        anger: [0, 0, 70],
+      },
       paths: [
         [0, 3, 3, 4, 4], // up, wait, right, wait
         [2, 1, 0, 0, 0], // left twice, then stands
@@ -58,6 +69,16 @@ const FIXTURE: ReplayRun = {
       events: [],
       perception: [50, 50, 50],
       interest: [10, 80, 30],
+      // Trusting, surprised, calm.
+      emotions: {
+        calm: [45, 30, 100],
+        joy: [0, 30, 0],
+        trust: [55, 0, 0],
+        surprise: [0, 40, 0],
+        fear: [0, 0, 0],
+        sadness: [0, 0, 0],
+        anger: [0, 0, 0],
+      },
       paths: [
         [4, 4, 4, 4, 4], // stands the whole round
         [0, 1, 1, 1, 1],
@@ -243,15 +264,24 @@ describe("headingAt", () => {
   });
 });
 
-describe("moodAt", () => {
-  test("uses the town's starting scores until round 0 is done", () => {
-    for (let b = 0; b < BLOBS; b++) {
-      const { perception, interest } = FIXTURE.town.blobs[b];
-      assert.equal(moodAt(FIXTURE, b, 0), moodFor(perception, interest));
-    }
+describe("emotionsAt", () => {
+  test("is the town's starting mix until round 0 is done", () => {
+    for (let b = 0; b < BLOBS; b++) assert.deepEqual(emotionsAt(FIXTURE, b, 0), CALM);
   });
 
-  test("then the scores after the last round that is done", () => {
+  test("then one blob's shares from the last round that is done", () => {
+    assert.deepEqual(emotionsAt(FIXTURE, 2, 1), { ...CALM, calm: 0, sadness: 30, anger: 70 });
+    assert.deepEqual(emotionsAt(FIXTURE, 1, 2), { ...CALM, calm: 30, joy: 30, surprise: 40 });
+    assert.deepEqual(emotionsAt(FIXTURE, 1, 99), emotionsAt(FIXTURE, 1, 2));
+  });
+});
+
+describe("moodAt", () => {
+  test("is calm until round 0 is done", () => {
+    for (let b = 0; b < BLOBS; b++) assert.equal(moodAt(FIXTURE, b, 0), "flat");
+  });
+
+  test("then wears the biggest emotion after the last round that is done", () => {
     assert.deepEqual(
       [0, 1, 2].map((b) => moodAt(FIXTURE, b, 1)),
       ["smile", "worried", "angry"],

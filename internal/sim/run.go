@@ -29,7 +29,7 @@ const (
 	CredFloor       = 0.30
 )
 
-// ship applies MODEL.md#shipping for one story.
+// ship applies MODEL.md#shipping for one story, and how it feels (MODEL.md#emotions).
 func (s *State) ship(claimed, delivered float64) {
 	for i := range s.blobs {
 		b := &s.blobs[i]
@@ -44,6 +44,7 @@ func (s *State) ship(claimed, delivered float64) {
 		}
 		b.perception = clampScore(b.perception + w*GapPerception*loss*gap)
 		b.interest = clampScore(b.interest + ShipInterest*(delivered-b.interest))
+		blend(&b.feel, shipFeelings(gap), w*math.Min(ShipFeelCap, ShipFeelPerPoint*math.Abs(gap)))
 	}
 	if claimed-delivered > BrokenThreshold {
 		s.Broken++

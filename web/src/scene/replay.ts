@@ -7,8 +7,8 @@
 // ends. Between two ticks a blob moves in a straight line at constant speed, exactly as the
 // planner assumed when it kept every pair of blobs 1.2 apart (docs/engine/PIBT.md). Easing one
 // blob differently from another breaks that guarantee on screen: the tests catch it.
-import type { Blob, Round, RunLog } from "../generated/types.ts";
-import { type Mood, moodFor } from "./blobMood.ts";
+import type { Blob, Emotions, Round, RunLog } from "../generated/types.ts";
+import { EMOTIONS, type Mood, moodForEmotions } from "./blobMood.ts";
 
 /** Seconds per tick at 1× speed: a 1.8 step at 3 units a second, a full stride in blobMotion. */
 export const TICK_SECONDS = 0.6;
@@ -19,8 +19,8 @@ export const TICK_SECONDS = 0.6;
  * paths[b][k] is blob b's node after k ticks of the round's walk (k = 0 is where it starts).
  */
 export type ReplayRun = Pick<RunLog, "map" | "start"> & {
-  town: { blobs: Pick<Blob, "perception" | "interest">[] };
-  rounds: Pick<Round, "events" | "perception" | "interest" | "paths">[];
+  town: { blobs: Pick<Blob, "perception" | "interest" | "emotions">[] };
+  rounds: Pick<Round, "events" | "perception" | "interest" | "emotions" | "paths">[];
 };
 
 /** Where a point is on the ground. */
@@ -111,15 +111,19 @@ export function headingAt(run: ReplayRun, b: number, t: number): number | null {
 }
 
 /**
- * Blob `b`'s mood once `done` rounds are done (roundsDone): from the town's starting scores
- * before round 0 is done, and from the scores after the last round that is done after that. A
- * round's scores show as its walk ends, which is when its social step happens in the sim.
+ * Blob `b`'s emotion mix, in whole percent, once `done` rounds are done (roundsDone): the town's
+ * starting mix before round 0 is done, and the mix after the last round that is done after that. A
+ * round's emotions show as its walk ends, which is when its social step happens in the sim.
  */
+export function emotionsAt(run: ReplayRun, b: number, done: number): Emotions {
+  if (done <= 0 || run.rounds.length === 0) return run.town.blobs[b].emotions;
+  const logged = run.rounds[Math.min(done, run.rounds.length) - 1].emotions;
+  const out = {} as Emotions;
+  for (const emotion of EMOTIONS) out[emotion] = logged[emotion][b];
+  return out;
+}
+
+/** Blob `b`'s mood once `done` rounds are done: the biggest share of its emotion mix then. */
 export function moodAt(run: ReplayRun, b: number, done: number): Mood {
-  if (done <= 0) {
-    const { perception, interest } = run.town.blobs[b];
-    return moodFor(perception, interest);
-  }
-  const round = run.rounds[Math.min(done, run.rounds.length) - 1];
-  return moodFor(round.perception[b], round.interest[b]);
+  return moodForEmotions(emotionsAt(run, b, done));
 }

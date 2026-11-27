@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import type { RunLog } from "../generated/types.ts";
-import { moodFor } from "../scene/blobMood.ts";
+import { moodForEmotions } from "../scene/blobMood.ts";
 import { CITY_SOURCE, cityCatalog, EMPTY_CITY_CATALOG } from "./cityProfiles.ts";
 
 const GOLDEN = JSON.parse(
@@ -34,7 +34,8 @@ describe("cityCatalog", () => {
       assert.deepEqual(profile.traits, blob.traits);
       assert.equal(profile.perception, blob.perception);
       assert.equal(profile.interest, blob.interest);
-      assert.equal(profile.mood, moodFor(blob.perception, blob.interest));
+      assert.deepEqual(profile.emotions, blob.emotions);
+      assert.equal(profile.mood, moodForEmotions(blob.emotions));
       assert.equal(profile.group, "city");
     }
   });

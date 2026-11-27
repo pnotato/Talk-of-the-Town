@@ -1,7 +1,7 @@
 // The city's blob catalog for the inspector: the run's own residents, with their live activity and
 // scores reported by the replay. Nothing is authored here; every field comes from the RunLog.
 import type { RunLog } from "../generated/types.ts";
-import { moodFor } from "../scene/blobMood.ts";
+import { moodForEmotions } from "../scene/blobMood.ts";
 import { type BlobCatalog, type BlobProfile, GROUP_TITLES } from "./blobProfiles.ts";
 
 export const CITY_SOURCE = "Simulated run";
@@ -19,9 +19,9 @@ export const EMPTY_CITY_CATALOG: BlobCatalog = {
 };
 
 /**
- * Builds the inspector's catalog from `run`. Scores start at the town's starting values; the
- * replay reports each blob's live scores and mood as the rounds play (see scene/cityActivity.ts),
- * and the card prefers those over these starting values.
+ * Builds the inspector's catalog from `run`. Scores and emotions start at the town's starting
+ * values; the replay reports each blob's live scores, emotions and mood as the rounds play (see
+ * scene/cityActivity.ts), and the card prefers those over these starting values.
  */
 export function cityCatalog(run: RunLog): BlobCatalog {
   const parents = new Map<number, number[]>();
@@ -43,7 +43,8 @@ export function cityCatalog(run: RunLog): BlobCatalog {
     traits: blob.traits,
     perception: blob.perception,
     interest: blob.interest,
-    mood: moodFor(blob.perception, blob.interest),
+    emotions: blob.emotions,
+    mood: moodForEmotions(blob.emotions),
     group: "city",
     place: "City",
     parentIds: parents.get(blob.id) ?? [],
